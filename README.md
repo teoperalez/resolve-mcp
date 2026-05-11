@@ -35,7 +35,7 @@ No addon or plugin is needed inside Resolve. The MCP server talks directly to Re
 | Python 3.10+ | [python.org](https://www.python.org/downloads/) |
 | uv | Package manager — see install below |
 | ffmpeg | Required for transcription chunking. `winget install Gyan.FFmpeg` |
-| CUDA GPU (optional) | faster-whisper uses it automatically; falls back to CPU if unavailable |
+| CUDA GPU (optional) | faster-whisper uses it automatically; falls back to CPU if unavailable. RTX 2060 or better recommended. |
 
 **Install uv (Windows):**
 ```powershell
@@ -63,6 +63,18 @@ uv sync --extra transcription
 This creates `.venv\` and installs everything: `mcp`, `faster-whisper`, `pywin32`, `Pillow`, `onnxruntime`, and all transitive deps.
 
 > **Note:** `onnxruntime` is pinned to `<1.21.0` in `pyproject.toml` because versions 1.21+ dropped Python 3.10 wheels. This is handled automatically.
+
+### 2b. Install CUDA libraries for GPU transcription (Windows only)
+
+Windows does not ship CUDA DLLs. CTranslate2 (the faster-whisper backend) needs `nvidia-cublas-cu12` and `nvidia-cudnn-cu12` to run on GPU — without them the model loads but crashes mid-inference with a CUDA runtime error and falls back to CPU (very slow).
+
+```powershell
+uv sync --extra transcription --extra cuda-win
+```
+
+> **This step is not needed on Linux** — CUDA is bundled in the PyPI wheels there.
+>
+> Without this, `medium.en` on CPU takes ~1.5–3h for a 45-minute file. With a GPU (RTX 2060+) it takes ~8–12 minutes.
 
 ### 3. Enable scripting in DaVinci Resolve
 

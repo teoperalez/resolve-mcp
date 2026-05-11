@@ -12,6 +12,7 @@ This MCP server lets Claude control DaVinci Resolve Studio directly via its Pyth
   - `fusionscript.dll` → `C:\Program Files\Blackmagic Design\DaVinci Resolve\`
   - Scripting Modules → `C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting\Modules\`
 - **Transcription backend:** `faster-whisper` (CUDA GPU preferred, CPU fallback)
+- **CUDA DLLs (Windows):** `nvidia-cublas-cu12` and `nvidia-cudnn-cu12` must be installed — Windows does not bundle these. Run once after setup: `uv sync --extra transcription --extra cuda-win`
 
 ---
 
@@ -269,6 +270,7 @@ Always confirm the output path with the user before queuing a render. Render fil
 | `Index out of range` | Clip/track index doesn't exist | Call `get_timeline_items` first to see what exists |
 | `Failed to import DaVinciResolveScript` | Wrong fusionscript.dll path | Set `RESOLVE_SCRIPT_LIB` env var manually |
 | `ffprobe/ffmpeg not found` | ffmpeg not installed or not on PATH | `winget install Gyan.FFmpeg`, then restart the terminal |
+| GPU runtime failure mid-transcription | CUDA DLLs missing from venv (Windows-only) | `.venv\Scripts\pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` |
 
 ---
 
