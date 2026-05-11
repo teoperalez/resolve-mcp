@@ -104,6 +104,62 @@ With Resolve open and a project loaded:
 
 ---
 
+## Editing Scripts
+
+Ready-to-run Python scripts for common editing operations. Each script is self-contained — no external environment setup needed. Run them with the project venv's Python.
+
+**Python executable:** `C:\Programming\resolve-mcp\.venv\Scripts\python.exe`
+
+> **Requirement:** DaVinci Resolve must be open with a project and timeline loaded.
+> **Python version:** The venv must use Python 3.13 (matches the `fusionscript.dll` Resolve 21 ships with). If you see a segfault on import, recreate the venv: `py -3.13 -m venv .venv && .venv\Scripts\pip install -e .`
+
+### `scripts/clear_audio_tracks.py`
+
+Deletes all clips from audio tracks START through END. Not a ripple delete — gaps remain.
+
+```cmd
+.venv\Scripts\python.exe scripts\clear_audio_tracks.py          # clears A2–A5 (default)
+.venv\Scripts\python.exe scripts\clear_audio_tracks.py 3 6      # clears A3–A6
+```
+
+### `scripts/remove_short_clips.py`
+
+Ripple deletes clips shorter than N frames from V1 and A1 simultaneously.
+
+```cmd
+.venv\Scripts\python.exe scripts\remove_short_clips.py          # removes clips < 5 frames (default)
+.venv\Scripts\python.exe scripts\remove_short_clips.py 10       # removes clips < 10 frames
+```
+
+### `scripts/battle_workflow.py` (+ `transcribe_audio.py`, `detect_battles.py`, `insert_battle_gaps.py`)
+
+Full pipeline for Pokémon stream editing: transcribes A1 audio → Claude Code identifies first-time trainer battles → inserts 1-second (60-frame) gaps of source footage at each battle start.
+
+```cmd
+rem Full pipeline
+.venv\Scripts\python.exe scripts\battle_workflow.py [--dry-run]
+
+rem Individual steps
+.venv\Scripts\python.exe scripts\transcribe_audio.py [--model medium.en]
+.venv\Scripts\python.exe scripts\detect_battles.py transcripts/4.json
+.venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts/battles.json [--gap-frames 60] [--dry-run]
+```
+
+**Relay mode:** `detect_battles.py` uses the same relay pattern as IRLPC Hyperframes — it writes a prompt to `plans/prompts/battle-detect-<stem>.in.md` and waits (up to 10 min) for Claude Code to write the JSON response to the corresponding `.out.md`. No Anthropic API key needed; Claude Code running in the conversation IS the LLM.
+
+### `scripts/mark_audio_gaps.py`
+
+Finds gaps in A1 longer than N frames and places red markers at the **end of each gap** on the timeline ruler and the corresponding V1 clip.
+
+```cmd
+.venv\Scripts\python.exe scripts\mark_audio_gaps.py             # marks gaps > 5 frames (default)
+.venv\Scripts\python.exe scripts\mark_audio_gaps.py 30          # marks gaps > 30 frames
+```
+
+**Marker note:** `TimelineItem.AddMarker()` requires an **absolute source frame** (`clip.GetLeftOffset() + timeline_offset`), not a clip-relative offset. Using a plain timeline offset places the marker before the clip's in-point and it will be invisible. The scripts handle this correctly.
+
+---
+
 ## Usage
 
 All 52 tools work on Windows. Below are example prompts for each category.

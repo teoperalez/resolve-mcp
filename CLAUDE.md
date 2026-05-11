@@ -84,6 +84,89 @@ When in doubt, call `get_current_page` before a page-specific tool, and `open_pa
 
 ---
 
+## Common editing operations (ready-to-run scripts)
+
+These scripts live in `scripts/` and are self-contained — they set their own environment, so no PYTHONPATH export is needed. Run them with the project venv's Python:
+
+```
+PYTHON = C:\Programming\resolve-mcp\.venv\Scripts\python.exe
+```
+
+### Clear audio tracks
+
+Deletes all clips from audio tracks START through END (default A2–A5). Not a ripple delete — gaps stay.
+
+```bash
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\clear_audio_tracks.py [start=2] [end=5]"
+```
+
+### Ripple delete short clips
+
+Ripple deletes clips shorter than N frames from **V1 and A1** (default: < 5 frames). Both tracks are processed together so linked clips delete as a pair.
+
+```bash
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\remove_short_clips.py [min_frames=5]"
+```
+
+### Mark audio gaps
+
+Finds gaps in **A1** longer than N frames (default: > 5 frames) and places red markers at the **end of each gap** on:
+- The timeline ruler
+- The V1 clip at that position
+
+```bash
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_audio_gaps.py [min_gap_frames=5]"
+```
+
+---
+
+### Critical: marker frameId convention for TimelineItem
+
+`TimelineItem.AddMarker(frameId, ...)` uses the **absolute source frame**, NOT a timeline-relative offset.
+
+```python
+# CORRECT — visible on the clip
+src_frame = clip.GetLeftOffset() + (gap_end - clip.GetStart())
+clip.AddMarker(src_frame, color, name, note, duration, customData)
+
+# WRONG — marker lands before the clip's in-point, invisible
+clip.AddMarker(gap_end - clip.GetStart(), ...)  # do NOT do this
+```
+
+`GetMarkers()` also returns keys as absolute source frames.
+
+`MediaPoolItem.AddMarker()` (source clip in media pool) uses the same source frame convention but shows in the bin, NOT on cut-up timeline items. Always use `TimelineItem.AddMarker` with source frames for timeline visibility.
+
+### Battle gap insertion workflow
+
+Detects first-time trainer battle starts via transcription + LLM relay, then inserts 1 second (60 frames) of source footage at each position.
+
+**Three scripts, or run the combined pipeline:**
+
+```bash
+# Full pipeline
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\battle_workflow.py [--dry-run]"
+
+# Or step by step:
+# 1. Transcribe A1 audio source
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\transcribe_audio.py"
+# 2. Detect battles (relay — see below)
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\detect_battles.py transcripts/4.json"
+# 3. Insert gaps
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\insert_battle_gaps.py transcripts/battles.json"
+```
+
+**Relay mode (Step 2):** `detect_battles.py` writes a prompt to `plans/prompts/battle-detect-<stem>.in.md` and polls for `plans/prompts/battle-detect-<stem>.out.md`. Claude Code must:
+1. Read the `.in.md` file
+2. Analyze the transcript (identify first-time trainer battle starts, output JSON)
+3. Write ONLY the JSON array to the `.out.md` file — no markdown fences, no explanation
+
+The script auto-detects the `.out.md` and continues. Timeout: 10 minutes.
+
+**Gap insertion note:** `insert_battle_gaps.py` extends the V1 clip's out-point using `AppendToTimeline` with source frames. If a clip has fewer than 60 frames of tail trim (handle), it places an orange "Battle" marker instead and skips the extension. Always do a `--dry-run` first.
+
+---
+
 ## The escape hatch: `execute_resolve_code`
 
 When no specific tool covers what you need, use `execute_resolve_code`. The following objects are pre-loaded in the execution namespace:
