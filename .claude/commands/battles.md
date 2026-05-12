@@ -18,7 +18,7 @@ All commands MUST be run from C:\Programming\resolve-mcp (use `cd /d` prefix).
 
 Run via Bash tool:
 ```
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\transcribe_audio.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\transcribe_audio.py --model large-v3-turbo"
 ```
 
 Wait for it to complete. It writes to `transcripts\<stem>.json` inside the project.

@@ -47,15 +47,27 @@ def build_a1_map(tl):
     return entries, fps
 
 
-def timestamp_to_timeline_frame(timestamp_sec: float, a1_map: list, fps: float) -> int | None:
+def timestamp_to_timeline_frame(timestamp_sec: float, a1_map: list, fps: float,
+                                snap_tol: float = 0.5) -> int | None:
     """
     Convert an audio file timestamp (seconds) to a timeline frame by finding
     the A1 clip whose source range contains that timestamp.
+
+    If the timestamp falls within snap_tol seconds *before* a clip's source
+    start, snap to that clip's timeline start (handles Whisper timestamps that
+    land slightly before the edit cut point).
     """
+    # Exact match first
     for tl_start, tl_end, src_start, src_end, clip in a1_map:
         if src_start <= timestamp_sec <= src_end:
             offset_frames = round((timestamp_sec - src_start) * fps)
             return tl_start + offset_frames
+
+    # Snap-forward: timestamp is just before a clip's source start
+    for tl_start, tl_end, src_start, src_end, clip in a1_map:
+        if src_start - snap_tol <= timestamp_sec < src_start:
+            return tl_start  # snap to the clip's timeline start
+
     return None
 
 

@@ -20,7 +20,7 @@ Wait for completion. Report clips removed.
 
 **2a. Transcribe A1 audio:**
 ```
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\transcribe_audio.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\transcribe_audio.py --model large-v3-turbo"
 ```
 Wait for completion. Note the stem (filename without .json) in `transcripts\`.
 

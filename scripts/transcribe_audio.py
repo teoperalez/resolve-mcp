@@ -60,13 +60,17 @@ def get_audio_source_path() -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model',        default='medium.en')
+    parser.add_argument('--model',        default='large-v3-turbo')
     parser.add_argument('--out',          default='transcripts', type=Path)
     parser.add_argument('--device',       default='cuda')
     parser.add_argument('--compute-type', default='float16')
     parser.add_argument('--language',     default='en')
     parser.add_argument('--audio',        default=None, type=Path,
                         help='Override audio file path (default: auto-detect from Resolve A1)')
+    parser.add_argument('--vad', action='store_true', default=True,
+                        help='Enable VAD filter to skip non-speech (default: on)')
+    parser.add_argument('--no-vad', dest='vad', action='store_false',
+                        help='Disable VAD filter')
     args = parser.parse_args()
 
     audio_path = args.audio if args.audio else get_audio_source_path()
@@ -97,8 +101,9 @@ def main() -> int:
             str(audio_path),
             language=args.language,
             word_timestamps=True,
-            vad_filter=False,
+            vad_filter=args.vad,
             beam_size=5,
+            condition_on_previous_text=False,  # prevents "." repetition loop on game audio
         )
 
     print(f'Transcribing...', flush=True)
