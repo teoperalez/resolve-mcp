@@ -125,6 +125,10 @@ def main() -> int:
         if target_clip is None:
             print(f'  {ts:.2f}s  {name}: *** no V1 clip at frame {tl_frame} — marking only')
             if not args.dry_run:
+                # TODO: tl.AddMarker takes a frame RELATIVE to timeline start,
+                # but tl_frame is absolute (from c.GetStart()). Same off-by-1-hour
+                # bug confirmed in mark_battle_ends.py — verify here. Fix: pass
+                # tl_frame - tl.GetStartFrame().
                 tl.AddMarker(tl_frame, 'Orange', f'Battle: {name}', desc, 1, '')
             results.append({'battle': battle, 'tl_frame': tl_frame, 'status': 'marker_only',
                             'reason': 'no V1 clip at position'})
@@ -162,6 +166,8 @@ def main() -> int:
             }])
 
             # Also add orange timeline marker at the battle start
+            # TODO: same potential off-by-1-hour as above — tl_frame is absolute
+            # but tl.AddMarker likely expects relative-to-start.
             tl.AddMarker(tl_frame, 'Orange', f'Battle: {name}', desc, 1, '')
 
             results.append({'battle': battle, 'tl_frame': tl_frame,

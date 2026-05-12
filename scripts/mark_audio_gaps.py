@@ -52,6 +52,10 @@ for gap_end, size in gaps:
     note  = f'Audio gap: {size} frames ({size / fps:.2f}s)'
 
     # 1. Timeline ruler marker
+    # TODO: gap_end is an absolute internal frame (from clip.GetStart()), but
+    # tl.AddMarker takes a frame RELATIVE to timeline start. Confirmed off-by-
+    # 1-hour bug in mark_battle_ends.py with this same pattern. Verify and, if
+    # needed, pass gap_end - tl.GetStartFrame() instead.
     tl_ok = tl.AddMarker(gap_end, 'Red', label, note, 1, '')
 
     # 2. V1 clip marker using absolute source frame

@@ -129,9 +129,11 @@ cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\r
 
 ---
 
-### Critical: marker frameId convention for TimelineItem
+### Critical: marker frameId conventions
 
-`TimelineItem.AddMarker(frameId, ...)` uses the **absolute source frame**, NOT a timeline-relative offset.
+There are **two `AddMarker` calls with different frame conventions** — mixing them up has bitten this codebase repeatedly.
+
+**`TimelineItem.AddMarker(frameId, ...)`** (clip-level marker) — `frameId` is the **absolute source frame**.
 
 ```python
 # CORRECT — visible on the clip
@@ -139,12 +141,44 @@ src_frame = clip.GetLeftOffset() + (gap_end - clip.GetStart())
 clip.AddMarker(src_frame, color, name, note, duration, customData)
 
 # WRONG — marker lands before the clip's in-point, invisible
-clip.AddMarker(gap_end - clip.GetStart(), ...)  # do NOT do this
+clip.AddMarker(gap_end - clip.GetStart(), ...)
 ```
 
-`GetMarkers()` also returns keys as absolute source frames.
+**`Timeline.AddMarker(frameId, ...)`** (ruler-level marker) — `frameId` is **relative to timeline start**, NOT the absolute internal frame.
 
-`MediaPoolItem.AddMarker()` (source clip in media pool) uses the same source frame convention but shows in the bin, NOT on cut-up timeline items. Always use `TimelineItem.AddMarker` with source frames for timeline visibility.
+```python
+# CORRECT
+abs_frame = clip.GetStart() + offset      # e.g. 230486 (absolute internal)
+rel_frame = abs_frame - timeline.GetStartFrame()
+timeline.AddMarker(rel_frame, 'Green', name, note, 1)
+
+# WRONG — marker lands 1 hour past target
+# (default timelines start at 01:00:00:00 = frame 216000 @ 60fps;
+#  passing the absolute frame double-counts that offset)
+timeline.AddMarker(abs_frame, 'Green', name, note, 1)
+```
+
+`Timeline.GetMarkers()` also returns keys as **relative-to-start** frames, so the round-trip stays consistent if you stay in relative space.
+
+`MediaPoolItem.AddMarker()` (source clip in media pool) uses the source-frame convention but shows in the bin, NOT on cut-up timeline items. Always use `TimelineItem.AddMarker` with source frames for timeline visibility.
+
+`refine_battle_ends.py` and the updated `mark_battle_ends.py` use the relative-frame fix. `insert_battle_gaps.py` and `mark_audio_gaps.py` have TODOs flagging the same likely bug — verify before trusting their ruler-marker positions.
+
+### Refine battle end markers (precision second pass)
+
+After `mark_battle_ends.py` places rough markers (frames sampled every ~10s across the whole battle window), `refine_battle_ends.py` does a tight ±5s @ 0.25s pass around each estimate (~41 frames per battle) and refines via a parallel subagent per battle.
+
+```bash
+# Full run: dense extract → relay → replace markers
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\refine_battle_ends.py"
+
+# Reuse existing refine .out.md without re-extracting frames or re-relaying
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\refine_battle_ends.py --skip-relay"
+```
+
+**Relay (Claude's job):** read `plans/prompts/battle-ends-refine-<stem>.in.md`, then dispatch **one Haiku subagent per battle in parallel** — each gets that battle's ~41 frame paths and a single-decision instruction (find the first frame where the post-battle Crystal stats overlay appears for WINs, or the first non-battle frame for GAVE_UPs). Each subagent returns one JSON object; concatenate into an array and write to the `.out.md`. The script then clears existing green markers and replaces them with refined ones.
+
+Typical drift after refinement: wins land within ±0.5s; gave_ups within ±2s (no clean defeat flourish to lock onto).
 
 ### Asset import + intro/outro insertion (`/import` skill)
 

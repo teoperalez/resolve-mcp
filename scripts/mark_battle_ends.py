@@ -174,21 +174,56 @@ def poll(out_path: Path, timeout_sec: int) -> list:
     raise TimeoutError(f'No relay response after {timeout_sec}s')
 
 
-def source_sec_to_tl_frame(source_sec: float, fps: float,
-                            v1_clips: list) -> int | None:
-    sf = int(source_sec * fps)
-    for clip in v1_clips:
-        src_start = clip.GetLeftOffset()
-        src_end   = src_start + clip.GetDuration()
-        if src_start <= sf < src_end:
-            return clip.GetStart() + (sf - src_start)
+def build_v1_source_map(v1_clips, fps):
+    """For each V1 clip: (tl_start, tl_end, src_start_sec, src_end_sec, clip).
+
+    Mirrors build_a1_map() in insert_battle_gaps.py — works in source seconds so
+    matching is robust to cuts and any (small) source/timeline fps drift.
+    Assumes source_fps == timeline_fps, consistent with the rest of the codebase.
+    """
+    entries = []
+    for c in v1_clips:
+        tl_start  = c.GetStart()
+        tl_end    = tl_start + c.GetDuration()
+        src_start = c.GetLeftOffset() / fps
+        src_end   = (c.GetLeftOffset() + c.GetDuration()) / fps
+        entries.append((tl_start, tl_end, src_start, src_end, c))
+    return entries
+
+
+def source_sec_to_tl_frame(source_sec: float, fps: float, v1_map,
+                            snap_tol_sec: float = 0.5) -> int | None:
+    """Convert a source-file second to a timeline frame by finding the V1 clip
+    whose source range contains source_sec. Snap-forward/backward by up to
+    snap_tol_sec when the timestamp lands just outside an adjacent clip's range
+    (e.g., Whisper end times that round slightly past a cut)."""
+    # Exact match — source_sec is inside a V1 clip's source range
+    for tl_start, _tl_end, src_start, src_end, _ in v1_map:
+        if src_start <= source_sec <= src_end:
+            return tl_start + round((source_sec - src_start) * fps)
+
+    # Snap-forward — source_sec is just before a clip's source start
+    for tl_start, _tl_end, src_start, _src_end, _ in v1_map:
+        if src_start - snap_tol_sec <= source_sec < src_start:
+            return tl_start
+
+    # Snap-backward — source_sec is just past a clip's source end
+    for _tl_start, tl_end, _src_start, src_end, _ in v1_map:
+        if src_end < source_sec <= src_end + snap_tol_sec:
+            return tl_end - 1
+
     return None
 
 
 def place_markers(results: list[dict], timeline, fps: float,
-                  v1_clips: list, dry_run: bool) -> int:
+                  v1_map, dry_run: bool) -> int:
     placed = 0
     result_labels = {'win': 'Win', 'loss': 'Loss', 'gave_up': 'Gave Up'}
+
+    # tl.AddMarker takes a frame RELATIVE to timeline start, not an absolute
+    # internal frame. v1_map's tl_start/tl_end are absolute (from clip.GetStart),
+    # so subtract the timeline's start frame when calling AddMarker.
+    tl_start_frame = timeline.GetStartFrame()
 
     for r in results:
         end_sec = r.get('end_sec')
@@ -200,16 +235,20 @@ def place_markers(results: list[dict], timeline, fps: float,
         name       = f'{r["trainer_name"]} Battle End ({result_str})'
         notes      = r.get('notes', '')
 
-        tl_frame = source_sec_to_tl_frame(end_sec, fps, v1_clips)
+        tl_frame = source_sec_to_tl_frame(end_sec, fps, v1_map)
         if tl_frame is None:
-            tl_frame = timeline.GetStartFrame() + int(end_sec * fps)
-            print(f'  APPROX  [{end_sec:.1f}s]  {name}')
-        else:
-            print(f'  {"DRY " if dry_run else ""}Marker  '
-                  f'[{end_sec:.1f}s → frame {tl_frame}]  {name}  {notes}')
+            # No V1 clip covers this source second — the editor cut this region.
+            # Skip rather than placing a wildly-off marker via the old fallback.
+            print(f'  SKIP  [{end_sec:.1f}s]  {name}: source second is in a '
+                  f'cut region (no V1 clip covers it)')
+            continue
+
+        rel_frame = tl_frame - tl_start_frame
+        print(f'  {"DRY " if dry_run else ""}Marker  '
+              f'[{end_sec:.1f}s → frame {tl_frame} (rel {rel_frame})]  {name}  {notes}')
 
         if not dry_run:
-            ok = timeline.AddMarker(tl_frame, 'Green', name, notes, 1)
+            ok = timeline.AddMarker(rel_frame, 'Green', name, notes, 1)
             if ok:
                 placed += 1
             else:
@@ -250,18 +289,21 @@ def main() -> int:
         print('ERROR: No clips on V1.', file=sys.stderr)
         return 1
 
-    # Find gameplay source file by matching first battle timestamp
+    v1_map = build_v1_source_map(v1_clips, fps)
+
+    # Find gameplay source file by matching first battle timestamp via the
+    # source-seconds map (same approach used for marker placement below).
     source_path = None
     if battles:
-        target_sf = int(battles[0]['timestamp_sec'] * fps)
-        for clip in v1_clips:
-            s, e = clip.GetLeftOffset(), clip.GetLeftOffset() + clip.GetDuration()
-            if s <= target_sf < e:
+        target_sec = battles[0]['timestamp_sec']
+        for _tl_s, _tl_e, src_start, src_end, clip in v1_map:
+            if src_start <= target_sec <= src_end:
                 source_path = clip.GetMediaPoolItem().GetClipProperty('File Path')
                 if source_path:
                     break
     if not source_path:
-        clip = max(v1_clips, key=lambda c: c.GetLeftOffset() + c.GetDuration())
+        # Last-resort: longest V1 clip's underlying source
+        clip = max(v1_clips, key=lambda c: c.GetDuration())
         source_path = clip.GetMediaPoolItem().GetClipProperty('File Path') or ''
     if not source_path:
         print('ERROR: Could not identify gameplay source file.', file=sys.stderr)
@@ -312,7 +354,7 @@ def main() -> int:
             return 1
 
     print(f'\nReceived {len(results)} result(s).')
-    placed = place_markers(results, timeline, fps, v1_clips, dry_run=args.dry_run)
+    placed = place_markers(results, timeline, fps, v1_map, dry_run=args.dry_run)
     action = 'Would place' if args.dry_run else 'Placed'
     print(f'{action} {placed}/{len(results)} battle end markers.')
     return 0

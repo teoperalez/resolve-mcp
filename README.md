@@ -268,6 +268,27 @@ rem Preview marker positions without placing them
 
 **Relay:** Claude (in the active conversation) must read the `.in.md`, reason contextually about the transcript and frame images, and write ONLY a raw JSON array to the `.out.md`. Timeout: 10 minutes.
 
+**Marker frame convention:** `Timeline.AddMarker(frameId, ...)` expects `frameId` **relative to timeline start**, NOT the absolute internal frame. With a default 01:00:00:00 start at 60fps, passing an absolute frame (e.g. `clip.GetStart()`) places the marker 1 hour past the intended position. The script subtracts `timeline.GetStartFrame()` before calling `AddMarker` — copy this when adding new ruler markers.
+
+### `scripts/refine_battle_ends.py`
+
+Second-pass refinement that pinpoints the precise end frame of each battle using dense sampling + parallel per-battle subagents. Run AFTER `mark_battle_ends.py` has placed initial markers.
+
+```cmd
+rem Full run: dense extract → relay → replace markers
+.venv\Scripts\python.exe scripts\refine_battle_ends.py
+
+rem Reuse existing refine .out.md (skip frame extraction + relay)
+.venv\Scripts\python.exe scripts\refine_battle_ends.py --skip-relay
+
+rem Preview without modifying Resolve
+.venv\Scripts\python.exe scripts\refine_battle_ends.py --dry-run
+```
+
+**How it works:** Loads the initial estimates from `battle-ends-<stem>.out.md`, extracts ~41 frames at 0.25s steps in a ±5s window around each estimate (~246 frames for 6 battles), writes a refinement prompt to `plans/prompts/battle-ends-refine-<stem>.in.md`. In the relay, Claude spawns one Haiku subagent per battle in parallel — each one Reads every frame in its list and identifies the exact transition (post-battle Crystal stats overlay appearing for WINs, first non-battle frame for GAVE_UPs). Once the `.out.md` is written, the script clears existing green markers and places refined ones.
+
+**Typical drift after refinement:** wins land within ±0.5s of the true transition (frame-precise for clean wins); gave_ups are more approximate (no clean defeat flourish to lock onto).
+
 ---
 
 ## Usage
