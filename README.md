@@ -170,6 +170,35 @@ Finds gaps in A1 longer than N frames and places red markers at the **end of eac
 
 **Marker note:** `TimelineItem.AddMarker()` requires an **absolute source frame** (`clip.GetLeftOffset() + timeline_offset`), not a clip-relative offset. Using a plain timeline offset places the marker before the clip's in-point and it will be invisible. The scripts handle this correctly.
 
+### Asset import + intro/outro: `scripts/import_assets.py` + `scripts/insert_intro_outro.py`
+
+The `/import` slash command (`.claude/commands/import.md`) drives a full game-asset pipeline:
+
+1. **Detect game** from the most recent transcript in `transcripts/`
+2. **Validate asset paths** against `~/.resolve-mcp/manifest.json` (machine-local, not in git); prompt for any missing/invalid
+3. **Import assets** into a `"assets"` bin in the media pool
+4. **Build an edited timeline**: new timeline with intro prepended, all original clips shifted right by the intro's exact duration, outro video appended to V1, outro audio appended to A3
+
+```cmd
+rem Check which asset paths are needed / already valid
+.venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --check
+
+rem Set a missing path
+.venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --set-path intro "E:\GSC Assets\GSCPC Intro Short.mp4"
+
+rem Import into Resolve (--dry-run to preview)
+.venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import --dry-run
+.venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import
+
+rem Build edited timeline (--dry-run to preview shift amounts)
+.venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --dry-run
+.venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal
+```
+
+**Asset catalog** (`assets/catalog.json`, committed to git) defines which asset slots each game needs and which `asset_group` key it uses in the manifest. Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
+
+**fps note:** `insert_intro_outro.py` omits `startFrame`/`endFrame` for asset clips so Resolve places them at their natural duration, then reads back `item.GetDuration()` (timeline frames) for the shift — this correctly handles source clips whose fps differs from the timeline fps.
+
 ---
 
 ## Usage

@@ -138,6 +138,33 @@ clip.AddMarker(gap_end - clip.GetStart(), ...)  # do NOT do this
 
 `MediaPoolItem.AddMarker()` (source clip in media pool) uses the same source frame convention but shows in the bin, NOT on cut-up timeline items. Always use `TimelineItem.AddMarker` with source frames for timeline visibility.
 
+### Asset import + intro/outro insertion (`/import` skill)
+
+The `/import` skill (`.claude/commands/import.md`) runs a full import pipeline for game-specific assets:
+
+1. Detects game version from `transcripts/*.json` (most recent file, first ~3000 chars)
+2. Checks `~/.resolve-mcp/manifest.json` for asset paths; prompts user for any missing/invalid
+3. Imports assets into a `"assets"` bin in the media pool
+4. Builds a new timeline with intro prepended, all clips shifted right, outro appended
+
+Run the steps manually:
+```bash
+# Check manifest
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --check"
+
+# Import into assets bin
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --do-import"
+
+# Build edited timeline
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY"
+```
+
+Both scripts support `--dry-run`.
+
+**Asset catalog:** `assets/catalog.json` (committed to git) defines which asset slots each game needs.
+**Manifest:** `~/.resolve-mcp/manifest.json` (machine-local, not in git) stores actual file paths.
+**Asset groups:** Multiple games sharing the same generation assets use the same `asset_group` key (e.g., `pokemon_crystal` and `pokemon_gold_silver` both use the `gsc` group), so paths are set up once.
+
 ### Battle gap insertion workflow
 
 Detects first-time trainer battle starts via transcription + LLM relay, then inserts 1 second (60 frames) of source footage at each position.
@@ -271,6 +298,24 @@ Always confirm the output path with the user before queuing a render. Render fil
 | `Failed to import DaVinciResolveScript` | Wrong fusionscript.dll path | Set `RESOLVE_SCRIPT_LIB` env var manually |
 | `ffprobe/ffmpeg not found` | ffmpeg not installed or not on PATH | `winget install Gyan.FFmpeg`, then restart the terminal |
 | GPU runtime failure mid-transcription | CUDA DLLs missing from venv (Windows-only) | `.venv\Scripts\pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` |
+| `Failed to create new timeline` (insert_intro_outro) | A timeline with that name already exists | Script auto-generates a unique name; if error persists, delete stale `(edit)` timelines in Resolve |
+
+### `insert_intro_outro.py` — clips overlap the intro / intro is double-length
+
+**Root cause:** `AppendToTimeline` clipInfo `startFrame`/`endFrame` are **native clip frames**, and `GetClipProperty("Video Duration")` may return a native frame count, not timeline frames. On a 60fps timeline, a 30fps source clip occupies **2× as many timeline frames** as its native frame count.
+
+**Symptoms:**
+- Intro or outro clip appears stretched to double its expected length (adjusting handles restores correct length — this is the giveaway)
+- Gameplay clips start under the intro (overlap) because the shift amount was half what it should be
+
+**Fix applied in `insert_intro_outro.py`:**
+1. Intro and outro are placed **without `startFrame`/`endFrame`** — Resolve uses the full clip at its natural duration
+2. After placing the intro, the script reads back `intro_item.GetDuration()` — the actual timeline frame count with all fps conversion applied — and uses that for the shift
+3. `mpi_duration_frames()` reads native FPS via `GetClipProperty('FPS')` for accurate dry-run estimates
+
+**Rule of thumb for future scripts:** place the clip first, then call `item.GetDuration()` — it is always authoritative regardless of source fps. Do not compute shift distances from raw `GetClipProperty` values without fps conversion.
+
+**Also:** capture `orig_tl` and `orig_end = orig_tl.GetEndFrame()` **before** `pool.CreateEmptyTimeline()` — that call switches the current timeline to the new empty one.
 
 ---
 

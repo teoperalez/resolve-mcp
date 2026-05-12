@@ -69,7 +69,30 @@ Then do the real import:
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --do-import"
 ```
 
+## Step 5 — Build edited timeline (intro + shift + outro)
+
+Dry-run first to preview the layout:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY --dry-run"
+```
+
+Then build the new timeline:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY"
+```
+
+This creates a new timeline named `ORIGINAL_NAME (edit)` with:
+- Intro prepended at frame 0 (video only on V1)
+- All original clips shifted right by the intro's duration
+- Outro video appended to V1 after the last clip
+- Outro audio (prefer "w audio" variant) on A3 at the same position
+
+The original timeline is preserved intact.
+
 Report to the user:
 - Game detected
 - How many asset slots were imported and from which paths
 - Whether the "assets" bin was created or already existed
+- Name of the new edited timeline
