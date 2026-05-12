@@ -275,6 +275,20 @@ The script auto-detects the `.out.md` and continues. Timeout: 10 minutes.
 
 **Gap insertion note:** `insert_battle_gaps.py` extends the V1 clip's out-point using `AppendToTimeline` with source frames. If a clip has fewer than 60 frames of tail trim (handle), it places an orange "Battle" marker instead and skips the extension. Always do a `--dry-run` first.
 
+### Member Carousel detection + layout
+
+After the last Battle End marker, the video transitions into a "Member Carousel" / "Member Thank You" section where an overlay (Pokémon sprite at bottom-left + member name in yellow text + gym badge at bottom-right) cycles through patrons. Two scripts:
+
+**`find_member_carousel.py`** — locates the first V1 clip whose first frame shows the carousel overlay. Extracts first-frame + previous-clip's-last-frame for up to 30 candidates after the last green marker, writes a relay prompt. Claude dispatches a single Haiku subagent that classifies frames sequentially (Phase 1: find candidate with carousel; Phase 2: check previous clip's last frame). Places a yellow `Member Carousel Start` marker.
+
+**`layout_carousel.py`** — reshapes the carousel section so the overlay plays continuously while streamer cuts overlay above:
+- Copies all V1 clips between `Member Carousel Start` and the outro onto V2
+- Sets `CropBottom=530` on each V2 clip (V1's bottom strip — the carousel — shows through where V2 is cropped)
+- Deletes the original V1 clips in that range
+- Appends ONE extended V1 clip from carousel start to outro start, with source range continuing past the original V1 clip's out-point so the underlying source plays through without time cuts
+
+This relies on the gameplay source file having enough handle frames past the original V1 clip's end (typically true — original capture is 47+ min, edit timeline is 28 min). Always `--dry-run` first to verify the extended source range doesn't exceed the source file's length.
+
 ---
 
 ## The escape hatch: `execute_resolve_code`

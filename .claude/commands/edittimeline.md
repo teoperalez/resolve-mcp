@@ -168,19 +168,82 @@ Relay — YOU must complete this step:
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_intro_outro.py --game GAME_KEY"
 ```
 
-The script auto-reads `transcripts/min-battles.json`: intro plays at **100%** if `is_minimum_battles=true`, otherwise at **400%** (4x speed). Pass `--intro-speed 100|400` to override.
+The script auto-reads `transcripts/min-battles.json`: intro plays at **100%** if `is_minimum_battles=true`, otherwise at **400%** (4x speed) — retime is done via ffmpeg pre-render cached at `~/.resolve-mcp/cache/retimed-intros/`. Pass `--intro-speed 100|400` to override.
+
+After this step the new "(edit)" timeline is the active timeline. Note the name (e.g. `Brock Red Blue versus Crystl (edit) 3`) — all subsequent steps operate on it.
+
+---
+
+### Step 8 — Re-place + refine battle end markers on the new edit timeline
+
+The markers from Step 3 are on the SOURCE timeline. We need them on the new edit timeline too, mapped through the new (shifted) V1 layout.
+
+**8a. Re-place initial markers on the edit timeline (uses cached relay):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\mark_battle_ends.py --skip-relay"
+```
+This reuses the `battle-ends-<stem>.out.md` from Step 3 and remaps source-seconds → timeline frames through the new edit timeline's V1 clips.
+
+**8b. Refine to precise transition frames (parallel subagents, fresh relay):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\refine_battle_ends.py"
+```
+This extracts ~41 frames at 0.25s steps in a ±5s window around each rough estimate (~246 frames total for 6 battles) and writes `plans/prompts/battle-ends-refine-<stem>.in.md`.
+
+Relay — YOU must complete this step:
+- Poll until the `.in.md` appears.
+- Read it. For each battle, spawn ONE Haiku subagent (parallel, `model: "haiku"`) with that battle's dense frame list and the visual-pattern guidance from the prompt. Each subagent Reads its 41 frames and returns one JSON object with the precise `end_sec`.
+- Collect all six responses into a single JSON array and write to the corresponding `.out.md` (raw JSON, no fences).
+
+The script clears the existing green markers and replaces them with refined ones (typical drift after refinement: wins within ±0.5s, gave_ups within ±2s).
+
+### Step 9 — Find Member Carousel Start
+
+Locate the first V1 clip after the last Battle End that displays the "Member Carousel" overlay (Pokémon sprite at bottom-left + member name in yellow text + gym badge at bottom-right).
+
+**9a. Run find_member_carousel.py in the BACKGROUND:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\find_member_carousel.py"
+```
+The script extracts the first frame of each candidate clip (and the previous clip's last frame) for up to 30 clips after the last battle marker, then writes a relay prompt.
+
+**9b. Relay — YOU must complete this step:**
+- Poll until `plans/prompts/member-carousel-<edit-tl-stem>.in.md` appears.
+- Spawn ONE Haiku subagent (`model: "haiku"`) with the prompt. It scans candidate first-frames sequentially until it finds one with the carousel style, then checks the previous clip's last frame to decide whether the carousel actually started in the previous clip.
+- Haiku writes the JSON object directly to the corresponding `.out.md`.
+
+The script places a yellow `Member Carousel Start` marker at the chosen clip's start.
+
+### Step 10 — Layout the carousel section (V1 extend + V2 with bottom crop)
+
+Reshape the timeline so the carousel plays continuously underneath the streamer-action cuts.
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\layout_carousel.py"
+```
+
+This script:
+1. Copies all V1 clips between `Member Carousel Start` and the outro to V2.
+2. Sets `CropBottom=530` on each V2 clip (exposes the V1 layer's bottom strip).
+3. Deletes the original V1 clips in that range.
+4. Replaces them with ONE extended V1 clip that plays the source continuously from the carousel start to the outro's start frame.
+
+Pass `--crop-bottom N` to override the crop value, or `--dry-run` to preview without modifying the timeline.
 
 ---
 
 ## Final summary
 
-After all seven steps complete, print a summary table:
+After all ten steps complete, print a summary table:
 | Step | Result |
 |------|--------|
-| Clear audio tracks | N clips removed from A2–A5 |
-| Battle gaps | N battles found, N extended, N marker-only |
-| Battle end markers | N green markers placed |
-| Short clip removal | N clips ripple deleted |
-| Gap markers | N gaps marked |
-| Cut candidates | N orange (high confidence), N yellow (medium confidence) |
-| Import + edit timeline | Game detected, N shared files + N game files imported, edit timeline created |
+| 1. Clear audio tracks | N clips removed from A2–A5 |
+| 2. Battle gaps | N battles found, N extended, N marker-only |
+| 3. Battle end markers (rough) | N green markers placed |
+| 4. Short clip removal | N clips ripple deleted |
+| 5. Gap markers | N gaps marked |
+| 6. Cut candidates | N orange (high confidence), N yellow (medium confidence) |
+| 7. Import + edit timeline | Game detected, N shared files + N game files imported, edit timeline created with intro at X% |
+| 8. Battle end markers (refined) | N markers refined on edit timeline |
+| 9. Member Carousel Start | Marker placed at v1[N] (TC HH:MM:SS:FF) |
+| 10. Carousel layout | N clips copied to V2 with CropBottom=530, V1 extended to outro |
