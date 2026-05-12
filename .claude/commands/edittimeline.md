@@ -65,14 +65,49 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Wait for completion. Report gap count and positions.
 
+### Step 5 — Import assets and build edit timeline
+
+The transcript from Step 2a is already available. Use it now to detect the game and run the full import pipeline.
+
+**5a. Detect game and check game-specific manifest:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --check"
+```
+Infer GAME_KEY from the transcript in `transcripts\` (first ~3000 chars of `text` field). If any paths are missing or invalid, prompt the user before continuing.
+
+**5b. Check shared assets (type icons, BGM, badges, gym leaders, Pokémon artwork):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --check-shared"
+```
+If status is `needs_paths`, prompt the user for each missing folder path and set them:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --set-shared-path ASSET_ID "PATH""
+```
+
+**5c. Import shared assets into sub-bins (skip if all already valid and bins exist):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --import-shared"
+```
+
+**5d. Import game-specific assets:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --do-import"
+```
+
+**5e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_intro_outro.py --game GAME_KEY"
+```
+
 ---
 
 ## Final summary
 
-After all four steps complete, print a summary table:
+After all five steps complete, print a summary table:
 | Step | Result |
 |------|--------|
 | Clear audio tracks | N clips removed from A2–A5 |
 | Battle gaps | N battles found, N extended, N marker-only |
 | Short clip removal | N clips ripple deleted |
 | Gap markers | N gaps marked |
+| Import + edit timeline | Game detected, N shared files + N game files imported, edit timeline created |

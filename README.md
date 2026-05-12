@@ -172,30 +172,54 @@ Finds gaps in A1 longer than N frames and places red markers at the **end of eac
 
 ### Asset import + intro/outro: `scripts/import_assets.py` + `scripts/insert_intro_outro.py`
 
-The `/import` slash command (`.claude/commands/import.md`) drives a full game-asset pipeline:
+The `/import` slash command (`.claude/commands/import.md`) drives a full pipeline:
 
 1. **Detect game** from the most recent transcript in `transcripts/`
-2. **Validate asset paths** against `~/.resolve-mcp/manifest.json` (machine-local, not in git); prompt for any missing/invalid
-3. **Import assets** into a `"assets"` bin in the media pool
-4. **Build an edited timeline**: new timeline with intro prepended, all original clips shifted right by the intro's exact duration, outro video appended to V1, outro audio appended to A3
+2. **Import shared global assets** (type icons, BGM, badges, gym leaders, Pokémon artwork) into sub-bins inside "assets" — prompted for folder paths on first run only, stored globally after
+3. **Validate game-specific asset paths** against `~/.resolve-mcp/manifest.json`; prompt for any missing/invalid
+4. **Import game assets** into the `"assets"` bin
+5. **Build an edited timeline**: new timeline with intro prepended, all original clips shifted right by the intro's exact duration, outro video appended to V1, outro audio appended to A3
+
+#### Shared asset commands (cross-project, path set once per machine)
 
 ```cmd
-rem Check which asset paths are needed / already valid
+rem Check shared folder paths
+.venv\Scripts\python.exe scripts\import_assets.py --check-shared
+
+rem Set a shared folder path (IDs: type_icons, bgm, badges, gymleaders, pokemon_art)
+.venv\Scripts\python.exe scripts\import_assets.py --set-shared-path type_icons "C:\Path\To\TypeIcons"
+
+rem Import all shared bins into Resolve (files collected recursively)
+.venv\Scripts\python.exe scripts\import_assets.py --import-shared --dry-run
+.venv\Scripts\python.exe scripts\import_assets.py --import-shared
+
+rem Import only one specific shared bin (avoids re-importing already-loaded bins)
+.venv\Scripts\python.exe scripts\import_assets.py --import-shared --only gymleaders
+```
+
+Shared bins created under "assets" in Resolve: `types`, `bgm`, `badges`, `gymleaders`, `pokemon-art`.
+
+#### Game-specific asset commands
+
+```cmd
+rem Check which game asset paths are needed / already valid
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --check
 
-rem Set a missing path
+rem Set a missing game asset path
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --set-path intro "E:\GSC Assets\GSCPC Intro Short.mp4"
 
-rem Import into Resolve (--dry-run to preview)
+rem Import game assets into Resolve
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import --dry-run
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import
 
-rem Build edited timeline (--dry-run to preview shift amounts)
+rem Build edited timeline
 .venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --dry-run
 .venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal
 ```
 
-**Asset catalog** (`assets/catalog.json`, committed to git) defines which asset slots each game needs and which `asset_group` key it uses in the manifest. Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
+**Asset catalog** (`assets/catalog.json`, committed to git) defines game asset slots per game and the 5 shared folder bins (`shared_assets` array). Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
+
+**Manifest** (`~/.resolve-mcp/manifest.json`, machine-local, not in git) stores game asset paths under `asset_group` keys and shared folder paths under the `"shared"` key.
 
 **fps note:** `insert_intro_outro.py` omits `startFrame`/`endFrame` for asset clips so Resolve places them at their natural duration, then reads back `item.GetDuration()` (timeline frames) for the shift — this correctly handles source clips whose fps differs from the timeline fps.
 

@@ -140,30 +140,45 @@ clip.AddMarker(gap_end - clip.GetStart(), ...)  # do NOT do this
 
 ### Asset import + intro/outro insertion (`/import` skill)
 
-The `/import` skill (`.claude/commands/import.md`) runs a full import pipeline for game-specific assets:
+The `/import` skill (`.claude/commands/import.md`) runs a full 6-step pipeline:
 
 1. Detects game version from `transcripts/*.json` (most recent file, first ~3000 chars)
-2. Checks `~/.resolve-mcp/manifest.json` for asset paths; prompts user for any missing/invalid
-3. Imports assets into a `"assets"` bin in the media pool
-4. Builds a new timeline with intro prepended, all clips shifted right, outro appended
+2. **Imports shared global assets** (type icons, BGM, badges, gym leaders, Pokémon artwork) into sub-bins inside "assets" — prompts for folder paths on first run, reuses stored paths after
+3. Checks game-specific manifest paths; prompts for any missing/invalid
+4. Imports game-specific assets into the `"assets"` bin
+5. Builds a new timeline with intro prepended, all clips shifted right, outro appended
 
-Run the steps manually:
+#### Shared asset commands (cross-project, stored under `"shared"` key in manifest)
+
 ```bash
-# Check manifest
+# Check which shared folder paths are configured
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --check-shared"
+
+# Set a shared folder path (all 5 IDs: type_icons, bgm, badges, gymleaders, pokemon_art)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --set-shared-path type_icons "C:\PATH\TO\FOLDER""
+
+# Import all shared bins (files collected recursively from each folder)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --import-shared [--dry-run]"
+
+# Import only one specific bin (avoids re-importing already-loaded bins)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --import-shared --only gymleaders"
+```
+
+Shared bins created under "assets" in Resolve: `types`, `bgm`, `badges`, `gymleaders`, `pokemon-art`.
+
+#### Game-specific asset commands
+
+```bash
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --check"
-
-# Import into assets bin
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --do-import"
-
-# Build edited timeline
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY"
 ```
 
-Both scripts support `--dry-run`.
+All `import_assets.py` modes support `--dry-run`.
 
-**Asset catalog:** `assets/catalog.json` (committed to git) defines which asset slots each game needs.
-**Manifest:** `~/.resolve-mcp/manifest.json` (machine-local, not in git) stores actual file paths.
-**Asset groups:** Multiple games sharing the same generation assets use the same `asset_group` key (e.g., `pokemon_crystal` and `pokemon_gold_silver` both use the `gsc` group), so paths are set up once.
+**Asset catalog:** `assets/catalog.json` (committed to git) — defines game asset slots (`assets` section per game) and the 5 shared folder bins (`shared_assets` array at top level).
+**Manifest:** `~/.resolve-mcp/manifest.json` (machine-local, not in git) — stores actual file paths under `asset_group` keys for game assets and under `"shared"` for shared folders.
+**Asset groups:** Multiple games sharing the same generation (e.g., `pokemon_crystal` + `pokemon_gold_silver` both use `gsc`) share paths — set up once, reused for all.
 
 ### Battle gap insertion workflow
 

@@ -1,6 +1,14 @@
 {
   "_note": "asset_group keys the global manifest (~/.resolve-mcp/manifest.json). Games sharing a group share stored paths — set up once, reused for all games in that group.",
 
+  "shared_assets": [
+    { "id": "type_icons",  "label": "Type icons (folder + subfolders)",                         "bin_name": "types"        },
+    { "id": "bgm",         "label": "BGM audio (folder + subfolders)",                          "bin_name": "bgm"          },
+    { "id": "badges",      "label": "Gym Leader badges (folder + subfolders)",                  "bin_name": "badges"       },
+    { "id": "gymleaders",  "label": "Gym Leader artwork (folder + subfolders)",                 "bin_name": "gymleaders"   },
+    { "id": "pokemon_art", "label": "Pokémon official artwork/bg-removed (folder + subfolders)","bin_name": "pokemon-art"  }
+  ],
+
   "pokemon_crystal": {
     "display_name": "Pokémon Crystal",
     "asset_group": "gsc",
