@@ -1,54 +1,71 @@
 {
+  "_note": "asset_group keys the global manifest (~/.resolve-mcp/manifest.json). Games sharing a group share stored paths — set up once, reused for all games in that group.",
+
   "pokemon_crystal": {
     "display_name": "Pokémon Crystal",
+    "asset_group": "gsc",
     "assets": {
-      "title_card": {
-        "label": "Title card / intro video",
-        "type": "file"
-      },
-      "broll_folder": {
-        "label": "B-roll gameplay footage folder",
-        "type": "folder"
-      }
+      "intro":                { "label": "GSC intro short   →  GSCPC Intro Short.mp4",          "type": "file" },
+      "background_infinite":  { "label": "GSC infinite bg   →  GSCPC Background infinite.mp4",  "type": "file" },
+      "outro":                { "label": "GSC outro (no audio)  →  GSC outro.mp4",               "type": "file" },
+      "outro_audio":          { "label": "GSC outro (with audio)  →  GSC outro w audio.mov",     "type": "file" }
     }
   },
-  "pokemon_red_blue": {
-    "display_name": "Pokémon Red/Blue",
-    "assets": {
-      "title_card": {
-        "label": "Title card / intro video",
-        "type": "file"
-      },
-      "broll_folder": {
-        "label": "B-roll gameplay footage folder",
-        "type": "folder"
-      }
-    }
-  },
+
   "pokemon_gold_silver": {
     "display_name": "Pokémon Gold/Silver",
+    "asset_group": "gsc",
     "assets": {
-      "title_card": {
-        "label": "Title card / intro video",
-        "type": "file"
-      },
-      "broll_folder": {
-        "label": "B-roll gameplay footage folder",
-        "type": "folder"
-      }
+      "intro":                { "label": "GSC intro short   →  GSCPC Intro Short.mp4",          "type": "file" },
+      "background_infinite":  { "label": "GSC infinite bg   →  GSCPC Background infinite.mp4",  "type": "file" },
+      "outro":                { "label": "GSC outro (no audio)  →  GSC outro.mp4",               "type": "file" },
+      "outro_audio":          { "label": "GSC outro (with audio)  →  GSC outro w audio.mov",     "type": "file" }
     }
   },
+
+  "pokemon_red_blue": {
+    "display_name": "Pokémon Red/Blue",
+    "asset_group": "rby",
+    "assets": {
+      "blue_intro":               { "label": "Blue intro           →  Blue Version Intro.mp4",        "type": "file" },
+      "blue_background_infinite": { "label": "Blue infinite bg     →  Blue Background Infinite.mp4",  "type": "file" },
+      "rby_outro":                { "label": "RBY outro (no audio) →  RBY Outro.mp4",                 "type": "file" },
+      "rby_outro_audio":          { "label": "RBY outro (w/ audio) →  RBY Outro w audio.mov",         "type": "file" }
+    }
+  },
+
   "pokemon_yellow": {
     "display_name": "Pokémon Yellow",
+    "asset_group": "rby_yellow",
     "assets": {
-      "title_card": {
-        "label": "Title card / intro video",
-        "type": "file"
-      },
-      "broll_folder": {
-        "label": "B-roll gameplay footage folder",
-        "type": "folder"
-      }
+      "yellow_intro":               { "label": "Yellow intro           →  Yellow Intro Short.mp4",          "type": "file" },
+      "yellow_background_infinite": { "label": "Yellow infinite bg     →  Yellow Background Infiniite.mp4", "type": "file" },
+      "rby_outro":                  { "label": "RBY outro (no audio)   →  RBY Outro.mp4",                   "type": "file" },
+      "rby_outro_audio":            { "label": "RBY outro (w/ audio)   →  RBY Outro w audio.mov",           "type": "file" }
+    }
+  },
+
+  "pokemon_ruby_sapphire": {
+    "display_name": "Pokémon Ruby/Sapphire",
+    "asset_group": "rse",
+    "assets": {
+      "intro":                { "label": "RSE intro short    →  RSE Short intro.mp4",         "type": "file" },
+      "background":           { "label": "RSE background     →  RSE Background.mkv",           "type": "file" },
+      "background_infinite":  { "label": "RSE infinite bg    →  RSE Background infinite.mp4", "type": "file" },
+      "infinite_mkv":         { "label": "RSE infinite (mkv) →  RSE Infinite.mkv",             "type": "file" },
+      "outro":                { "label": "RSE outro          →  RSE Outro.mp4",                "type": "file" }
+    }
+  },
+
+  "pokemon_emerald": {
+    "display_name": "Pokémon Emerald",
+    "asset_group": "rse",
+    "assets": {
+      "intro":                { "label": "RSE intro short    →  RSE Short intro.mp4",         "type": "file" },
+      "background":           { "label": "RSE background     →  RSE Background.mkv",           "type": "file" },
+      "background_infinite":  { "label": "RSE infinite bg    →  RSE Background infinite.mp4", "type": "file" },
+      "infinite_mkv":         { "label": "RSE infinite (mkv) →  RSE Infinite.mkv",             "type": "file" },
+      "outro":                { "label": "RSE outro          →  RSE Outro.mp4",                "type": "file" }
     }
   }
 }

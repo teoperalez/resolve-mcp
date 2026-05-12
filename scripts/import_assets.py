@@ -83,8 +83,9 @@ def cmd_check(game_key: str, catalog: dict, manifest: dict) -> int:
         print(json.dumps(out, indent=2))
         return 0
 
-    game_def  = catalog[game_key]
-    game_paths = manifest.get(game_key, {})
+    game_def   = catalog[game_key]
+    group_key  = game_def.get('asset_group', game_key)
+    game_paths = manifest.get(group_key, {})
 
     missing, invalid, valid = [], [], []
     for asset_id, asset_def in game_def['assets'].items():
@@ -114,6 +115,7 @@ def cmd_check(game_key: str, catalog: dict, manifest: dict) -> int:
     print(json.dumps({
         'status': status,
         'game_key': game_key,
+        'asset_group': group_key,
         'display_name': game_def['display_name'],
         'manifest_path': str(MANIFEST_PATH),
         'missing': missing,
@@ -143,10 +145,11 @@ def cmd_set_path(game_key: str, asset_id: str, path: str,
         print(f'ERROR: Path is not an accessible {expected}: {path}', file=sys.stderr)
         return 1
 
-    manifest.setdefault(game_key, {})[asset_id] = path
+    group_key = game_def.get('asset_group', game_key)
+    manifest.setdefault(group_key, {})[asset_id] = path
     save_manifest(manifest)
     print(f'Manifest updated ({MANIFEST_PATH}):')
-    print(f'  {game_key}.{asset_id} = {path}')
+    print(f'  {group_key}.{asset_id} = {path}')
     return 0
 
 
@@ -162,7 +165,8 @@ def cmd_import(game_key: str, catalog: dict, manifest: dict,
         return 1
 
     game_def   = catalog[game_key]
-    game_paths = manifest.get(game_key, {})
+    group_key  = game_def.get('asset_group', game_key)
+    game_paths = manifest.get(group_key, {})
 
     all_files: list[str] = []
     for asset_id, asset_def in game_def['assets'].items():
