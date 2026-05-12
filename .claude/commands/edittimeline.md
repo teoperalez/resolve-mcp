@@ -49,7 +49,33 @@ Otherwise:
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts\battles.json"
 ```
 
-### Step 3 — Ripple delete short clips (< 5 frames) from V1 and A1
+### Step 3 — Detect battle ends and place end markers
+
+**3a. Run mark_battle_ends.py in the BACKGROUND (run_in_background=true):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\mark_battle_ends.py"
+```
+The script extracts frames from the source video around each battle's estimated end window and writes the relay prompt.
+
+**3b. Relay — YOU must complete this step:**
+- Poll with Read tool until `C:\Programming\resolve-mcp\plans\prompts\battle-ends-<stem>.in.md` appears
+- Read it. It lists image file paths (one per extracted frame) with timestamps for each battle.
+- For each battle, read each listed image file using the Read tool and visually identify the best end frame:
+  1. Trainer defeat screen (trainer sprite/portrait in defeated pose) — preferred
+  2. Post-battle breakdown overlay the creator uses
+  3. First non-battle frame (overworld, town, any screen without battle UI)
+- Write ONLY a raw JSON array to the corresponding `.out.md` (no markdown fences):
+  ```json
+  [{"battle_index": 0, "trainer_name": "Rival 1", "end_sec": 385.3, "confidence": "high", "notes": "Trainer defeat pose visible"},
+   {"battle_index": 1, "trainer_name": "Falkner", "end_sec": 741.0, "confidence": "medium", "notes": "First overworld frame after battle"}]
+  ```
+- mark_battle_ends.py detects `.out.md`, places green timeline markers labeled `<Trainer> Battle End`, and exits.
+
+Report how many markers were placed.
+
+---
+
+### Step 4 — Ripple delete short clips (< 5 frames) from V1 and A1
 
 Run via Bash tool:
 ```
@@ -57,7 +83,7 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Wait for completion. Report clips removed.
 
-### Step 4 — Mark A1 gaps > 5 frames on timeline ruler and V1 clips
+### Step 5 — Mark A1 gaps > 5 frames on timeline ruler and V1 clips
 
 Run via Bash tool:
 ```
@@ -65,19 +91,19 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Wait for completion. Report gap count and positions.
 
-### Step 5 — Analyze transcript and color cut candidates
+### Step 6 — Analyze transcript and color cut candidates
 
-**5a. Run mark_cut_candidates.py in the BACKGROUND (run_in_background=true):**
+**6a. Run mark_cut_candidates.py in the BACKGROUND (run_in_background=true):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\mark_cut_candidates.py"
 ```
 
-**5b. Relay — YOU must complete this step:**
+**6b. Relay — YOU must complete this step:**
 - Poll with Read tool until `C:\Programming\resolve-mcp\plans\prompts\cut-analysis-<stem>.in.md` appears
 - Read it. It contains the full segmented transcript with timestamps.
 - Analyze and identify:
-  1. **Non-dialogue / artifacts** — very short segments where Whisper likely hallucinated text over silence, a mic bump, or noise. Keep laughter and genuine short reactions.
-  2. **False starts, repetitions, topic changes** — speaker abandons a thought mid-sentence, repeats content just said within ~30 s, or pivots significantly from one strategy/Pokémon to another. Use the game and challenge context from the transcript to judge.
+  1. **Non-speech artifacts** — throat clears, coughs, mic bumps that passed the silence filter. These show up as Whisper transcribing a single period, an isolated word ("you", "the"), or very short implausible text. Keep genuine laughter and reactions.
+  2. **False starts, repetitions, topic changes** — speaker abandons a thought mid-sentence, repeats content just said within ~30 s, or pivots significantly from one strategy/Pokémon to another in a way that would confuse a viewer. Use game/challenge context to judge.
 - Write ONLY a raw JSON array to the corresponding `.out.md` (no markdown fences):
   ```json
   [{"start_sec": 12.3, "end_sec": 14.1, "confidence": "high", "type": "non_dialogue", "reason": "..."},
@@ -89,17 +115,17 @@ Report how many clips were colored orange and yellow.
 
 ---
 
-### Step 6 — Import assets and build edit timeline
+### Step 7 — Import assets and build edit timeline
 
 The transcript from Step 2a is already available. Use it now to detect the game and run the full import pipeline.
 
-**6a. Detect game and check game-specific manifest:**
+**7a. Detect game and check game-specific manifest:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --check"
 ```
 Infer GAME_KEY from the transcript in `transcripts\` (first ~3000 chars of `text` field). If any paths are missing or invalid, prompt the user before continuing.
 
-**6b. Check shared assets (type icons, BGM, badges, gym leaders, Pokémon artwork):**
+**7b. Check shared assets (type icons, BGM, badges, gym leaders, Pokémon artwork):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --check-shared"
 ```
@@ -108,17 +134,17 @@ If status is `needs_paths`, prompt the user for each missing folder path and set
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --set-shared-path ASSET_ID "PATH""
 ```
 
-**6c. Import shared assets into sub-bins (skip if all already valid and bins exist):**
+**7c. Import shared assets into sub-bins (skip if all already valid and bins exist):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --import-shared"
 ```
 
-**6d. Import game-specific assets:**
+**7d. Import game-specific assets:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --do-import"
 ```
 
-**6e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
+**7e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_intro_outro.py --game GAME_KEY"
 ```
@@ -127,11 +153,12 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 
 ## Final summary
 
-After all six steps complete, print a summary table:
+After all seven steps complete, print a summary table:
 | Step | Result |
 |------|--------|
 | Clear audio tracks | N clips removed from A2–A5 |
 | Battle gaps | N battles found, N extended, N marker-only |
+| Battle end markers | N green markers placed |
 | Short clip removal | N clips ripple deleted |
 | Gap markers | N gaps marked |
 | Cut candidates | N orange (high confidence), N yellow (medium confidence) |

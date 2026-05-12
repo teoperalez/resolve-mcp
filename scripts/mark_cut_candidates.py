@@ -26,11 +26,18 @@ TIMEOUT_SEC     = 600
 
 
 def latest_transcript() -> tuple[Path, str]:
-    files = sorted(TRANSCRIPTS_DIR.glob('*.json'),
-                   key=lambda f: f.stat().st_mtime, reverse=True)
-    if not files:
-        raise FileNotFoundError(f'No transcript JSON in {TRANSCRIPTS_DIR.resolve()}')
-    return files[0], files[0].stem
+    candidates = []
+    for f in TRANSCRIPTS_DIR.glob('*.json'):
+        try:
+            data = json.loads(f.read_text(encoding='utf-8'))
+            if isinstance(data, dict) and 'segments' in data:
+                candidates.append(f)
+        except Exception:
+            pass
+    if not candidates:
+        raise FileNotFoundError(f'No transcript JSON with segments in {TRANSCRIPTS_DIR.resolve()}')
+    candidates.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    return candidates[0], candidates[0].stem
 
 
 def build_prompt(transcript: dict) -> str:
@@ -39,6 +46,10 @@ def build_prompt(transcript: dict) -> str:
              for s in segs]
     body = '\n'.join(lines)
     return f"""Analyze this Pokémon gameplay commentary transcript to identify segments that should be cut.
+
+The footage was pre-processed by an auto-editor that removes silence based on noise level. True silence is
+already gone, but brief sounds ABOVE the noise floor — throat clears, coughs, mic bumps — remain and
+Whisper transcribes these as artifacts (single periods, isolated words like "you", garbled short phrases).
 
 ## Transcript (timestamps in seconds)
 
@@ -50,18 +61,18 @@ def build_prompt(transcript: dict) -> str:
 
 Identify two types of cut candidates:
 
-### 1. Non-dialogue / artifacts
-Segments with NO genuine spoken commentary:
-- Very short segments (< 2 s) where the transcribed text is impossibly long for the duration —
-  Whisper hallucinating over silence, a mic bump, or background noise
-- Garbled or nonsensical text with no connection to Pokémon gameplay
-KEEP: laughter, reactions ("oh no!", "yes!", "let's go"), brief genuine utterances
+### 1. Non-speech sounds (throat clears, coughs, mic bumps)
+Short segments where Whisper's transcription is clearly not genuine commentary:
+- A single period "." or near-empty text — Whisper had nothing real to transcribe
+- A single isolated word ("you", "the") with no connection to the surrounding context — likely a cough or mic bump
+- Very short duration (< 2 s) with text that is implausibly long or completely unrelated to the gameplay
+KEEP: laughter, genuine reactions ("oh no!", "yes!", "let's go"), brief real utterances
 
 ### 2. False starts, repetitions, topic changes
-- Speaker begins a thought but abandons and restarts it moments later
+- Speaker begins a sentence but abandons it and restarts the same or a different thought
 - Substantially the same content repeated within ~30 seconds
-- Speaker starts discussing one Pokémon/strategy/move but significantly pivots mid-sentence
-Use the full context (game being played, current challenge rules, battle situation) to judge.
+- Speaker starts explaining one strategy/Pokémon/move but changes course mid-sentence in a way a viewer would find confusing
+Use the full context (game, challenge rules, current battle) to distinguish genuine false starts from intentional topic transitions.
 
 ---
 
@@ -70,8 +81,8 @@ Use the full context (game being played, current challenge rules, battle situati
 Respond with ONLY a raw JSON array (no markdown fences, no explanation):
 
 [
-  {{"start_sec": 12.3, "end_sec": 14.1, "confidence": "high", "type": "non_dialogue", "reason": "0.5 s segment — 15-word transcription impossible for that duration"}},
-  {{"start_sec": 45.0, "end_sec": 52.3, "confidence": "medium", "type": "false_start", "reason": "Starts describing Leech Seed strategy then pivots to Tackle approach"}}
+  {{"start_sec": 12.3, "end_sec": 13.7, "confidence": "high", "type": "artifact", "reason": "1.4s — single period, likely throat clear above noise floor"}},
+  {{"start_sec": 45.0, "end_sec": 52.3, "confidence": "medium", "type": "false_start", "reason": "Starts describing Leech Seed strategy then immediately pivots to Tackle"}}
 ]
 
 "confidence": "high"   — cut is almost certain
