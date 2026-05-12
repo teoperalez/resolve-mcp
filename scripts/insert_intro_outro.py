@@ -122,7 +122,7 @@ def collect_clips(tl) -> list[dict]:
                 clips.append({
                     'mediaPoolItem': mpi,
                     'startFrame':   left,
-                    'endFrame':     left + dur - 1,
+                    'endFrame':     left + dur,   # exclusive end — Resolve AppendToTimeline treats endFrame as exclusive
                     'relRecord':    item.GetStart() - tl_start,
                     'trackIndex':   idx,
                     'mediaType':    media_type,
@@ -152,7 +152,7 @@ def ensure_tracks(tl, video_count: int, audio_count: int) -> None:
 
 # ── main ───────────────────────────────────────────────────────────────────────
 
-def run(game_key: str, dry_run: bool) -> int:
+def run(game_key: str, dry_run: bool, source_timeline: str | None = None) -> int:
     import DaVinciResolveScript as dvr
 
     catalog  = load_json(CATALOG_PATH)
@@ -178,6 +178,18 @@ def run(game_key: str, dry_run: bool) -> int:
     if orig_tl is None:
         print('ERROR: No current timeline.', file=sys.stderr)
         return 1
+
+    if source_timeline:
+        found = None
+        for i in range(1, project.GetTimelineCount() + 1):
+            t = project.GetTimelineByIndex(i)
+            if t and t.GetName() == source_timeline:
+                found = t
+                break
+        if found is None:
+            print(f'ERROR: Source timeline "{source_timeline}" not found.', file=sys.stderr)
+            return 1
+        orig_tl = found
 
     fps          = float(project.GetSetting('timelineFrameRate'))
     orig_start   = orig_tl.GetStartFrame()
@@ -229,7 +241,7 @@ def run(game_key: str, dry_run: bool) -> int:
 
     if dry_run:
         intro_tl = intro_tl_frames_est
-        outro_rel = (orig_end - orig_start) + intro_tl + 1
+        outro_rel = (orig_end - orig_start) + intro_tl
         print('\n── DRY RUN (shift estimate) ──')
         print(f'  Intro  → recordFrame={orig_start}  (~{intro_tl} TL frames)')
         for c in sorted(existing, key=lambda x: (x['mediaType'], x['trackIndex'], x['relRecord'])):
@@ -275,7 +287,7 @@ def run(game_key: str, dry_run: bool) -> int:
     print(f'Intro placed: {intro_tl_frames} TL frames ({intro_tl_frames/fps:.2f}s)')
 
     # ── Re-place all original clips shifted by the actual intro TL duration ───
-    outro_rel = (orig_end - orig_start) + intro_tl_frames + 1
+    outro_rel = (orig_end - orig_start) + intro_tl_frames
     if existing:
         shifted = []
         for c in existing:
@@ -319,10 +331,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--game', required=True, help='Game catalog key (e.g. pokemon_crystal)')
+    parser.add_argument('--source-timeline', metavar='NAME',
+                        help='Name of source timeline to use (default: current timeline)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print what would happen without touching Resolve')
     args = parser.parse_args()
-    return run(args.game, args.dry_run)
+    return run(args.game, args.dry_run, args.source_timeline)
 
 
 if __name__ == '__main__':

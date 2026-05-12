@@ -212,16 +212,61 @@ rem Import game assets into Resolve
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import --dry-run
 .venv\Scripts\python.exe scripts\import_assets.py --game pokemon_crystal --do-import
 
-rem Build edited timeline
+rem Build edited timeline (uses current timeline as source by default)
 .venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --dry-run
 .venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal
+
+rem If the current Resolve timeline is not the gameplay source, target it explicitly:
+.venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --source-timeline "My Gameplay Timeline"
 ```
 
 **Asset catalog** (`assets/catalog.json`, committed to git) defines game asset slots per game and the 5 shared folder bins (`shared_assets` array). Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
 
 **Manifest** (`~/.resolve-mcp/manifest.json`, machine-local, not in git) stores game asset paths under `asset_group` keys and shared folder paths under the `"shared"` key.
 
-**fps note:** `insert_intro_outro.py` omits `startFrame`/`endFrame` for asset clips so Resolve places them at their natural duration, then reads back `item.GetDuration()` (timeline frames) for the shift — this correctly handles source clips whose fps differs from the timeline fps.
+**fps / endFrame convention:** All `AppendToTimeline` clipInfo dicts use `startFrame`/`endFrame` in **native clip frames** (not timeline frames), and `endFrame` is **exclusive** (first frame NOT included). For a clip with native in-point `L` and `D` timeline frames of content on a `TL_fps` timeline from a `clip_fps` source: `endFrame = L + round(D * clip_fps / TL_fps)`. For asset clips placed at full length (intro, outro), **omit startFrame/endFrame entirely** — let Resolve use the full clip, then read back `item.GetDuration()` for the true timeline-frame count. Specifying endFrame beyond the native source range causes Resolve to freeze the last frame, doubling the clip's apparent length.
+
+**GetEndFrame() is exclusive:** `timeline.GetEndFrame()` returns one-past-the-last-occupied frame. To place the outro with no gap: `recordFrame = new_start + (orig_end - orig_start) + intro_tl_frames` (no `+1`).
+
+### `scripts/close_gaps.py`
+
+Closes small gaps (≤ N frames, default 1) between clips on V1 and A1 using a delete-and-re-insert strategy. Larger gaps (battle gaps, etc.) are preserved.
+
+```cmd
+rem Preview what would be closed without changing anything
+.venv\Scripts\python.exe scripts\close_gaps.py --dry-run
+.venv\Scripts\python.exe scripts\close_gaps.py --timeline "My Timeline (edit)" --dry-run
+
+rem Close gaps on the current timeline (or a named one)
+.venv\Scripts\python.exe scripts\close_gaps.py
+.venv\Scripts\python.exe scripts\close_gaps.py --timeline "My Timeline (edit)"
+.venv\Scripts\python.exe scripts\close_gaps.py --max-gap 2
+```
+
+**Always dry-run first.** The script deletes all clips on the track and re-inserts them at corrected positions — verify the gap count looks right before running live.
+
+**fps handling:** `endFrame` passed to `AppendToTimeline` must be in native clip frames. For clips at a different fps than the timeline (e.g. 30fps intro/outro on a 60fps timeline) `GetDuration()` (timeline frames) must be scaled: `round(GetDuration() * clip_fps / timeline_fps)`. Without this, a 30fps clip gets doubled in length (frozen last frame) on every re-insert.
+
+**Typical workflow:** After `insert_intro_outro.py`, run `close_gaps.py --dry-run` on the new edit timeline. With the correct `endFrame` exclusive convention in place, the result should be 0 gaps. If 1+ gaps remain, run without `--dry-run` to close them.
+
+### `scripts/mark_battle_ends.py`
+
+Detects the end of each trainer battle using a relay: writes a prompt containing the full battle transcript and frame paths to `plans/prompts/battle-ends-<stem>.in.md`, waits for Claude to write the JSON response to `.out.md`, then places green "Battle End" markers on the timeline.
+
+```cmd
+rem Full run: extract frames, write prompt, wait for relay, place markers
+.venv\Scripts\python.exe scripts\mark_battle_ends.py
+
+rem Skip relay (re-use existing .out.md) — just re-place markers
+.venv\Scripts\python.exe scripts\mark_battle_ends.py --skip-relay
+
+rem Preview marker positions without placing them
+.venv\Scripts\python.exe scripts\mark_battle_ends.py --dry-run
+```
+
+**Requires:** `transcripts/battles.json` (from `detect_battles.py`), a full transcript JSON in `transcripts/`, and ffmpeg on PATH for frame extraction.
+
+**Relay:** Claude (in the active conversation) must read the `.in.md`, reason contextually about the transcript and frame images, and write ONLY a raw JSON array to the `.out.md`. Timeout: 10 minutes.
 
 ---
 

@@ -1,15 +1,21 @@
 """
-Detect end of trainer battles via frame extraction + LLM relay.
-Places green markers on the timeline ruler labeled "<Trainer> Battle End".
+Detect end of trainer battles via transcript analysis + frame validation.
 
-For each battle in transcripts/battles.json, extracts frames from the source
-video (ffmpeg) around the estimated battle end, then relays to Claude Code for
-visual identification. Claude reads the image files and returns the end timestamp.
+For each battle in transcripts/battles.json:
+1. Collects the full battle transcript and passes it to Claude for contextual analysis.
+2. Extracts frames spread across the battle window (up to MAX_FRAMES per battle).
+3. Claude reads the transcript contextually, estimates where the battle ended,
+   validates with frames near that estimate, and reassesses if no clear
+   battle→non-battle transition is found in that region.
+4. Always returns an end_sec — never null.
+
+Places green timeline markers labeled "<Trainer> Battle End (win|loss|gave up)".
 
 Requires: transcripts/battles.json, ffmpeg on PATH, Resolve connected.
 """
 import sys
 import os
+import re
 import json
 import time
 import argparse
@@ -19,63 +25,45 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 import _resolve_env  # noqa: F401
 
-PROMPTS_DIR        = Path('plans/prompts')
-FRAMES_DIR         = Path('plans/frames')
-TRANSCRIPTS_DIR    = Path('transcripts')
-TIMEOUT_SEC        = 600
-FRAME_INTERVAL_SEC = 30   # seconds between extracted frames
-MAX_BATTLE_SEC     = 600  # max battle duration to search
-LEAD_IN_SEC        = 30   # seconds after battle start before first frame sample
-MAX_FRAMES         = 20   # safety cap per battle
+PROMPTS_DIR     = Path('plans/prompts')
+FRAMES_DIR      = Path('plans/frames')
+TRANSCRIPTS_DIR = Path('transcripts')
+TIMEOUT_SEC     = 600
+MAX_BATTLE_SEC  = 1200   # max seconds to search after battle start
+LEAD_IN_SEC     = 20     # skip this many seconds after battle start before sampling
+MAX_FRAMES      = 10     # max frames per battle
+MIN_INTERVAL    = 10     # minimum seconds between frames
 
 
 def load_battles() -> list[dict]:
     p = TRANSCRIPTS_DIR / 'battles.json'
     if not p.exists():
         raise FileNotFoundError(f'battles.json not found: {p.resolve()}')
-    data = json.loads(p.read_text(encoding='utf-8'))
-    return sorted(data, key=lambda b: b['timestamp_sec'])
+    return sorted(json.loads(p.read_text(encoding='utf-8')),
+                  key=lambda b: b['timestamp_sec'])
 
 
-def load_transcript_segments() -> list[dict]:
+def load_transcript() -> dict:
     for f in sorted(TRANSCRIPTS_DIR.glob('*.json'),
                     key=lambda f: f.stat().st_mtime, reverse=True):
         try:
             data = json.loads(f.read_text(encoding='utf-8'))
             if isinstance(data, dict) and 'segments' in data:
                 print(f'Transcript: {f}')
-                return data['segments']
+                return data
         except Exception:
             pass
-    return []
+    return {}
 
 
-def estimate_end_window(battle: dict, next_start: float | None,
-                        segments: list[dict]) -> tuple[float, float]:
-    """Use transcript keywords to narrow the search window for battle end."""
-    b_start   = battle['timestamp_sec']
-    win_start = b_start + LEAD_IN_SEC
-    win_end   = b_start + MAX_BATTLE_SEC
+def battle_segments(battle: dict, next_start: float | None,
+                    segments: list[dict]) -> list[dict]:
+    """Return all transcript segments for this battle's time window."""
+    b_start = battle['timestamp_sec']
+    max_end = b_start + MAX_BATTLE_SEC
     if next_start:
-        win_end = min(win_end, next_start - 10)
-
-    cue_keywords = [
-        'knocked out', 'fainted', 'defeated', 'we win', 'we won', 'beat',
-        'that was', 'we did it', 'victory', 'we lose', 'we lost',
-        'got through', 'get through', 'manage to', 'that brings out',
-    ]
-    earliest_cue = None
-    for seg in segments:
-        if seg['start'] < win_start or seg['start'] > win_end:
-            continue
-        if any(kw in seg.get('text', '').lower() for kw in cue_keywords):
-            if earliest_cue is None:
-                earliest_cue = seg['start']
-
-    if earliest_cue is not None:
-        # Narrow: 60s before the cue to 30s after
-        return max(win_start, earliest_cue - 60), min(win_end, earliest_cue + 30)
-    return win_start, win_end
+        max_end = min(max_end, next_start - 5)
+    return [s for s in segments if b_start <= s['start'] <= max_end]
 
 
 def extract_frame(source_path: str, ts: float, out: Path) -> bool:
@@ -88,47 +76,92 @@ def extract_frame(source_path: str, ts: float, out: Path) -> bool:
     return r.returncode == 0 and out.exists()
 
 
+def extract_battle_frames(battle: dict, next_start: float | None,
+                           source_path: str, battle_idx: int
+                           ) -> list[tuple[float, Path]]:
+    """Extract up to MAX_FRAMES spread evenly across the battle window."""
+    b_start   = battle['timestamp_sec']
+    win_start = b_start + LEAD_IN_SEC
+    win_end   = b_start + MAX_BATTLE_SEC
+    if next_start:
+        win_end = min(win_end, next_start - 5)
+
+    window   = max(0.0, win_end - win_start)
+    interval = max(MIN_INTERVAL, window / MAX_FRAMES)
+
+    frames: list[tuple[float, Path]] = []
+    ts = win_start
+    while ts <= win_end and len(frames) < MAX_FRAMES:
+        out = FRAMES_DIR / f'battle-end-{battle_idx}-{len(frames):02d}.jpg'
+        if extract_frame(source_path, ts, out):
+            frames.append((ts, out))
+        ts += interval
+    return frames
+
+
 def build_prompt(battles: list[dict],
+                 ctx_segs: list[list[dict]],
                  frame_sets: list[list[tuple[float, Path]]]) -> str:
     sections = []
-    for i, (b, frames) in enumerate(zip(battles, frame_sets)):
-        header = (f'## Battle {i + 1}: {b["trainer_name"]} '
-                  f'(starts at {b["timestamp_sec"]:.1f}s)')
-        if not frames:
-            sections.append(f'{header}\n(no frames extracted)')
-            continue
-        lines = [header, 'Read each image file using the Read tool and analyze:']
-        for ts, p in frames:
-            lines.append(f'- `{p.resolve()}` — {ts:.1f}s')
+    for i, (b, segs, frames) in enumerate(zip(battles, ctx_segs, frame_sets)):
+        lines = [f'## Battle {i + 1}: {b["trainer_name"]} '
+                 f'(starts at {b["timestamp_sec"]:.1f}s)']
+
+        lines.append('\n### Full battle transcript:')
+        if segs:
+            for s in segs:
+                lines.append(f'[{s["start"]:.1f}s] {s.get("text", "").strip()}')
+        else:
+            lines.append('(no transcript segments in this window)')
+
+        lines.append('\n### Frames across the battle window (read each with Read tool):')
+        if frames:
+            for ts, p in frames:
+                lines.append(f'- `{p.resolve()}` — {ts:.1f}s')
+        else:
+            lines.append('(no frames extracted)')
+
         sections.append('\n'.join(lines))
 
-    battles_block = '\n\n'.join(sections)
+    return f"""You are identifying the END of Pokémon trainer battles in a YouTube video.
 
-    return f"""You are identifying the END of Pokémon trainer battles from video frame captures.
+For each battle below, follow this process:
 
-For each battle below, read the listed image files (using the Read tool on each path) and
-identify the frame that best marks the battle end.
+1. **Read the full transcript contextually.** Understand the complete narrative arc of the battle —
+   whether it was won, lost, or abandoned as impossible. Do not look for specific phrases; reason
+   about the overall flow of commentary.
 
-**What to look for (priority order):**
-1. **Trainer defeat screen** — the losing trainer's sprite or portrait visible in a defeated pose or
-   fade-out animation. This is the ideal marker point.
-2. **Post-battle breakdown overlay** — a creator-made results/stats screen that appears after the battle.
-3. **First non-battle frame** — the overworld map, town, or any screen without the battle UI.
-4. **Experience/level-up screen** — the first post-battle game screen if none of the above are clear.
+2. **Form an estimate** of when the battle ended based on that contextual understanding.
 
-If none of the frames clearly show a battle end, note the closest candidate or return null.
+3. **Read the frame images** (using the Read tool on each listed path), starting with the frames
+   nearest your estimate. Look for the battle→non-battle transition:
+   - Trainer defeat screen — trainer sprite/portrait in defeated pose or fade-out
+   - Post-battle breakdown overlay the creator uses
+   - First frame showing the overworld, town, or any screen without battle UI
 
-{battles_block}
+4. **If no clear transition is visible near your estimate**, check frames earlier and later in the
+   list and reassess. The true end may be somewhat before or after where the transcript suggested.
+
+5. **For impossible / gave-up battles:** the end is when the player clearly moves on — the last
+   moment of battle-specific commentary before transitioning to meta-analysis or the next topic.
+
+6. **If the video cuts directly from battle to a non-battle screen**, use that first non-battle frame.
+
+7. **Always return an end_sec.** If frames are ambiguous, use your transcript-based estimate.
+
+{chr(10).join(sections)}
 
 ---
 
 Respond with ONLY a raw JSON array (no markdown fences, no explanation):
 
 [
-  {{"battle_index": 0, "trainer_name": "Rival 1", "end_sec": 385.3, "confidence": "high", "notes": "Trainer defeat pose visible"}},
-  {{"battle_index": 1, "trainer_name": "Falkner", "end_sec": 741.0, "confidence": "medium", "notes": "First overworld frame after battle UI disappears"}},
-  {{"battle_index": 2, "trainer_name": "Bugsy", "end_sec": null, "confidence": "low", "notes": "No clear end frame found in extracted range"}}
+  {{"battle_index": 0, "trainer_name": "Rival 1", "end_sec": 381.0, "result": "win", "confidence": "high", "notes": "Frame at 379s shows trainer defeated; transcript confirms easy victory"}},
+  {{"battle_index": 4, "trainer_name": "Bugsy", "end_sec": 2380.0, "result": "gave_up", "confidence": "high", "notes": "Transcript shows creator gave up and moved to analysis at 2378s"}}
 ]
+
+"result" must be one of: "win", "loss", "gave_up"
+Never return null for end_sec.
 """
 
 
@@ -138,12 +171,11 @@ def poll(out_path: Path, timeout_sec: int) -> list:
         if out_path.exists():
             return json.loads(out_path.read_text(encoding='utf-8').strip())
         time.sleep(2)
-    raise TimeoutError(f'No relay response after {timeout_sec}s — expected {out_path}')
+    raise TimeoutError(f'No relay response after {timeout_sec}s')
 
 
 def source_sec_to_tl_frame(source_sec: float, fps: float,
                             v1_clips: list) -> int | None:
-    """Map source timestamp (seconds) to timeline frame, accounting for inserted gaps."""
     sf = int(source_sec * fps)
     for clip in v1_clips:
         src_start = clip.GetLeftOffset()
@@ -156,28 +188,32 @@ def source_sec_to_tl_frame(source_sec: float, fps: float,
 def place_markers(results: list[dict], timeline, fps: float,
                   v1_clips: list, dry_run: bool) -> int:
     placed = 0
+    result_labels = {'win': 'Win', 'loss': 'Loss', 'gave_up': 'Gave Up'}
+
     for r in results:
         end_sec = r.get('end_sec')
-        name    = f'{r["trainer_name"]} Battle End'
-
         if end_sec is None:
-            print(f'  SKIP    {name}: {r.get("notes", "no end detected")}')
+            print(f'  SKIP  {r["trainer_name"]}: no end_sec in response')
             continue
+
+        result_str = result_labels.get(r.get('result', ''), r.get('result', ''))
+        name       = f'{r["trainer_name"]} Battle End ({result_str})'
+        notes      = r.get('notes', '')
 
         tl_frame = source_sec_to_tl_frame(end_sec, fps, v1_clips)
         if tl_frame is None:
             tl_frame = timeline.GetStartFrame() + int(end_sec * fps)
-            print(f'  APPROX  {name} at {end_sec:.1f}s (approx — source frame between clips)')
+            print(f'  APPROX  [{end_sec:.1f}s]  {name}')
         else:
             print(f'  {"DRY " if dry_run else ""}Marker  '
-                  f'[{end_sec:.1f}s → tl frame {tl_frame}]  {name}  {r.get("notes", "")}')
+                  f'[{end_sec:.1f}s → frame {tl_frame}]  {name}  {notes}')
 
         if not dry_run:
-            ok = timeline.AddMarker(tl_frame, 'Green', name, r.get('notes', ''), 1)
+            ok = timeline.AddMarker(tl_frame, 'Green', name, notes, 1)
             if ok:
                 placed += 1
             else:
-                print(f'           AddMarker returned False for {name}')
+                print(f'           AddMarker failed for {name}')
         else:
             placed += 1
 
@@ -188,16 +224,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--dry-run', action='store_true',
-                    help='Extract frames and show marker preview without placing in Resolve')
-    ap.add_argument('--interval', type=int, default=FRAME_INTERVAL_SEC,
-                    help=f'Seconds between extracted frames (default: {FRAME_INTERVAL_SEC})')
-    ap.add_argument('--timeout', type=int, default=TIMEOUT_SEC,
-                    help=f'Relay timeout in seconds (default: {TIMEOUT_SEC})')
+                    help='Show marker preview without placing in Resolve')
+    ap.add_argument('--skip-relay', action='store_true',
+                    help='Skip frame extraction and relay — read existing .out.md directly and re-place markers')
+    ap.add_argument('--timeout', type=int, default=TIMEOUT_SEC)
     args = ap.parse_args()
 
-    battles  = load_battles()
-    segments = load_transcript_segments()
-    print(f'Loaded {len(battles)} battles')
+    battles    = load_battles()
+    transcript = load_transcript()
+    segments   = transcript.get('segments', [])
+    print(f'Loaded {len(battles)} battles, {len(segments)} transcript segments')
 
     import DaVinciResolveScript as dvr
     resolve = dvr.scriptapp('Resolve')
@@ -214,47 +250,66 @@ def main() -> int:
         print('ERROR: No clips on V1.', file=sys.stderr)
         return 1
 
-    source_path = v1_clips[0].GetMediaPoolItem().GetClipProperty('File Path')
+    # Find gameplay source file by matching first battle timestamp
+    source_path = None
+    if battles:
+        target_sf = int(battles[0]['timestamp_sec'] * fps)
+        for clip in v1_clips:
+            s, e = clip.GetLeftOffset(), clip.GetLeftOffset() + clip.GetDuration()
+            if s <= target_sf < e:
+                source_path = clip.GetMediaPoolItem().GetClipProperty('File Path')
+                if source_path:
+                    break
     if not source_path:
-        print('ERROR: Could not get source file path from V1.', file=sys.stderr)
+        clip = max(v1_clips, key=lambda c: c.GetLeftOffset() + c.GetDuration())
+        source_path = clip.GetMediaPoolItem().GetClipProperty('File Path') or ''
+    if not source_path:
+        print('ERROR: Could not identify gameplay source file.', file=sys.stderr)
         return 1
     print(f'Source: {source_path}')
 
-    # Extract frames around estimated end window for each battle
-    frame_sets: list[list[tuple[float, Path]]] = []
-    for i, battle in enumerate(battles):
-        next_start = battles[i + 1]['timestamp_sec'] if i + 1 < len(battles) else None
-        w_start, w_end = estimate_end_window(battle, next_start, segments)
-
-        frames: list[tuple[float, Path]] = []
-        ts = w_start
-        while ts <= w_end and len(frames) < MAX_FRAMES:
-            out = FRAMES_DIR / f'battle-end-{i}-{len(frames):02d}.jpg'
-            if extract_frame(source_path, ts, out):
-                frames.append((ts, out))
-            ts += args.interval
-
-        frame_sets.append(frames)
-        print(f'  Battle {i + 1} ({battle["trainer_name"]}): '
-              f'{len(frames)} frames [{w_start:.0f}–{w_end:.0f}s]')
-
-    stem     = Path(source_path).stem
-    in_path  = PROMPTS_DIR / f'battle-ends-{stem}.in.md'
+    stem     = re.sub(r'[^\w\-]', '_', Path(source_path).stem)
     out_path = PROMPTS_DIR / f'battle-ends-{stem}.out.md'
     PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    if out_path.exists():
-        out_path.unlink()
+    if args.skip_relay:
+        if not out_path.exists():
+            print(f'ERROR: --skip-relay requires existing {out_path}', file=sys.stderr)
+            return 1
+        print(f'Skip-relay: reading existing {out_path}')
+        results = json.loads(out_path.read_text(encoding='utf-8').strip())
+    else:
+        ctx_segs:   list[list[dict]]               = []
+        frame_sets: list[list[tuple[float, Path]]] = []
 
-    in_path.write_text(build_prompt(battles, frame_sets), encoding='utf-8')
-    print(f'\nRelay prompt → {in_path}')
-    print(f'Waiting for {out_path} ...')
+        for i, battle in enumerate(battles):
+            next_start = battles[i + 1]['timestamp_sec'] if i + 1 < len(battles) else None
 
-    try:
-        results = poll(out_path, timeout_sec=args.timeout)
-    except TimeoutError as e:
-        print(f'ERROR: {e}', file=sys.stderr)
-        return 1
+            segs = battle_segments(battle, next_start, segments)
+            ctx_segs.append(segs)
+
+            frames = extract_battle_frames(battle, next_start, source_path, i)
+            frame_sets.append(frames)
+
+            b_start = battle['timestamp_sec']
+            win_end = min(b_start + MAX_BATTLE_SEC, next_start - 5 if next_start else b_start + MAX_BATTLE_SEC)
+            print(f'  Battle {i + 1} ({battle["trainer_name"]}): '
+                  f'{len(segs)} transcript segs, {len(frames)} frames '
+                  f'[{b_start + LEAD_IN_SEC:.0f}–{win_end:.0f}s]')
+
+        in_path = PROMPTS_DIR / f'battle-ends-{stem}.in.md'
+        if out_path.exists():
+            out_path.unlink()
+
+        in_path.write_text(build_prompt(battles, ctx_segs, frame_sets), encoding='utf-8')
+        print(f'\nRelay prompt → {in_path}')
+        print(f'Waiting for {out_path} ...')
+
+        try:
+            results = poll(out_path, timeout_sec=args.timeout)
+        except TimeoutError as e:
+            print(f'ERROR: {e}', file=sys.stderr)
+            return 1
 
     print(f'\nReceived {len(results)} result(s).')
     placed = place_markers(results, timeline, fps, v1_clips, dry_run=args.dry_run)
