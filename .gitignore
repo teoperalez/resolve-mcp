@@ -29,6 +29,11 @@ htmlcov/
 
 # Local config
 transcriptions.json
+
+# Generated / local files (do not commit)
+transcripts/
+plans/
+
 .claude/*
 !.claude/settings.json
 !.claude/commands/

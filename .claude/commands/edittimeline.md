@@ -1,6 +1,8 @@
 Run the full Resolve timeline editing pipeline in order. Each step runs to completion before the next begins.
 
-Arguments: $ARGUMENTS (pass --dry-run to do a dry run on the battles step without modifying the timeline)
+Arguments: $ARGUMENTS (pass --dry-run to preview the battles step without modifying the timeline)
+
+All commands MUST be run from C:\Programming\resolve-mcp (every command uses `cd /d` prefix).
 
 ---
 
@@ -10,7 +12,7 @@ Arguments: $ARGUMENTS (pass --dry-run to do a dry run on the battles step withou
 
 Run via Bash tool:
 ```
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\clear_audio_tracks.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\clear_audio_tracks.py"
 ```
 Wait for completion. Report clips removed.
 
@@ -18,33 +20,40 @@ Wait for completion. Report clips removed.
 
 **2a. Transcribe A1 audio:**
 ```
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\transcribe_audio.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\transcribe_audio.py"
 ```
-Wait for completion. Note the transcript filename in `transcripts/`.
+Wait for completion. Note the stem (filename without .json) in `transcripts\`.
 
 **2b. Run detect_battles.py in the BACKGROUND (run_in_background=true):**
 ```
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\detect_battles.py transcripts/<stem>.json --out transcripts/battles.json --plans-dir plans/prompts --timeout-sec 600"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\detect_battles.py transcripts\<stem>.json --out transcripts\battles.json --plans-dir plans\prompts --timeout-sec 600"
 ```
 
 **2c. Relay — YOU must complete this step:**
 - Poll with Read tool until `C:\Programming\resolve-mcp\plans\prompts\battle-detect-<stem>.in.md` appears
-- Read it and identify every first-time trainer battle start timestamp
+- Read it and identify every first-time trainer battle start timestamp from the transcript
 - Write ONLY a raw JSON array to the corresponding `.out.md` (no markdown fences):
   ```json
-  [{"timestamp_sec": 123.4, "trainer_name": "Brock", "description": "..."}]
+  [{"timestamp_sec": 123.4, "trainer_name": "Rival 1", "description": "..."}]
   ```
-- detect_battles.py will detect the `.out.md` and run insert_battle_gaps.py automatically
-- If `--dry-run` is in $ARGUMENTS, pass it: `detect_battles.py ... && insert_battle_gaps.py ... --dry-run`
-  (Actually detect_battles.py passes --dry-run through if it's in the battles.json insert step — check battle_workflow.py)
+- detect_battles.py detects the `.out.md`, writes `transcripts\battles.json`, and exits
 
-Wait for the background process completion notification. Report battle results.
+**2d. Insert or preview gaps:**
+
+If --dry-run in $ARGUMENTS:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts\battles.json --dry-run"
+```
+Otherwise:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts\battles.json"
+```
 
 ### Step 3 — Ripple delete short clips (< 5 frames) from V1 and A1
 
 Run via Bash tool:
 ```
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\remove_short_clips.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\remove_short_clips.py"
 ```
 Wait for completion. Report clips removed.
 
@@ -52,7 +61,7 @@ Wait for completion. Report clips removed.
 
 Run via Bash tool:
 ```
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_audio_gaps.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\mark_audio_gaps.py"
 ```
 Wait for completion. Report gap count and positions.
 
