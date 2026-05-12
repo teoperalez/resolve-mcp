@@ -17,6 +17,7 @@ import sys
 import os
 import json
 import argparse
+import subprocess
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -26,6 +27,7 @@ CATALOG_PATH  = Path('assets/catalog.json')
 MANIFEST_DIR  = Path.home() / '.resolve-mcp'
 MANIFEST_PATH = MANIFEST_DIR / 'manifest.json'
 MIN_BATTLES_CACHE = Path('transcripts/min-battles.json')
+RETIME_CACHE_DIR  = MANIFEST_DIR / 'cache' / 'retimed-intros'
 
 
 # ── JSON helpers ───────────────────────────────────────────────────────────────
@@ -174,36 +176,81 @@ def auto_detect_intro_speed(default_fast: int = 400) -> tuple[int, str]:
                           f'Pokémon) — retiming intro to {default_fast}%')
 
 
-def retime_clip(item, speed_pct: int) -> bool:
-    """Try to retime a placed TimelineItem to `speed_pct` percent.
+def retimed_intro_path(src_path: Path, speed_pct: int) -> Path:
+    """Cache path for a pre-rendered retimed copy of the intro."""
+    return RETIME_CACHE_DIR / f'{src_path.stem}__{speed_pct}pct{src_path.suffix}'
 
-    Tries common Resolve property name/value combos and returns True if any
-    sticks (clip duration actually changed). speed_pct=100 is a no-op.
-    """
+
+def ensure_retimed_file(src_path: Path, speed_pct: int) -> Path | None:
+    """Pre-render src_path at speed_pct via ffmpeg, cached under ~/.resolve-mcp.
+    Returns the cached path on success, None on failure."""
     if speed_pct == 100:
-        return True
+        return src_path
+    if not src_path.exists():
+        print(f'  ERROR: intro file does not exist: {src_path}')
+        return None
 
-    before = item.GetDuration()
-    attempts = [
-        ('Speed',         float(speed_pct)),
-        ('Speed',         speed_pct / 100.0),
-        ('Speed',         int(speed_pct)),
-        ('PlaybackSpeed', float(speed_pct)),
-        ('PlaybackSpeed', speed_pct / 100.0),
+    RETIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = retimed_intro_path(src_path, speed_pct)
+    if out_path.exists():
+        print(f'  Using cached retimed intro: {out_path.name}')
+        return out_path
+
+    speed_factor = speed_pct / 100.0
+    # Video: setpts shortens by speed_factor. Audio is dropped (-an) — intro
+    # audio at 4x sounds bad anyway, and the existing pipeline doesn't place
+    # intro audio on a track.
+    cmd = [
+        'ffmpeg', '-y', '-i', str(src_path),
+        '-filter:v', f'setpts=PTS/{speed_factor}',
+        '-an',
+        '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
+        str(out_path),
     ]
-    for key, value in attempts:
-        try:
-            ok = item.SetProperty(key, value)
-        except Exception:
-            ok = False
-        after = item.GetDuration()
-        if ok and after != before:
-            print(f'  Retime: SetProperty({key!r}, {value}) → '
-                  f'{before} → {after} TL frames')
-            return True
-    print(f'  WARNING: retime to {speed_pct}% failed via SetProperty — duration '
-          f'unchanged at {before} frames. Falling back to 100% speed.')
-    return False
+    print(f'  Pre-rendering intro @ {speed_pct}% via ffmpeg → {out_path.name}')
+    r = subprocess.run(cmd, capture_output=True, timeout=300)
+    if r.returncode != 0 or not out_path.exists():
+        msg = r.stderr.decode('utf-8', 'ignore').strip().splitlines()[-3:]
+        print(f'  ffmpeg failed:\n    ' + '\n    '.join(msg))
+        return None
+    print(f'  Wrote {out_path} ({out_path.stat().st_size // 1024} KB)')
+    return out_path
+
+
+def prepare_retimed_intro(intro_mpi, speed_pct: int, pool, assets_bin):
+    """If speed_pct != 100, return an MPI for a pre-rendered retimed copy of
+    the intro — generating + importing it if needed. Returns intro_mpi unchanged
+    for speed_pct=100, or if pre-rendering/import fails (falls back to original)."""
+    if speed_pct == 100:
+        return intro_mpi
+
+    src_path_str = intro_mpi.GetClipProperty('File Path') or ''
+    if not src_path_str:
+        print('  WARNING: intro MPI has no File Path — keeping intro at 100%')
+        return intro_mpi
+    src_path = Path(src_path_str)
+
+    out_path = ensure_retimed_file(src_path, speed_pct)
+    if out_path is None:
+        print(f'  WARNING: retime fallback to 100%')
+        return intro_mpi
+
+    # Already imported into assets bin?
+    existing = find_in_bin(assets_bin, out_path.name)
+    if existing is not None:
+        return existing
+
+    # Import into the assets bin
+    prev_folder = pool.GetCurrentFolder()
+    pool.SetCurrentFolder(assets_bin)
+    imported = pool.ImportMedia([str(out_path)]) or []
+    if prev_folder is not None:
+        pool.SetCurrentFolder(prev_folder)
+
+    if not imported:
+        print(f'  WARNING: could not import {out_path} — falling back to 100%')
+        return intro_mpi
+    return imported[0]
 
 
 # ── main ───────────────────────────────────────────────────────────────────────
@@ -339,26 +386,24 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
     needed_audio = max(max_aud_idx, 3)
     ensure_tracks(new_tl, max_vid_idx, needed_audio)
 
+    # ── Prepare retimed intro (ffmpeg pre-render) if speed != 100 ─────────────
+    intro_mpi_to_place = prepare_retimed_intro(intro_mpi, intro_speed, pool, assets_bin)
+
     # ── Place intro (no startFrame/endFrame → Resolve uses full clip) ─────────
     pool.AppendToTimeline([{
-        'mediaPoolItem': intro_mpi,
+        'mediaPoolItem': intro_mpi_to_place,
         'recordFrame':  new_start,
         'trackIndex':   1,
         'mediaType':    1,
     }])
 
-    # Read back actual timeline-frame duration — this handles any fps conversion
+    # Read back actual timeline-frame duration — the pre-rendered file's
+    # duration is already at the retimed length, so this is authoritative.
     intro_items = new_tl.GetItemListInTrack('video', 1) or []
     if not intro_items:
         print('ERROR: Intro was not placed on V1.', file=sys.stderr)
         return 1
-    intro_item = intro_items[0]
-
-    # Apply retime (no-op if speed=100). After SetProperty, re-read GetDuration
-    # so the gameplay shift uses the post-retime length.
-    retime_clip(intro_item, intro_speed)
-
-    intro_tl_frames = intro_item.GetDuration()
+    intro_tl_frames = intro_items[0].GetDuration()
     print(f'Intro placed: {intro_tl_frames} TL frames '
           f'({intro_tl_frames/fps:.2f}s @ {intro_speed}%)')
 

@@ -231,7 +231,9 @@ rem Classify the video first (writes transcripts/min-battles.json)
 .venv\Scripts\python.exe scripts\detect_minimum_battles.py
 ```
 
-`insert_intro_outro.py` reads that cache to decide automatically. `--intro-speed N` overrides. Retime is applied via `TimelineItem.SetProperty('Speed', ...)` after the intro is placed; if SetProperty doesn't take, the script warns and falls back to 100%.
+`insert_intro_outro.py` reads that cache to decide automatically. `--intro-speed N` overrides.
+
+**Retime implementation:** Resolve's scripting API doesn't expose a Speed property on `TimelineItem`, so the retime is done by pre-rendering the intro to a separate file via ffmpeg (`setpts=PTS/<speed_factor> -an`), importing it into the "assets" bin, and placing that as the intro. Cached at `~/.resolve-mcp/cache/retimed-intros/<stem>__<speed>pct.mp4` — first run pre-renders (a few seconds), subsequent runs reuse the cache. ffmpeg must be on PATH (already required for the transcription pipeline).
 
 **Asset catalog** (`assets/catalog.json`, committed to git) defines game asset slots per game and the 5 shared folder bins (`shared_assets` array). Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
 
