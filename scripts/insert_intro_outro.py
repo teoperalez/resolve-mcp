@@ -25,6 +25,7 @@ import _resolve_env  # noqa: F401
 CATALOG_PATH  = Path('assets/catalog.json')
 MANIFEST_DIR  = Path.home() / '.resolve-mcp'
 MANIFEST_PATH = MANIFEST_DIR / 'manifest.json'
+MIN_BATTLES_CACHE = Path('transcripts/min-battles.json')
 
 
 # ── JSON helpers ───────────────────────────────────────────────────────────────
@@ -150,9 +151,72 @@ def ensure_tracks(tl, video_count: int, audio_count: int) -> None:
         tl.AddTrack('audio', 'stereo')
 
 
+# ── retime helpers ─────────────────────────────────────────────────────────────
+
+def auto_detect_intro_speed(default_fast: int = 400) -> tuple[int, str]:
+    """Decide the intro speed from the cached min-battles classification.
+
+    Returns (speed_pct, reason). If the cache is missing, defaults to 100% with
+    a warning — the /import skill should run detect_minimum_battles.py first.
+    """
+    if not MIN_BATTLES_CACHE.exists():
+        return 100, (f'no {MIN_BATTLES_CACHE} cache — defaulting to 100%; '
+                     f'run scripts/detect_minimum_battles.py first to enable auto-retime')
+    try:
+        data = json.loads(MIN_BATTLES_CACHE.read_text(encoding='utf-8'))
+    except Exception as e:
+        return 100, f'could not parse {MIN_BATTLES_CACHE}: {e} — defaulting to 100%'
+
+    if bool(data.get('is_minimum_battles')):
+        return 100, (f'is_minimum_battles=true ({data.get("pokemon_count", "?")} '
+                     f'Pokémon) — keeping intro at 100%')
+    return default_fast, (f'is_minimum_battles=false ({data.get("pokemon_count", "?")} '
+                          f'Pokémon) — retiming intro to {default_fast}%')
+
+
+def retime_clip(item, speed_pct: int) -> bool:
+    """Try to retime a placed TimelineItem to `speed_pct` percent.
+
+    Tries common Resolve property name/value combos and returns True if any
+    sticks (clip duration actually changed). speed_pct=100 is a no-op.
+    """
+    if speed_pct == 100:
+        return True
+
+    before = item.GetDuration()
+    attempts = [
+        ('Speed',         float(speed_pct)),
+        ('Speed',         speed_pct / 100.0),
+        ('Speed',         int(speed_pct)),
+        ('PlaybackSpeed', float(speed_pct)),
+        ('PlaybackSpeed', speed_pct / 100.0),
+    ]
+    for key, value in attempts:
+        try:
+            ok = item.SetProperty(key, value)
+        except Exception:
+            ok = False
+        after = item.GetDuration()
+        if ok and after != before:
+            print(f'  Retime: SetProperty({key!r}, {value}) → '
+                  f'{before} → {after} TL frames')
+            return True
+    print(f'  WARNING: retime to {speed_pct}% failed via SetProperty — duration '
+          f'unchanged at {before} frames. Falling back to 100% speed.')
+    return False
+
+
 # ── main ───────────────────────────────────────────────────────────────────────
 
-def run(game_key: str, dry_run: bool, source_timeline: str | None = None) -> int:
+def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
+        intro_speed: int | None = None) -> int:
+    # Resolve intro speed: explicit CLI value wins, otherwise auto-detect from
+    # transcripts/min-battles.json (default 100% if no cache).
+    if intro_speed is None:
+        intro_speed, speed_reason = auto_detect_intro_speed()
+    else:
+        speed_reason = f'explicit CLI override --intro-speed {intro_speed}'
+
     import DaVinciResolveScript as dvr
 
     catalog  = load_json(CATALOG_PATH)
@@ -234,16 +298,21 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None) -> int
 
     print(f'Game:         {game_def["display_name"]}')
     print(f'Intro:        {intro_mpi.GetName()} (~{intro_tl_frames_est} TL frames est.)')
+    print(f'Intro speed:  {intro_speed}%  ({speed_reason})')
     print(f'Outro video:  {outro_vid_mpi.GetName() if outro_vid_mpi else "none"}')
     print(f'Outro audio:  {outro_aud_mpi.GetName() if outro_aud_mpi else "none"}')
     print(f'Clips found:  {len(existing)}')
     print(f'Original TL:  frames {orig_start}–{orig_end}')
 
     if dry_run:
-        intro_tl = intro_tl_frames_est
+        # Estimate the retimed intro duration. Resolve rounds to whole frames,
+        # so this may be off by ±1 vs the actual placed-then-retimed result.
+        intro_tl  = max(1, round(intro_tl_frames_est * 100 / intro_speed))
         outro_rel = (orig_end - orig_start) + intro_tl
         print('\n── DRY RUN (shift estimate) ──')
-        print(f'  Intro  → recordFrame={orig_start}  (~{intro_tl} TL frames)')
+        print(f'  Intro  → recordFrame={orig_start}  '
+              f'(~{intro_tl} TL frames after {intro_speed}% retime; '
+              f'native ~{intro_tl_frames_est})')
         for c in sorted(existing, key=lambda x: (x['mediaType'], x['trackIndex'], x['relRecord'])):
             new_rf = orig_start + c['relRecord'] + intro_tl
             print(f'  type={c["mediaType"]} track={c["trackIndex"]:2d}  '
@@ -283,8 +352,15 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None) -> int
     if not intro_items:
         print('ERROR: Intro was not placed on V1.', file=sys.stderr)
         return 1
-    intro_tl_frames = intro_items[0].GetDuration()
-    print(f'Intro placed: {intro_tl_frames} TL frames ({intro_tl_frames/fps:.2f}s)')
+    intro_item = intro_items[0]
+
+    # Apply retime (no-op if speed=100). After SetProperty, re-read GetDuration
+    # so the gameplay shift uses the post-retime length.
+    retime_clip(intro_item, intro_speed)
+
+    intro_tl_frames = intro_item.GetDuration()
+    print(f'Intro placed: {intro_tl_frames} TL frames '
+          f'({intro_tl_frames/fps:.2f}s @ {intro_speed}%)')
 
     # ── Re-place all original clips shifted by the actual intro TL duration ───
     outro_rel = (orig_end - orig_start) + intro_tl_frames
@@ -333,10 +409,15 @@ def main() -> int:
     parser.add_argument('--game', required=True, help='Game catalog key (e.g. pokemon_crystal)')
     parser.add_argument('--source-timeline', metavar='NAME',
                         help='Name of source timeline to use (default: current timeline)')
+    parser.add_argument('--intro-speed', type=int, metavar='PCT',
+                        help='Retime intro to this percent (e.g. 400 for 4x). '
+                             'Default: auto-detect from transcripts/min-battles.json — '
+                             '100%% for Minimum Battles Series, 400%% otherwise.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print what would happen without touching Resolve')
     args = parser.parse_args()
-    return run(args.game, args.dry_run, args.source_timeline)
+    return run(args.game, args.dry_run, args.source_timeline,
+               intro_speed=args.intro_speed)
 
 
 if __name__ == '__main__':

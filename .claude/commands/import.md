@@ -123,9 +123,27 @@ Then do the real import:
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\import_assets.py --game GAME_KEY --do-import"
 ```
 
-## Step 6 — Build edited timeline (intro + shift + outro)
+## Step 6 — Classify the video (Minimum Battles vs normal playthrough)
 
-Dry-run first to preview the layout:
+The intro plays at 4x speed for normal playthroughs, full speed (100%) for Minimum Battles Series videos. Run the classifier so `insert_intro_outro.py` picks the right speed automatically:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\detect_minimum_battles.py"
+```
+
+This is a **relay** — the script writes `plans/prompts/min-battles-<stem>.in.md` containing the transcript and a definition. YOU must:
+1. Poll with Read tool until the `.in.md` appears
+2. Read the transcript and classify
+3. Write **only** a single JSON object to the corresponding `.out.md`:
+   ```json
+   {"is_minimum_battles": true|false, "pokemon_count": N, "trainers_attempted": ["A", "B"], "reasoning": "..."}
+   ```
+
+The script caches the result to `transcripts/min-battles.json` and exits.
+
+## Step 7 — Build edited timeline (intro + shift + outro)
+
+Dry-run first to preview the layout (the dry-run will also report which intro speed was auto-detected from the cache):
 
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY --dry-run"
@@ -135,6 +153,13 @@ Then build the new timeline:
 
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY"
+```
+
+To force a specific intro speed (overrides auto-detect):
+
+```
+cmd.exe /c "... insert_intro_outro.py --game GAME_KEY --intro-speed 400"   rem 4x
+cmd.exe /c "... insert_intro_outro.py --game GAME_KEY --intro-speed 100"   rem full speed
 ```
 
 This creates a new timeline named `ORIGINAL_NAME (edit)` with:

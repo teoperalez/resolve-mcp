@@ -144,10 +144,31 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --do-import"
 ```
 
-**7e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
+**7e. Classify Minimum Battles Series (relay — drives intro speed):**
+
+Run `detect_minimum_battles.py` in the BACKGROUND (Bash run_in_background=true):
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\detect_minimum_battles.py"
+```
+
+Relay — YOU must complete this step:
+- Poll with Read tool until `C:\Programming\resolve-mcp\plans\prompts\min-battles-<stem>.in.md` appears
+- Read it. It contains the transcript and the definition of a Minimum Battles Series.
+- Decide:
+  - **True** if the player uses ≥8 different Pokémon AND repeatedly fights the same (or very similar) trainer with each (testing format)
+  - **False** for any other playthrough — including challenges with a small fixed team, full game runs, etc.
+- Write ONLY a single JSON object to `.out.md` (no markdown fences):
+  ```json
+  {"is_minimum_battles": false, "pokemon_count": 3, "trainers_attempted": ["Rival 1", "Falkner", "Bugsy"], "reasoning": "..."}
+  ```
+- The script caches to `transcripts/min-battles.json` and exits.
+
+**7f. Build the edit timeline (intro prepended, clips shifted, outro appended):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_intro_outro.py --game GAME_KEY"
 ```
+
+The script auto-reads `transcripts/min-battles.json`: intro plays at **100%** if `is_minimum_battles=true`, otherwise at **400%** (4x speed). Pass `--intro-speed 100|400` to override.
 
 ---
 

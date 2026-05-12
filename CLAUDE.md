@@ -218,6 +218,31 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\ins
 
 All `import_assets.py` modes support `--dry-run`.
 
+#### Intro retime (4x for non–Minimum Battles videos)
+
+`insert_intro_outro.py` retimes the placed intro after placement. By default the speed is auto-detected:
+
+1. Reads `transcripts/min-battles.json` if it exists (produced by `detect_minimum_battles.py`)
+2. If `is_minimum_battles=true` → keeps intro at **100%**
+3. Otherwise → retimes intro to **400%** (4x), so the intro plays in ~4s instead of ~17s
+4. Recomputes the gameplay shift using the placed intro's post-retime `GetDuration()`
+
+```bash
+# Classify the video first (LLM relay — see below)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\detect_minimum_battles.py"
+
+# Then build the edit timeline (auto-picks 100% or 400%)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY"
+
+# Force a specific speed (overrides auto-detect)
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY --intro-speed 100"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python scripts\insert_intro_outro.py --game GAME_KEY --intro-speed 400"
+```
+
+**Retime implementation:** calls `TimelineItem.SetProperty('Speed', value)` on the placed intro. The helper tries several property name / value-shape combinations (percentage as float, multiplier, etc.) because Resolve's API for retime isn't well-documented. If none stick, the script warns and falls back to 100% so the timeline still builds cleanly.
+
+**Minimum Battles classifier:** `detect_minimum_battles.py` uses the same relay pattern as `detect_battles.py` — writes `plans/prompts/min-battles-<stem>.in.md` with the transcript and waits for Claude to write a single-object JSON `{"is_minimum_battles": bool, "pokemon_count": N, "trainers_attempted": [...], "reasoning": "..."}` to the `.out.md`. Result cached in `transcripts/min-battles.json`. A Minimum Battles Series = player uses ≥8 different Pokémon AND repeatedly fights the same (or similar) trainer — when those signals are present the intro should NOT be retimed (the viewer is settling in for a long test format).
+
 **Asset catalog:** `assets/catalog.json` (committed to git) — defines game asset slots (`assets` section per game) and the 5 shared folder bins (`shared_assets` array at top level).
 **Manifest:** `~/.resolve-mcp/manifest.json` (machine-local, not in git) — stores actual file paths under `asset_group` keys for game assets and under `"shared"` for shared folders.
 **Asset groups:** Multiple games sharing the same generation (e.g., `pokemon_crystal` + `pokemon_gold_silver` both use `gsc`) share paths — set up once, reused for all.

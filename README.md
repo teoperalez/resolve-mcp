@@ -218,7 +218,20 @@ rem Build edited timeline (uses current timeline as source by default)
 
 rem If the current Resolve timeline is not the gameplay source, target it explicitly:
 .venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --source-timeline "My Gameplay Timeline"
+
+rem Force intro speed (auto-detected from transcripts/min-battles.json otherwise)
+.venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --intro-speed 400
+.venv\Scripts\python.exe scripts\insert_intro_outro.py --game pokemon_crystal --intro-speed 100
 ```
+
+**Intro retime:** by default the intro is retimed to 4x speed (400%) so it plays in ~4s instead of ~17s. The exception is **Minimum Battles Series** videos (player uses 8+ different Pokémon, repeatedly fighting the same trainer with each) — those keep the intro at full length since the viewer is settling in for a long test format. Detection runs via LLM relay:
+
+```cmd
+rem Classify the video first (writes transcripts/min-battles.json)
+.venv\Scripts\python.exe scripts\detect_minimum_battles.py
+```
+
+`insert_intro_outro.py` reads that cache to decide automatically. `--intro-speed N` overrides. Retime is applied via `TimelineItem.SetProperty('Speed', ...)` after the intro is placed; if SetProperty doesn't take, the script warns and falls back to 100%.
 
 **Asset catalog** (`assets/catalog.json`, committed to git) defines game asset slots per game and the 5 shared folder bins (`shared_assets` array). Games sharing the same generation (e.g., Crystal + Gold/Silver both use `gsc`) share paths — set up once, reused for all.
 
