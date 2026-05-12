@@ -119,6 +119,14 @@ Finds gaps in **A1** longer than N frames (default: > 5 frames) and places red m
 cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_audio_gaps.py [min_gap_frames=5]"
 ```
 
+### Color cut candidates (relay)
+
+Analyzes transcript via LLM relay. Colors V1 clips: **Orange** = high confidence cut, **Yellow** = medium confidence cut. Two detection types: (1) non-dialogue artifacts where Whisper hallucinated over silence, (2) false starts, repetitions, and significant topic changes. Uses the same relay pattern as detect_battles.py — writes a prompt file, polls for Claude Code's JSON response.
+
+```bash
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_cut_candidates.py [transcript.json] [--dry-run]"
+```
+
 ---
 
 ### Critical: marker frameId convention for TimelineItem

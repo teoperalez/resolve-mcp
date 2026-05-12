@@ -65,17 +65,41 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Wait for completion. Report gap count and positions.
 
-### Step 5 — Import assets and build edit timeline
+### Step 5 — Analyze transcript and color cut candidates
+
+**5a. Run mark_cut_candidates.py in the BACKGROUND (run_in_background=true):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\mark_cut_candidates.py"
+```
+
+**5b. Relay — YOU must complete this step:**
+- Poll with Read tool until `C:\Programming\resolve-mcp\plans\prompts\cut-analysis-<stem>.in.md` appears
+- Read it. It contains the full segmented transcript with timestamps.
+- Analyze and identify:
+  1. **Non-dialogue / artifacts** — very short segments where Whisper likely hallucinated text over silence, a mic bump, or noise. Keep laughter and genuine short reactions.
+  2. **False starts, repetitions, topic changes** — speaker abandons a thought mid-sentence, repeats content just said within ~30 s, or pivots significantly from one strategy/Pokémon to another. Use the game and challenge context from the transcript to judge.
+- Write ONLY a raw JSON array to the corresponding `.out.md` (no markdown fences):
+  ```json
+  [{"start_sec": 12.3, "end_sec": 14.1, "confidence": "high", "type": "non_dialogue", "reason": "..."},
+   {"start_sec": 45.0, "end_sec": 52.3, "confidence": "medium", "type": "false_start", "reason": "..."}]
+  ```
+- mark_cut_candidates.py detects `.out.md`, colors V1 clips (Orange = high, Yellow = medium), and exits.
+
+Report how many clips were colored orange and yellow.
+
+---
+
+### Step 6 — Import assets and build edit timeline
 
 The transcript from Step 2a is already available. Use it now to detect the game and run the full import pipeline.
 
-**5a. Detect game and check game-specific manifest:**
+**6a. Detect game and check game-specific manifest:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --check"
 ```
 Infer GAME_KEY from the transcript in `transcripts\` (first ~3000 chars of `text` field). If any paths are missing or invalid, prompt the user before continuing.
 
-**5b. Check shared assets (type icons, BGM, badges, gym leaders, Pokémon artwork):**
+**6b. Check shared assets (type icons, BGM, badges, gym leaders, Pokémon artwork):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --check-shared"
 ```
@@ -84,17 +108,17 @@ If status is `needs_paths`, prompt the user for each missing folder path and set
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --set-shared-path ASSET_ID "PATH""
 ```
 
-**5c. Import shared assets into sub-bins (skip if all already valid and bins exist):**
+**6c. Import shared assets into sub-bins (skip if all already valid and bins exist):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --import-shared"
 ```
 
-**5d. Import game-specific assets:**
+**6d. Import game-specific assets:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\import_assets.py --game GAME_KEY --do-import"
 ```
 
-**5e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
+**6e. Build the edit timeline (intro prepended, clips shifted, outro appended):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_intro_outro.py --game GAME_KEY"
 ```
@@ -103,11 +127,12 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 
 ## Final summary
 
-After all five steps complete, print a summary table:
+After all six steps complete, print a summary table:
 | Step | Result |
 |------|--------|
 | Clear audio tracks | N clips removed from A2–A5 |
 | Battle gaps | N battles found, N extended, N marker-only |
 | Short clip removal | N clips ripple deleted |
 | Gap markers | N gaps marked |
+| Cut candidates | N orange (high confidence), N yellow (medium confidence) |
 | Import + edit timeline | Game detected, N shared files + N game files imported, edit timeline created |
