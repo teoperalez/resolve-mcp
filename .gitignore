@@ -34,6 +34,10 @@ transcriptions.json
 transcripts/
 plans/
 
+# Asset manifest lives globally at ~/.resolve-mcp/manifest.json (not in repo)
+# Catalog (assets/catalog.json) IS committed — only ignore machine-local overrides
+assets/manifest.json
+
 .claude/*
 !.claude/settings.json
 !.claude/commands/

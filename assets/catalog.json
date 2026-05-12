@@ -1,0 +1,54 @@
+{
+  "pokemon_crystal": {
+    "display_name": "Pokémon Crystal",
+    "assets": {
+      "title_card": {
+        "label": "Title card / intro video",
+        "type": "file"
+      },
+      "broll_folder": {
+        "label": "B-roll gameplay footage folder",
+        "type": "folder"
+      }
+    }
+  },
+  "pokemon_red_blue": {
+    "display_name": "Pokémon Red/Blue",
+    "assets": {
+      "title_card": {
+        "label": "Title card / intro video",
+        "type": "file"
+      },
+      "broll_folder": {
+        "label": "B-roll gameplay footage folder",
+        "type": "folder"
+      }
+    }
+  },
+  "pokemon_gold_silver": {
+    "display_name": "Pokémon Gold/Silver",
+    "assets": {
+      "title_card": {
+        "label": "Title card / intro video",
+        "type": "file"
+      },
+      "broll_folder": {
+        "label": "B-roll gameplay footage folder",
+        "type": "folder"
+      }
+    }
+  },
+  "pokemon_yellow": {
+    "display_name": "Pokémon Yellow",
+    "assets": {
+      "title_card": {
+        "label": "Title card / intro video",
+        "type": "file"
+      },
+      "broll_folder": {
+        "label": "B-roll gameplay footage folder",
+        "type": "folder"
+      }
+    }
+  }
+}
