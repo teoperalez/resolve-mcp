@@ -304,6 +304,114 @@ rem Preview without modifying Resolve
 
 **Typical drift after refinement:** wins land within ±0.5s of the true transition (frame-precise for clean wins); gave_ups are more approximate (no clean defeat flourish to lock onto).
 
+### Member Carousel detection + layout
+
+After the last Battle End, the video transitions into a "Member Carousel" / "Member Thank You" section — an overlay with a Pokémon sprite at bottom-left, member name in yellow text, and gym badge at bottom-right.
+
+#### `scripts/find_member_carousel.py`
+
+Locates the first V1 clip whose first frame shows the carousel style overlay. Extracts first-frame + previous-clip's-last-frame for up to 30 candidates after the last green marker, then writes a relay prompt. Claude dispatches a single Haiku subagent that classifies frames sequentially (find the candidate with carousel; verify previous clip's last frame). Places a yellow `Member Carousel Start` marker.
+
+```cmd
+.venv\Scripts\python.exe scripts\find_member_carousel.py
+.venv\Scripts\python.exe scripts\find_member_carousel.py --skip-relay
+```
+
+#### `scripts/layout_carousel.py`
+
+Reshapes the carousel section so the bottom overlay plays continuously underneath the editor's cuts:
+
+1. Copies V1 carousel clips onto V2.
+2. Sets `CropBottom=530` on each V2 clip (V1's bottom strip — the carousel — shows through where V2 is cropped).
+3. Deletes the original V1 clips in that range.
+4. Replaces them with ONE extended V1 clip from `Member Carousel Start` to the outro's start, with source range continuing past the original clip's out-point so the underlying source plays through without time cuts.
+
+```cmd
+.venv\Scripts\python.exe scripts\layout_carousel.py --dry-run
+.venv\Scripts\python.exe scripts\layout_carousel.py
+.venv\Scripts\python.exe scripts\layout_carousel.py --crop-bottom 480
+```
+
+**Source requirement:** the gameplay source must have enough handle frames past the original V1 clip's end. Typically true — original capture is ~47 min while the edit timeline is ~28 min. Always dry-run first.
+
+### A2 audio pipeline (BGM + battle audio + fades)
+
+A multi-stage pipeline that fills A2 with dynamic music: Dual Screen Lovelife → chained random general BGM → looped battle audio during battles → smooth crossfade transitions at every battle boundary.
+
+#### Stage 1 — Classify the BGM library (one-time per project)
+
+```cmd
+rem Step 1a: filename-based LLM classification → ~/.resolve-mcp/bgm-tags.json
+.venv\Scripts\python.exe scripts\classify_bgm.py
+
+rem Step 1b: librosa audio-feature analysis, merged into the same file.
+rem Flags mismatches between name-tag and audio classification for review.
+.venv\Scripts\python.exe scripts\analyze_bgm_audio.py
+```
+
+Categories: `battle_rival`, `battle_gym`, `battle_generic`, `general`, `exclude`. The audio analysis adds BPM / RMS / spectral centroid / onset rate and re-classifies into `battle` / `energetic` / `calm`. Mismatches between name and audio surface ambiguous tracks for manual review/edit.
+
+Requires `librosa` — install via `uv sync --extra transcription --extra audio-analysis` (new extra).
+
+#### Stage 2 — Classify each battle's type (rival / gym / other)
+
+```cmd
+.venv\Scripts\python.exe scripts\classify_battles.py
+```
+
+LLM relay reads `transcripts/battles.json` + the surrounding transcript context (±30s per battle) and classifies each as `rival`, `gym`, or `other`. Cached to `transcripts/battle-types.json`.
+
+#### Stage 3 — Place BGM
+
+```cmd
+rem 3a: Place Dual Screen Lovelife on A2, offset to align with intro speed
+.venv\Scripts\python.exe scripts\place_bgm.py --game GAME_KEY
+
+rem 3b: Chain random general-tagged BGM tracks after DSL, truncating at battles
+.venv\Scripts\python.exe scripts\place_battle_bgm.py [--seed N]
+```
+
+`place_bgm.py` places `Dual Screen Lovelife` at timeline frame 0 with source startFrame = (native_intro_frames − placed_intro_frames). For a full-length intro (100%) the offset is 0; for a 4x intro (400%) the offset is the saved frames (~764 at 60fps). This keeps the music landing at the same point at the intro's end regardless of speed.
+
+`place_battle_bgm.py` chains random tracks tagged `general` (battle-tagged tracks are excluded from the random pool). Truncates at the next battle start; picks a new random track at each battle end.
+
+#### Stage 4 — Place looped battle audio
+
+```cmd
+.venv\Scripts\python.exe scripts\place_battle_audio.py ^
+  --rival-track "Take them down!.mp3" ^
+  --gym-track "Big Baddies.mp3" ^
+  --other-track "A new Challenger.mp3"
+```
+
+One track per category, used consistently across all battles of that type. Loops the track if the battle is longer than the track; truncates the last loop at the battle end. Pass `--only-battles N,N` to target specific battles for re-runs.
+
+Track selection defaults to the alphabetical first in each tagged group. Override via CLI to pick specific tracks.
+
+#### Stage 5 — Apply -3dB fades at battle boundaries
+
+```cmd
+.venv\Scripts\python.exe scripts\apply_audio_fades.py
+.venv\Scripts\python.exe scripts\apply_audio_fades.py --fade-sec 0.5
+```
+
+Resolve's scripting API doesn't expose audio fade properties on TimelineItems (confirmed via `test_audio_fades.py`: GetProperty returns an empty dict, SetProperty for AudioFadeIn/FadeOut/LeftAudioFade all return False). So fades are **pre-rendered via ffmpeg** using the half-sine (`afade=curve=hsin`) curve, which matches Resolve's built-in "Cross Fade -3dB" constant-power behavior.
+
+Fades are applied to:
+
+- The last general BGM clip BEFORE each battle (fade-out at end)
+- The first loop of each battle's audio (fade-in at start)
+- The last loop of each battle's audio (fade-out at end)
+- The first general BGM clip AFTER each battle (fade-in at start)
+- The very last A2 clip on the timeline (fade-out)
+
+Cache: `~/.resolve-mcp/cache/audio-fades/<stem>__s<start>_e<end>__fi<N>_fo<N>.mp3`. First run renders the variants (~10s for 15 edges); subsequent runs hit the cache.
+
+#### Utilities
+
+- `scripts/clear_a2_except_first.py` — removes every A2 clip except the first one (the Dual Screen Lovelife clip). Useful for cleanly re-running stages 3b-5 without losing DSL.
+- `scripts/test_audio_fades.py` — one-off probe that confirms no audio fade properties are settable via the Resolve scripting API. Re-run on future Resolve versions to detect any new fade property.
+
 ---
 
 ## Usage
