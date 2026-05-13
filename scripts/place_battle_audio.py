@@ -1,25 +1,25 @@
 """
-Place battle audio (rival / gym themes) on A2 during each battle interval.
+Place battle audio (rival / gym / other themes) on A2 during each battle.
 
 Reads:
   - transcripts/battle-types.json      (battle_index → rival/gym/other)
-  - ~/.resolve-mcp/bgm-tags.json        (filename → tag including battle_rival / battle_gym)
+  - ~/.resolve-mcp/bgm-tags.json        (filename → tag battle_rival / battle_gym / battle_generic)
   - transcripts/battles.json            (source seconds for each battle start)
   - Green markers on the current timeline (battle ends)
 
 For each battle:
-  - If type == 'rival' → place the chosen battle_rival track
-  - If type == 'gym'   → place the chosen battle_gym track
-  - If type == 'other' → leave silent
+  - type == 'rival' → place the chosen battle_rival track
+  - type == 'gym'   → place the chosen battle_gym track
+  - type == 'other' → place the chosen battle_generic track
   - Loop the chosen track if the battle interval is longer than its duration.
     Truncate the last loop at the battle end.
 
-One track per type, used consistently across all battles of that type.
+One track per category, used consistently across all battles of that category.
 Selection: alphabetical first within the tagged set unless overridden via CLI.
 
 Usage:
     python place_battle_audio.py [--rival-track NAME] [--gym-track NAME]
-                                 [--track-index 2] [--dry-run]
+                                 [--other-track NAME] [--track-index 2] [--dry-run]
 """
 import sys
 import os
@@ -138,9 +138,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--rival-track', default=None,
-                    help='Filename of the track to use for rival battles (otherwise the first battle_rival in bgm-tags.json)')
+                    help='Filename for rival battles (default: first battle_rival in bgm-tags.json)')
     ap.add_argument('--gym-track', default=None,
-                    help='Filename of the track to use for gym battles (otherwise the first battle_gym in bgm-tags.json)')
+                    help='Filename for gym battles (default: first battle_gym in bgm-tags.json)')
+    ap.add_argument('--other-track', default=None,
+                    help='Filename for other battles, e.g. route trainers / rocket grunts '
+                         '(default: first battle_generic in bgm-tags.json)')
+    ap.add_argument('--only-battles', default=None,
+                    help='Comma-separated list of battle indices to place (default: all)')
     ap.add_argument('--track-index', type=int, default=2,
                     help='Audio track to place on (default: 2 = A2)')
     ap.add_argument('--dry-run', action='store_true')
@@ -189,22 +194,37 @@ def main() -> int:
 
     rival_name = args.rival_track or pick_first('battle_rival')
     gym_name   = args.gym_track   or pick_first('battle_gym')
+    other_name = args.other_track or pick_first('battle_generic')
     print(f'Rival track: {rival_name!r}')
     print(f'Gym track:   {gym_name!r}')
+    print(f'Other track: {other_name!r}')
 
-    if not rival_name and not gym_name:
-        print('Nothing to place (no battle_rival or battle_gym tracks tagged).')
+    if not (rival_name or gym_name or other_name):
+        print('Nothing to place (no battle_* tracks tagged).')
         return 0
 
     rival_mpi = name_to_mpi.get(rival_name) if rival_name else None
     gym_mpi   = name_to_mpi.get(gym_name)   if gym_name   else None
+    other_mpi = name_to_mpi.get(other_name) if other_name else None
     rival_dur = mpi_duration_frames(rival_mpi, fps) if rival_mpi else None
     gym_dur   = mpi_duration_frames(gym_mpi,   fps) if gym_mpi   else None
+    other_dur = mpi_duration_frames(other_mpi, fps) if other_mpi else None
 
     if rival_name and not rival_mpi:
         print(f'WARN: rival track {rival_name!r} not found in bgm bin.')
     if gym_name and not gym_mpi:
         print(f'WARN: gym track {gym_name!r} not found in bgm bin.')
+    if other_name and not other_mpi:
+        print(f'WARN: other track {other_name!r} not found in bgm bin.')
+
+    only_battles = None
+    if args.only_battles:
+        try:
+            only_battles = {int(s.strip()) for s in args.only_battles.split(',') if s.strip()}
+            print(f'Only placing battle indices: {sorted(only_battles)}')
+        except ValueError:
+            print(f'ERROR: invalid --only-battles {args.only_battles!r}', file=sys.stderr)
+            return 1
 
     # Build V1 source-sec map for battle starts
     v1 = sorted(tl.GetItemListInTrack('video', 1) or [], key=lambda c: c.GetStart())
@@ -220,11 +240,21 @@ def main() -> int:
     # Build battle pairs with types
     used = set()
     specs = []
+    type_to_track = {
+        'rival': (rival_mpi, rival_dur),
+        'gym':   (gym_mpi,   gym_dur),
+        'other': (other_mpi, other_dur),
+    }
+
     for i, b in enumerate(battles):
+        if only_battles is not None and i not in only_battles:
+            continue
+
         btype_info = battle_types.get(str(i)) or battle_types.get(i)
         btype      = (btype_info or {}).get('type', 'other')
-        if btype not in ('rival', 'gym'):
-            print(f"  battle {i} ({b['trainer_name']}): type={btype} → skip")
+        track_mpi, track_dur = type_to_track.get(btype, (None, None))
+        if not track_mpi or not track_dur:
+            print(f"  battle {i} ({b['trainer_name']}): no track for type={btype} → skip")
             continue
 
         start_abs = source_sec_to_tl_abs(b['timestamp_sec'], fps, v1_map)
@@ -243,13 +273,6 @@ def main() -> int:
                 break
         if end_abs is None:
             print(f"  battle {i} ({b['trainer_name']}): no green end marker")
-            continue
-
-        # Pick track for this type
-        track_mpi = rival_mpi if btype == 'rival' else gym_mpi
-        track_dur = rival_dur if btype == 'rival' else gym_dur
-        if not track_mpi or not track_dur:
-            print(f"  battle {i} ({b['trainer_name']}): no track for type={btype}")
             continue
 
         battle_specs = loop_placements(track_mpi, track_dur,
