@@ -91,8 +91,8 @@ def enumerate_v1_clips(timeline, fps: float) -> tuple[list[dict], list[dict]]:
 def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
     """
     For each clip, attach any Whisper segments whose source range overlaps the
-    clip's source range. Modifies clips in place. Each clip gains a `transcript`
-    key holding a list of {start_sec, end_sec, text} dicts (possibly empty).
+    clip's source range. Modifies clips in place. Each clip gains:
+      - `transcript`: list of {start_sec, end_sec, text} dicts (possibly empty)
     """
     for clip in clips:
         hits = []
@@ -106,19 +106,67 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
     return clips
 
 
+def flatten_words(segments: list) -> list[dict]:
+    """
+    Flatten word-level timestamps across all transcript segments into a single
+    list sorted by start time. Used by refine_cut_point() to snap cut edges to
+    the largest word-gap near the LLM's proposed boundary.
+    """
+    out = []
+    for s in segments:
+        for w in s.get('words', []):
+            try:
+                out.append({
+                    'word':  w.get('word', ''),
+                    'start': float(w['start']),
+                    'end':   float(w['end']),
+                })
+            except (KeyError, TypeError, ValueError):
+                continue
+    out.sort(key=lambda w: w['start'])
+    return out
+
+
+def refine_cut_point(t_sec: float, words: list[dict], tol: float = 0.3) -> float:
+    """
+    Find the largest word-gap within ±tol seconds of t_sec. Returns the midpoint
+    of that gap, or t_sec unchanged if no candidate gap is found. The intent is
+    'use Whisper as a guide, then zoom in and cut at the gap between words.'
+    """
+    best_gap = -1.0
+    best_center = t_sec
+    for w1, w2 in zip(words[:-1], words[1:]):
+        gap = w2['start'] - w1['end']
+        center = (w1['end'] + w2['start']) / 2.0
+        if abs(center - t_sec) <= tol and gap > best_gap:
+            best_gap   = gap
+            best_center = center
+    return best_center
+
+
 def format_clip_line(c: dict) -> str:
-    if c['transcript']:
-        # Join transcript snippets with ' | '. Strip surrounding whitespace.
-        text_field = ' | '.join(t['text'] for t in c['transcript'] if t['text'])
-        if not text_field:
-            text_field = '(transcript present but blank)'
-        else:
-            text_field = f'"{text_field}"'
-    else:
-        text_field = '(NO TRANSCRIPT — empty / noise / artifact)'
-    return (f'[{c["idx"]:5d}] tl={c["tl_start"]:8.2f}-{c["tl_end"]:8.2f}s  '
+    head = (f'[{c["idx"]:5d}] tl={c["tl_start"]:8.2f}-{c["tl_end"]:8.2f}s  '
             f'src={c["src_start"]:8.2f}-{c["src_end"]:8.2f}s  '
-            f'dur={c["duration"]:5.2f}s  {text_field}')
+            f'dur={c["duration"]:5.2f}s')
+
+    if not c['transcript']:
+        return f'{head}  (NO TRANSCRIPT — empty / noise / artifact)'
+
+    # Filter out empty text segments
+    real = [t for t in c['transcript'] if t['text']]
+    if not real:
+        return f'{head}  (transcript present but blank)'
+
+    if len(real) == 1:
+        t = real[0]
+        return f'{head}  [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"'
+
+    # Multi-segment clip — expand each sub-segment onto its own indented line so
+    # the LLM can see the internal boundaries that are candidates for mid-clip cuts.
+    lines = [head]
+    for t in real:
+        lines.append(f'           sub [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"')
+    return '\n'.join(lines)
 
 
 def build_prompt(clips: list[dict]) -> str:
@@ -161,6 +209,8 @@ The list below is **every V1 clip on the timeline** (in order). Each line shows:
 - `dur=Es` duration in seconds
 - transcript text from Whisper overlapping the source range, or `(NO TRANSCRIPT — empty / noise / artifact)`
 
+**Multi-segment clips.** When a clip contains more than one Whisper segment, each sub-segment is shown on its own `sub [...] "..."` line with its own source-time range. These internal boundaries are the natural cut points if you want to flag only part of the clip — see "Mid-clip cuts" below.
+
 There are {len(clips)} clips total; {n_empty} have no transcript text.
 
 ## Categories of cuts
@@ -190,6 +240,22 @@ There are {len(clips)} clips total; {n_empty} have no transcript text.
 
 **7. Abandoned narrative threads.** Setup mentioned ("we're going to try X strategy"), never followed through. Verify abandonment by scanning forward before flagging.
 
+## Mid-clip cuts (sub-clip ranges)
+
+A cut does not have to span a whole clip. The auto-editor's clip boundaries are arbitrary breath/pause points; the real false start or repetition may sit at the START or the END of a longer clip, with the rest of the clip being keep-worthy.
+
+When a single clip contains multiple Whisper sub-segments (shown as multiple `sub [...]` lines), you can flag a SUBSET of the clip's source range. Use the boundaries between sub-segments as your cut points — those are where Whisper detected a natural pause, so they line up with the gaps between words.
+
+Examples:
+
+- **Trail-off + restart in one clip.** Clip with two sub-segments: `sub [400.0-403.5s] "and with that we're basically ready to move on because we are"` and `sub [403.6-408.0s] "And with that, we're basically ready to move on, and Misty gets a chance to show..."` — flag `start_sec=400.0, end_sec=403.5` (cut only the trailed-off first attempt; keep the clean restart).
+
+- **Mid-sentence correction.** Clip with `sub [2587.0-2590.6s] "this Starmie wants Bubble Beam"` followed by `sub [2590.8-2594.0s] "actually wants Surf"` — flag the first sub-segment only.
+
+- **Beginning of clip is a stutter, rest is the real line.** Flag from `clip.src_start` to the end of the first sub-segment.
+
+If a clip has only ONE sub-segment shown (or no `sub` lines at all), output the whole-clip src range as before. Sub-clip ranges should always START or END at a sub-segment boundary — never in the middle of a word.
+
 ## What is NOT a cut candidate
 
 - **Outro / wrap-up speech.** "Thanks for watching", "see you next time", "if you enjoyed", "shoutout to my members" — scripted, intentional, keep.
@@ -214,12 +280,16 @@ Respond with ONLY a raw JSON array (no markdown fences, no explanation outside t
   {{"start_sec": 13.03, "end_sec": 13.43, "confidence": "high", "type": "artifact",
     "reason": "0.40s clip with no transcript — throat clear or breath burst"}},
   {{"start_sec": 187.0, "end_sec": 191.5, "confidence": "medium", "type": "false_start",
-    "reason": "Begins describing Onix's HP, cuts off and restarts at 191.6s"}}
+    "reason": "Begins describing Onix's HP, cuts off and restarts at 191.6s"}},
+  {{"start_sec": 400.0, "end_sec": 403.5, "confidence": "medium", "type": "mid_clip_false_start",
+    "reason": "Trail-off 'because we are' at start of long clip; flag only the first sub-segment, keep the clean restart that follows"}}
 ]
 
-`start_sec` / `end_sec`: the **source-time range** of the clip you're flagging — use the `src=` values shown above (NOT the `tl=` values). One JSON entry per clip you want flagged.
-`confidence`: `high` for categories 1–4 (clear artifacts/pre-roll/hallucinations); `medium` for categories 5–7 (narrative judgment).
-`type`: one of `artifact`, `pre_roll`, `hallucination`, `false_start`, `repetition`, `abandoned_thread`.
+`start_sec` / `end_sec`: the **source-time range** to flag.
+  - Whole-clip flag: use the clip's `src=A-B` values exactly.
+  - Sub-clip flag: use a sub-segment's `[start-end]` values (or the clip's src_start through a sub-segment boundary, or a sub-segment boundary through the clip's src_end). Always align to a sub-segment boundary — never split inside a word.
+`confidence`: `high` for categories 1–4 (clear artifacts/pre-roll/hallucinations); `medium` for categories 5–7 plus mid-clip cuts (narrative judgment).
+`type`: one of `artifact`, `pre_roll`, `hallucination`, `false_start`, `repetition`, `abandoned_thread`. Prefix with `mid_clip_` (e.g. `mid_clip_false_start`, `mid_clip_repetition`) when the range is a strict subset of a single clip — this signals the apply step to place edge markers on the clip instead of coloring the whole thing.
 
 For silence-stripped footage with {n_empty} empty-transcript clips, an empty array `[]` is almost certainly wrong — at minimum, empty-transcript clips that are not inside an obvious reaction sequence should be flagged.
 """
@@ -235,36 +305,108 @@ def poll_for_response(out_path: Path, timeout_sec: int) -> list:
     raise TimeoutError(f'No relay response after {timeout_sec}s — expected {out_path}')
 
 
-def apply_colors(segments: list, fps: float, timeline, dry_run: bool) -> tuple[int, int]:
+def apply_colors(segments: list, fps: float, timeline, words: list[dict],
+                 dry_run: bool) -> tuple[int, int, int]:
+    """
+    Apply cut flags to the live Resolve timeline.
+
+    Returns (n_orange, n_yellow, n_subclip_markers).
+
+    For each flagged range:
+      - Find all V1 clips whose source range overlaps it.
+      - If the range covers the whole clip (within 1-frame tolerance): SetClipColor.
+      - If the range is a strict subset of a single clip (mid-clip flag):
+          1. Snap start_sec and end_sec to the nearest large word-gap (±0.3s)
+          2. SetClipColor (so the editor sees the clip is flagged)
+          3. AddMarker(Red, 'Cut start') and AddMarker(Red, 'Cut end') on the clip
+             at the refined source frames — the editor blades at the markers.
+
+    Marker frame convention: TimelineItem.AddMarker takes the ABSOLUTE source
+    frame (clip.GetLeftOffset() + offset). int(t_sec * fps) is that frame as
+    long as the source media starts at frame 0 — true for all gameplay capture
+    files in this pipeline.
+    """
     v1 = timeline.GetItemListInTrack('video', 1) or []
     n_orange = n_yellow = 0
+    n_markers = 0
+
+    # Idempotency: clear any prior cut-candidate markers we placed on V1 clips.
+    # We tag our markers with customData='cut_candidates' so we can identify
+    # and remove them without disturbing markers placed by other tools.
+    if not dry_run:
+        n_cleared = 0
+        for c in v1:
+            markers = c.GetMarkers() or {}
+            for frame, m in markers.items():
+                if m.get('customData') == 'cut_candidates':
+                    c.DeleteMarkerAtFrame(frame)
+                    n_cleared += 1
+        if n_cleared:
+            print(f'Cleared {n_cleared} stale cut-candidate marker(s) from prior run')
 
     for seg in segments:
-        s_start = int(seg['start_sec'] * fps)
-        s_end   = int(seg['end_sec']   * fps)
-        conf    = seg.get('confidence', 'medium')
-        color   = 'Orange' if conf == 'high' else 'Yellow'
-        reason  = seg.get('reason', '')[:70]
+        s_start_sec = float(seg['start_sec'])
+        s_end_sec   = float(seg['end_sec'])
+        s_start_f   = int(s_start_sec * fps)
+        s_end_f     = int(s_end_sec   * fps)
+        conf        = seg.get('confidence', 'medium')
+        color       = 'Orange' if conf == 'high' else 'Yellow'
+        type_str    = seg.get('type', '')
+        reason      = seg.get('reason', '')
+        reason_short = reason[:70]
+
+        explicit_subclip = type_str.startswith('mid_clip_')
 
         # Match clips whose source range overlaps the segment
         hits = [c for c in v1
-                if c.GetLeftOffset() < s_end
-                and c.GetLeftOffset() + c.GetDuration() > s_start]
+                if c.GetLeftOffset() < s_end_f
+                and c.GetLeftOffset() + c.GetDuration() > s_start_f]
 
-        if hits:
-            print(f'  {color:6s}  [{seg["start_sec"]:.1f}-{seg["end_sec"]:.1f}s]'
-                  f'  {conf}  {reason}')
-            for clip in hits:
+        if not hits:
+            print(f'  NOMATCH [{s_start_sec:.2f}-{s_end_sec:.2f}s]  {reason_short}')
+            continue
+
+        for clip in hits:
+            c_start = clip.GetLeftOffset()
+            c_end   = clip.GetLeftOffset() + clip.GetDuration()
+            covers_whole = (s_start_f <= c_start + 1 and s_end_f >= c_end - 1)
+            inside_clip  = (s_start_f >= c_start and s_end_f <= c_end)
+            sub_clip = (not covers_whole) and inside_clip and (explicit_subclip or
+                                                                (s_end_f - s_start_f) < (c_end - c_start))
+
+            if sub_clip:
+                # Snap each cut edge to the largest word-gap nearby
+                refined_start = refine_cut_point(s_start_sec, words, tol=0.3)
+                refined_end   = refine_cut_point(s_end_sec,   words, tol=0.3)
+                rs_f = int(refined_start * fps)
+                re_f = int(refined_end   * fps)
+                # Clamp to clip bounds
+                rs_f = max(rs_f, c_start)
+                re_f = min(re_f, c_end - 1)
+
+                drift_s = abs(refined_start - s_start_sec)
+                drift_e = abs(refined_end   - s_end_sec)
+                print(f'  {color:6s} sub-clip [{refined_start:.2f}-{refined_end:.2f}s]'
+                      f' (snapped Δ{drift_s:.2f}/{drift_e:.2f}s)  {conf}  {reason_short}')
+
                 if not dry_run:
                     clip.SetClipColor(color)
-            if color == 'Orange':
-                n_orange += len(hits)
+                    note = f'[{type_str}] {reason}'[:200]
+                    clip.AddMarker(rs_f, 'Red', 'Cut start', note, 1, 'cut_candidates')
+                    clip.AddMarker(re_f, 'Red', 'Cut end',   note, 1, 'cut_candidates')
+                n_markers += 2
             else:
-                n_yellow += len(hits)
-        else:
-            print(f'  NOMATCH [{seg["start_sec"]:.1f}-{seg["end_sec"]:.1f}s]  {reason}')
+                print(f'  {color:6s} whole    [{s_start_sec:.2f}-{s_end_sec:.2f}s]'
+                      f'  {conf}  {reason_short}')
+                if not dry_run:
+                    clip.SetClipColor(color)
 
-    return n_orange, n_yellow
+            if color == 'Orange':
+                n_orange += 1
+            else:
+                n_yellow += 1
+
+    return n_orange, n_yellow, n_markers
 
 
 def main() -> int:
@@ -341,16 +483,15 @@ def main() -> int:
 
     print(f'\nReceived {len(segments)} cut candidate(s).')
 
-    if args.dry_run:
-        print('\nDRY RUN — would color:')
-        for seg in segments:
-            color = 'Orange' if seg.get('confidence') == 'high' else 'Yellow'
-            print(f'  {color:6s}  [{seg["start_sec"]:.1f}-{seg["end_sec"]:.1f}s]'
-                  f'  {seg.get("confidence", "?")}  {seg.get("reason", "")[:70]}')
-        return 0
+    # Flatten word-level timestamps for sub-clip cut-edge refinement
+    words = flatten_words(transcript.get('segments', []))
 
-    n_orange, n_yellow = apply_colors(segments, fps, timeline, dry_run=False)
-    print(f'\nColored: {n_orange} orange (high confidence), {n_yellow} yellow (medium confidence)')
+    n_orange, n_yellow, n_markers = apply_colors(segments, fps, timeline, words,
+                                                  dry_run=args.dry_run)
+    if args.dry_run:
+        print(f'\nDRY RUN — no changes applied.')
+    print(f'Colored: {n_orange} orange (high), {n_yellow} yellow (medium); '
+          f'{n_markers} sub-clip cut-edge markers')
     return 0
 
 
