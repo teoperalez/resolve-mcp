@@ -344,17 +344,40 @@ def apply_colors(segments: list, fps: float, timeline, words: list[dict],
     long as the source media starts at frame 0 — true for all gameplay capture
     files in this pipeline.
     """
-    # Filter to gameplay-source clips only — intro/outro/B-roll source ranges
-    # can spuriously overlap gameplay frame numbers (different source files,
-    # but the API exposes only source-frame offsets per clip).
-    v1 = gameplay_v1_clips(timeline)
+    # Identify gameplay vs structural clips. apply_colors must NEVER touch
+    # structural clips (intro/outro/B-roll) — they are intentional pre-rendered
+    # content. We ALSO defensively clear any color/markers that a prior buggy
+    # run may have left on structural clips, so re-running this script always
+    # converges to "structural clips are clean".
+    all_v1 = sorted(timeline.GetItemListInTrack('video', 1) or [],
+                    key=lambda c: c.GetStart())
+    if not all_v1:
+        return 0, 0, 0
+    dominant_name = Counter(c.GetName() for c in all_v1).most_common(1)[0][0]
+    v1 = [c for c in all_v1 if c.GetName() == dominant_name]
+    structural = [c for c in all_v1 if c.GetName() != dominant_name]
+
     n_orange = n_yellow = 0
     n_markers = 0
 
-    # Idempotency: clear any prior cut-candidate markers we placed on V1 clips.
-    # We tag our markers with customData='cut_candidates' so we can identify
-    # and remove them without disturbing markers placed by other tools.
     if not dry_run:
+        # Defensively clean structural clips of any stale cut-candidate state
+        n_struct_cleared = 0
+        for c in structural:
+            if c.GetClipColor() in ('Orange', 'Yellow', 'Red'):
+                c.ClearClipColor()
+                n_struct_cleared += 1
+            markers = c.GetMarkers() or {}
+            for frame, m in markers.items():
+                if m.get('customData') == 'cut_candidates':
+                    c.DeleteMarkerAtFrame(frame)
+                    n_struct_cleared += 1
+        if n_struct_cleared:
+            print(f'Cleared {n_struct_cleared} stale color/marker(s) from {len(structural)} structural clip(s)')
+
+        # Idempotency: clear any prior cut-candidate markers on gameplay clips
+        # too. Tagged with customData='cut_candidates' so we don't disturb
+        # markers placed by other tools.
         n_cleared = 0
         for c in v1:
             markers = c.GetMarkers() or {}
