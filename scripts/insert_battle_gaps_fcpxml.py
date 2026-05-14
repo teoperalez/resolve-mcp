@@ -171,9 +171,27 @@ def insert_battle_gaps(xml: str, battles: list[dict], gap_frames: int,
                   f'{SNAP_TOL_UNITS}u; skipping')
             continue
         target = video_clips[target_idx]
-        # Pull amount = min(gap_frames, available left handle = source frames
-        # between source 0 and the clip's current start)
+        # Pull amount = min(requested gap_frames,
+        #                   available left handle on this clip,
+        #                   source-frame gap to previous video clip)
+        # The third cap is critical: if we pull farther than the auto-edited
+        # silence gap between the previous clip and this one, the resulting
+        # source ranges OVERLAP, which makes the rendered audio play the
+        # overlapping frames TWICE in a row (duplicate speech). Cap to the
+        # auto-edited gap size to prevent this.
         pull_avail = min(gap_frames, target['start'][0])
+        if target_idx > 0:
+            prev = video_clips[target_idx - 1]
+            prev_src_end  = prev['start'][0] + prev['duration'][0]
+            gap_to_prev   = target['start'][0] - prev_src_end
+            if gap_to_prev < pull_avail:
+                if pull_avail - gap_to_prev > 0:
+                    print(f'  capping {b["trainer_name"]!r} pull: '
+                          f'requested {pull_avail}f, '
+                          f'capped to {max(0, gap_to_prev)}f '
+                          f'(auto-edited gap to previous clip is only '
+                          f'{gap_to_prev}f)')
+                pull_avail = max(0, gap_to_prev)
         battles_resolved.append({
             'video_index': target_idx,
             'battle':      b,
