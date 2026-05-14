@@ -82,10 +82,26 @@ def fmt_rational(num: int, den: int = 60) -> str:
 
 ASSET_CLIP_RE = re.compile(r'<asset-clip\s+([^>]+?)\s*/>', re.DOTALL)
 ATTR_RE       = re.compile(r'(\w+)="([^"]*)"')
+# Opening tag of <asset id="..." ...>  — captures attribute string before `>`.
+# <asset> always has a nested <media-rep> child, so it's never self-closing.
+ASSET_OPEN_RE = re.compile(r'<asset\s+([^>]+?)>')
 
 
 def parse_attrs(attr_str: str) -> dict[str, str]:
     return {m.group(1): m.group(2) for m in ATTR_RE.finditer(attr_str)}
+
+
+def find_video_refs(xml: str) -> set[str]:
+    """Scan <asset> declarations in <resources> for entries with hasVideo='1'.
+    The auto-editor's FCPXML uses one video ref (the gameplay capture, with
+    hasAudio='1' built-in) plus N audio-only refs (the WAV splits — hasVideo='0').
+    Returns the set of video-ref ids."""
+    out = set()
+    for m in ASSET_OPEN_RE.finditer(xml):
+        a = parse_attrs(m.group(1))
+        if a.get('hasVideo') == '1' and 'id' in a:
+            out.add(a['id'])
+    return out
 
 
 def parse_spine_clips(xml: str) -> list[dict]:
@@ -140,20 +156,42 @@ def clip_overlaps_cut(src_start: int, src_end: int,
 
 # ── Core cut algorithm ────────────────────────────────────────────────────────
 
-def apply_cuts(xml: str, cuts: list[dict], den: int = 60) -> tuple[str, dict]:
+def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
+               keep_linked_audio: bool = False) -> tuple[str, dict]:
     """
     Apply source-time cuts to the FCPXML's spine and markers.
 
     Returns (new_xml, replay_data). replay_data captures the timeline ranges
-    that were removed and the source-time cuts that produced them, suitable
-    for re-applying the same cuts to a sibling timeline.
+    that were removed and the source-time cuts that produced them.
+
+    By default (keep_linked_audio=False), only video-ref asset-clips are
+    emitted in the output spine — the auto-editor's linked audio refs
+    (1.wav-4.wav as r4/r6/r8/r10, which import as A2-A5 in Resolve) are
+    dropped. The video ref has hasAudio='1' built-in, so A1 (gameplay
+    dialogue) survives via the embedded track. The Fairlight preset and the
+    A2 audio pipeline require A2-A5 free, so dropping them up front saves a
+    later cleanup pass.
     """
     clips = parse_spine_clips(xml)
     if not clips:
         return xml, {'cuts': [], 'removed_tl_ranges': []}
 
-    # Group clips by timeline offset (auto-editor FCPXML stacks 1 video + N
-    # audio asset-clips at the same offset)
+    # Identify video refs by <asset hasVideo="1"> declarations in <resources>.
+    video_refs = find_video_refs(xml)
+    if not video_refs:
+        # Fallback: assume the first ref encountered in the spine is video.
+        video_refs = {clips[0]['ref']}
+
+    if not keep_linked_audio:
+        # Drop linked audio asset-clips from the spine input. The output will
+        # contain only video-ref clips (which carry the gameplay's embedded
+        # audio track, mapping to A1 on Resolve import).
+        before = len(clips)
+        clips = [c for c in clips if c['ref'] in video_refs]
+        print(f'  Filtered linked-audio refs: kept {len(clips)}/{before} clips '
+              f'(video refs: {sorted(video_refs)})')
+
+    # Group clips by timeline offset
     pos_groups: dict[int, list[dict]] = {}
     for c in clips:
         pos_groups.setdefault(c['offset'], []).append(c)
@@ -443,6 +481,11 @@ def main() -> int:
     ap.add_argument('--import-to-resolve', action='store_true',
                     help='Import both cut FCPXMLs into the running Resolve project '
                          'and set the ALL-cuts timeline as current.')
+    ap.add_argument('--keep-linked-audio', action='store_true',
+                    help='Preserve the auto-editor\'s linked audio refs (1.wav-4.wav '
+                         'as r4/r6/r8/r10) in the output spine. By default these are '
+                         'dropped so the imported timeline has only V1+A1, keeping '
+                         'A2-A5 free for the BGM/battle-audio/Fairlight pipeline.')
     args = ap.parse_args()
 
     in_path = Path(args.input).resolve()
@@ -488,12 +531,16 @@ def main() -> int:
         )
 
     print('\n── HIGH-only cuts ──')
-    high_xml, high_replay = apply_cuts(with_project_label(xml, '(cuts: high)'), high)
+    high_xml, high_replay = apply_cuts(with_project_label(xml, '(cuts: high)'),
+                                        high,
+                                        keep_linked_audio=args.keep_linked_audio)
     high_out.write_text(high_xml, encoding='utf-8')
     print(f'Wrote: {high_out.name}  ({high_out.stat().st_size // 1024} KB)')
 
     print('\n── ALL cuts (high + medium) ──')
-    all_xml, all_replay = apply_cuts(with_project_label(xml, '(cuts: all)'), all_cuts)
+    all_xml, all_replay = apply_cuts(with_project_label(xml, '(cuts: all)'),
+                                      all_cuts,
+                                      keep_linked_audio=args.keep_linked_audio)
     all_out.write_text(all_xml, encoding='utf-8')
     print(f'Wrote: {all_out.name}  ({all_out.stat().st_size // 1024} KB)')
 
