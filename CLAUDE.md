@@ -171,6 +171,39 @@ cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\r
 - Translate timeline coordinates between HIGH and ALL variants (e.g. to mirror a marker placed on (cuts: all) onto (cuts: high))
 - Apply additional downstream operations to (cuts: high) that mirror what was done on (cuts: all)
 
+### Battle intros on V2 (rival + gym leader graphics)
+
+Two scripts overlay pre-battle intro graphics on V2 for every major-boss fight:
+
+```bash
+# 10a. (prerequisite) Classify each battle as rival / gym / other
+.venv\Scripts\python scripts\classify_battles.py     # relay → transcripts/battle-types.json
+
+# 10b. Identify the rival's starter type + per-battle canonical location (skip if no rivals)
+.venv\Scripts\python scripts\classify_rival_starter.py  # relay → transcripts/rival-starter.json
+
+# 10c. Place V2 intros — 5s ending at each battle start, on the clip before the battle
+.venv\Scripts\python scripts\place_battle_intros.py [--dry-run] [--include-other] [--overlap-sec 5]
+```
+
+**Intro file selection:**
+
+- **Gym / Elite 4 / Champion** → `{trainer_lower}-battle-intro.mov` from the `battle-intros` bin. Trainer names are slugified to filename (e.g. `Lt. Surge` → `ltsurge-battle-intro.mov`). 22 known intros: brock, misty, ltsurge, erika, sabrina, koga, blaine, blue, falkner, bugsy, whitney, morty, jasmine, chuck, pryce, clair, will, bruno, karen, janine, lance, red.
+
+- **Rival** → `silver-<location>-<starter_type>-battle-intro.mov` from the `silver-battle-intros` bin. Two pieces:
+  - **starter_type** = the rival's starter (fire/water/grass) — fixed for the whole video, determined by `classify_rival_starter.py`. In Gen 2 the rival picks the starter with type advantage over the player's pick: player Chikorita → rival fire, player Cyndaquil → rival water, player Totodile → rival grass.
+  - **location** is one of `cherrygrove`, `azalea`, `burnedtower`, `goldenrod`, `victoryroad`, `indigoplateau`, `mtmoon`. Identified per battle by **team composition** (the deterministic signal):
+    - starter only → cherrygrove
+    - Gastly+Zubat (no Haunter, no Magnemite) → azalea
+    - Haunter+Zubat (no Magnemite) → burnedtower
+    - Magnemite present → goldenrod
+    - Fully evolved + Magneton/Gengar/Crobat/Sneasel → victoryroad
+  - And cross-checked by position relative to gym leaders: between Bugsy and Whitney = azalea; between Whitney and Morty = burnedtower; between Pryce and Clair = goldenrod; between Clair and E4 = victoryroad. Don't trust explicit transcript mentions of locations — the streamer may describe surroundings while the actual fight is elsewhere.
+
+**Placement.** Each intro is placed on V2 with its TAIL aligned to the battle start frame and HEAD at `battle_frame - min(5s, intro_duration)`. Video only (mediaType=1); the intro's audio is dropped so it doesn't conflict with the A2 BGM/battle-audio pipeline (Step 13). V2 is the correct track for these overlays since carousel layout (Step 12) only fills V2 from the carousel start onward, leaving V2 free for the gameplay section.
+
+**Idempotency.** Before each placement run, the script sweeps V2 for clips whose name ends in `-battle-intro.mov` and deletes them. Re-running after fixing `rival-starter.json` (e.g. correcting a location) does the right thing without manual cleanup.
+
 Relay protocol (Claude's job): read `plans/prompts/cut-analysis-<stem>.in.md` (a clip list with attached transcripts and a categorized prompt), write ONLY the JSON cut array to the `.out.md`. The clip list can be ~500+ entries on a typical 30-min video — dispatch a subagent with a fresh context if the prompt is large.
 
 ---

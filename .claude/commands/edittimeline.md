@@ -227,24 +227,91 @@ Relay — YOU must complete this step:
 
 The script clears the existing green markers and replaces them with refined ones (typical drift after refinement: wins within ±0.5s, gave_ups within ±2s).
 
-### Step 10 — Find Member Carousel Start
+### Step 10 — Place major-boss battle intros on V2
+
+For each rival / gym leader / Elite 4 / champion battle, overlay a 5-second pre-battle intro graphic on V2 (covering the last 5s of the V1 clip that runs into the battle).
+
+**10a. Classify battle types (prerequisite — relay):**
+
+Start `classify_battles.py` in the BACKGROUND. This classifies each battle as `rival` / `gym` / `other` — needed BOTH by battle-intro placement (Step 10c) AND by the A2 battle-audio pipeline (Step 13). Run once here, both steps reuse the cached `transcripts/battle-types.json`.
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\classify_battles.py"
+```
+
+Relay — YOU must complete this step:
+- Poll until `plans/prompts/battle-types.in.md` appears.
+- Read the prompt. For each battle, classify as `rival` / `gym` / `other` using the surrounding transcript context. Write a single JSON object to the `.out.md`:
+  ```json
+  {"0": {"type": "rival", "reasoning": "..."}, "1": {"type": "gym", "reasoning": "..."}, ...}
+  ```
+- The script caches to `transcripts/battle-types.json` and exits.
+
+**10b. Classify rival's starter + per-battle location (relay — only runs if there are rival battles):**
+
+Start `classify_rival_starter.py` in the BACKGROUND:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\classify_rival_starter.py"
+```
+
+Relay — YOU must complete this step (skip if no rival battles in `transcripts/battle-types.json`, in which case the script short-circuits without writing a prompt):
+- Poll until `plans/prompts/rival-starter.in.md` appears.
+- Read it. Two things to identify:
+  1. **Rival's starter type** (`fire` / `water` / `grass`) — fixed for the whole video, found from intro context or from the rival's Pokémon mentioned during battles. Cyndaquil/Quilava/Typhlosion → fire; Totodile/Croconaw/Feraligatr → water; Chikorita/Bayleaf/Meganium → grass.
+  2. **Per-battle location** — map each rival battle to one of `cherrygrove`, `azalea`, `burnedtower`, `goldenrod`, `victoryroad`, `indigoplateau`, `mtmoon`. Use **team composition as the primary signal** (Gastly+Zubat no Haunter → azalea; Haunter+Zubat no Magnemite → burnedtower; Magnemite present → goldenrod). Use position relative to gym leaders as a cross-check. Don't trust explicit "Burned Tower" mentions in the transcript — the streamer may be referring to surroundings, not the fight location.
+- Write a single JSON object to `.out.md`:
+  ```json
+  {
+    "rival_starter_type": "grass",
+    "confidence": "high",
+    "evidence": "...",
+    "reasoning": "...",
+    "rivals_by_battle_index": { "0": "cherrygrove", "5": "azalea", "7": "burnedtower" }
+  }
+  ```
+- The script caches to `transcripts/rival-starter.json` and exits.
+
+**10c. Place the intros on V2:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_intros.py"
+```
+
+Pass `--dry-run` to preview without modifying the timeline. The script:
+1. Maps each battle's source-time to a V1 timeline frame
+2. Picks the intro file:
+   - **gym / Elite 4 / champion**: `{trainer_lowercase}-battle-intro.mov` from the `battle-intros` bin (e.g. `falkner-battle-intro.mov`, `whitney-battle-intro.mov`)
+   - **rival**: `silver-<location>-<starter_type>-battle-intro.mov` from the `silver-battle-intros` bin (e.g. `silver-azalea-grass-battle-intro.mov`)
+3. Sweeps V2 for any clips ending in `-battle-intro.mov` and deletes them (idempotency — re-runs are safe)
+4. Places each intro on V2 so its TAIL aligns with the battle start; the head sits at `battle_frame - min(5s, intro_duration)`. Video only (mediaType=1) — the intro's audio is dropped so it doesn't conflict with the A2 BGM/battle-audio pipeline placed in Step 13 (audio pipeline).
+
+The two intro bins must already be in the media pool. Set their shared paths once per machine via:
+```
+.venv\Scripts\python.exe scripts\import_assets.py --set-shared-path battle_intros "<path-to-_all-battle-intros>"
+.venv\Scripts\python.exe scripts\import_assets.py --set-shared-path silver_battle_intros "<path-to-_all-silver-battle-intros>"
+.venv\Scripts\python.exe scripts\import_assets.py --import-shared --only battle_intros
+.venv\Scripts\python.exe scripts\import_assets.py --import-shared --only silver_battle_intros
+```
+
+Step 8 (`--import-shared`) already handles this for new projects when the paths are set.
+
+### Step 11 — Find Member Carousel Start
 
 Locate the first V1 clip after the last Battle End that displays the "Member Carousel" overlay (Pokémon sprite at bottom-left + member name in yellow text + gym badge at bottom-right).
 
-**10a. Run find_member_carousel.py in the BACKGROUND:**
+**11a. Run find_member_carousel.py in the BACKGROUND:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\find_member_carousel.py"
 ```
 The script extracts the first frame of each candidate clip (and the previous clip's last frame) for up to 30 clips after the last battle marker, then writes a relay prompt.
 
-**10b. Relay — YOU must complete this step:**
+**11b. Relay — YOU must complete this step:**
 - Poll until `plans/prompts/member-carousel-<edit-tl-stem>.in.md` appears.
 - Spawn ONE Haiku subagent (`model: "haiku"`) with the prompt. It scans candidate first-frames sequentially until it finds one with the carousel style, then checks the previous clip's last frame to decide whether the carousel actually started in the previous clip.
 - Haiku writes the JSON object directly to the corresponding `.out.md`.
 
 The script places a yellow `Member Carousel Start` marker at the chosen clip's start.
 
-### Step 11 — Layout the carousel section (V1 extend + V2 with bottom crop)
+### Step 12 — Layout the carousel section (V1 extend + V2 with bottom crop)
 
 Reshape the timeline so the carousel plays continuously underneath the streamer-action cuts.
 
@@ -260,19 +327,19 @@ This script:
 
 Pass `--crop-bottom N` to override the crop value, or `--dry-run` to preview without modifying the timeline.
 
-### Step 12 — A2 audio pipeline (BGM + battle audio + fades)
+### Step 13 — A2 audio pipeline (BGM + battle audio + fades)
 
 Fill A2 with dynamic music: Dual Screen Lovelife → chained random general BGM → looped battle audio during battles → -3dB crossfades at every battle boundary.
 
-**12prep. Defensive clear A2–A5 on the edit timeline:**
+**13prep. Defensive clear A2–A5 on the edit timeline:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\clear_audio_tracks.py"
 ```
 Defensive: Step 5's apply_cuts_to_fcpxml.py now drops the auto-editor's 4 linked audio refs (r4/r6/r8/r10 → 1.wav-4.wav) by default, so the imported (cuts: all) timeline has V1+A1 only and the new edit timeline inherits that. This sweep is a no-op in the typical case but catches any A2-A5 content if `--keep-linked-audio` was passed to apply_cuts or if A2-A5 were populated by hand for testing. The Fairlight preset expects A2-A5 free for BGM/battle audio placement.
 
-**12a. Classify BGM tracks if not already done (one-time per project):**
+**13a. Classify BGM tracks if not already done (one-time per project):**
 
-Check whether `~/.resolve-mcp/bgm-tags.json` exists. If it doesn't, run both classifier stages now. If it does, skip to 12b.
+Check whether `~/.resolve-mcp/bgm-tags.json` exists. If it doesn't, run both classifier stages now. If it does, skip to 13b.
 
 If the cache is missing — start `classify_bgm.py` in the BACKGROUND:
 ```
@@ -290,45 +357,32 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 
 This adds BPM / RMS / spectral centroid / onset rate to each tag entry. It reports mismatches between the name-tag and audio classification. Review the mismatches and decide whether to manually correct any in `~/.resolve-mcp/bgm-tags.json` before continuing.
 
-**12b. Classify battle types (rival / gym / other):**
+**13b. Battle types are already classified** in Step 10a; `transcripts/battle-types.json` is reused.
 
-Start `classify_battles.py` in the BACKGROUND:
-```
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\classify_battles.py"
-```
-
-Relay — YOU must complete this step:
-- Poll until `plans/prompts/battle-types.in.md` appears.
-- Read the prompt. For each battle, classify as `rival` / `gym` / `other` using the surrounding transcript context. Write a single JSON object to the `.out.md`:
-  ```json
-  {"0": {"type": "rival", "reasoning": "..."}, "1": {"type": "gym", "reasoning": "..."}, ...}
-  ```
-- The script caches to `transcripts/battle-types.json` and exits.
-
-**12c. Place Dual Screen Lovelife on A2 (intro-speed-aware offset):**
+**13c. Place Dual Screen Lovelife on A2 (intro-speed-aware offset):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_bgm.py --game GAME_KEY"
 ```
 
-**12d. Chain general BGM between battles:**
+**13d. Chain general BGM between battles:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_bgm.py --seed 1"
 ```
 Filters to `general`-tagged tracks only. Truncates at each battle start; picks a new track at each battle end.
 
-**12e. Place looped battle audio (one track per battle type):**
+**13e. Place looped battle audio (one track per battle type):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_audio.py --rival-track ""Take them down!.mp3"" --gym-track ""Big Baddies.mp3"" --other-track ""A new Challenger.mp3"""
 ```
 Auto-picks the alphabetical-first track in each tag if `--rival-track` / `--gym-track` / `--other-track` are omitted. Loops within each battle interval; truncates the last loop at the battle end.
 
-**12f. Apply -3dB fades at battle boundaries:**
+**13f. Apply -3dB fades at battle boundaries:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\apply_audio_fades.py"
 ```
 Pre-renders fade variants via ffmpeg (half-sine = constant power = -3dB), then replaces the existing clips with the faded variants. Fades pre-battle BGM end, battle audio start/end (first/last loop), post-battle BGM start, and the very last A2 clip.
 
-### Step 13 — Apply Fairlight mixer preset (FX + levels + routing)
+### Step 14 — Apply Fairlight mixer preset (FX + levels + routing)
 
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\apply_fairlight_preset.py --timeline ""<edit timeline name>"""
@@ -342,7 +396,7 @@ If Apply returns False (rare — happens after a true cold install on a new mach
 
 ## Final summary
 
-After all thirteen steps complete, print a summary table:
+After all fourteen steps complete, print a summary table:
 
 | Step | Result |
 |------|--------|
@@ -355,10 +409,11 @@ After all thirteen steps complete, print a summary table:
 | 7. Gap markers | N gaps marked on (cuts: all) |
 | 8. Import + edit timeline | Game detected, N shared + N game files imported, edit timeline created with intro at X% |
 | 9. Battle end markers (refined) | N markers refined on edit timeline |
-| 10. Member Carousel Start | Marker placed at v1[N] (TC HH:MM:SS:FF) |
-| 11. Carousel layout | N clips copied to V2 with CropBottom=530, V1 extended to outro |
-| 12. A2 audio | DSL + N general BGM + N battle audio loops + N fade variants |
-| 13. Fairlight preset | "Standard Gameplay youtube" applied |
+| 10. Battle intros (V2) | N rival + M gym intros placed; rival starter type detected |
+| 11. Member Carousel Start | Marker placed at v1[N] (TC HH:MM:SS:FF) |
+| 12. Carousel layout | N clips copied to V2 with CropBottom=530, V1 extended to outro |
+| 13. A2 audio | DSL + N general BGM + N battle audio loops + N fade variants |
+| 14. Fairlight preset | "Standard Gameplay youtube" applied |
 
 The final timeline name is `<original> (cuts: all) (edit)`. The `(cuts: high)` sibling remains in the project as a less-aggressive alternative. The `(battle-gaps)` and original timelines can be deleted or kept for reference.
 
