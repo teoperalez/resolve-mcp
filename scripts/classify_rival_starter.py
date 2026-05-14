@@ -144,20 +144,34 @@ Pick your answer in this order:
 
 Map each rival battle to one of these canonical locations:
 
-- `cherrygrove` — 1st rival encounter, just outside Cherrygrove City, level ~5 starter only, no other team members yet.
-- `azalea` — Slowpoke Well after Team Rocket, starter has evolved once, often has Gastly/Zubat.
-- `burnedtower` — Ecruteak Burned Tower confrontation, starter at first evolution stage + Gastly + Zubat + others.
-- `goldenrod` — Goldenrod underground / Magnet Train tunnel area, starter has evolved twice, team includes Magnemite/Haunter/etc.
-- `victoryroad` — Rival ambush inside Victory Road, fully evolved starter team.
-- `indigoplateau` — Pokémon League / Indigo Plateau encounter (HGSS post-game).
-- `mtmoon` — Mt. Moon rematch in HGSS post-game (different from Red on Mt. Silver).
+- `cherrygrove` — 1st rival encounter outside Cherrygrove City. **Team = starter only (level ~5), nothing else.**
+- `azalea` — Slowpoke Well after Team Rocket. **Team = starter + Gastly + Zubat. The Gastly+Zubat pair (no Haunter yet) is the signature.**
+- `burnedtower` — Ecruteak Burned Tower, between Whitney (Goldenrod Gym 3) and Morty (Ecruteak Gym 4). **Team = starter + Haunter (evolved Gastly) + Zubat or Golbat. Has HAUNTER but NO Magnemite. Must occur BEFORE Morty in the video.**
+- `goldenrod` — Goldenrod underground / Magnet Train tunnel. **Team includes Magnemite + Haunter + Zubat/Golbat + evolved starter. Must occur AFTER Jasmine / Chuck / Pryce but BEFORE Clair.**
+- `victoryroad` — Inside Victory Road. **Team = fully evolved starter (Meganium/Typhlosion/Feraligatr) + Magneton + Gengar/Haunter + Crobat/Golbat + Sneasel + Kadabra. Occurs after Clair, right before E4.**
+- `indigoplateau` — Pokémon League encounter (HGSS post-game-style rematch).
+- `mtmoon` — Mt. Moon rematch (HGSS post-game, different from Red on Mt. Silver).
 
-Cues for the location:
+**Cues, in order of reliability:**
 
-- **Explicit place mention** in the transcript or description — "at the Burned Tower", "in Slowpoke Well", "Goldenrod underground", "Victory Road" — use that directly.
-- **Position in the video** — Crystal/HGSS canonical order is roughly cherrygrove → azalea → burnedtower → goldenrod → victoryroad → (post-E4) mtmoon/indigoplateau. Use the rival's `timestamp_sec` and the surrounding gym leader battles to place each rival in order.
-- **Team composition** — the rival's lineup at each location is distinctive: starter only at cherrygrove; Gastly added at azalea; Magnemite at goldenrod; etc.
-- **Streamer commentary** — sometimes the streamer says "rival number 3" referring to the canonical 3rd Crystal rival.
+1. **Team composition is the PRIMARY signal — it's deterministic.**
+   - Just starter → `cherrygrove`
+   - Gastly + Zubat + starter (no Haunter, no Magnemite) → `azalea`
+   - Haunter + Zubat/Golbat + starter (no Magnemite) → `burnedtower`
+   - Magnemite present (anywhere in team) → `goldenrod` (UNLESS Magneton is fully evolved, then `victoryroad`)
+   - Fully evolved starter + Magneton + Crobat / Gengar / Sneasel → `victoryroad`
+
+2. **Position relative to gym leaders is a strong cross-check.**
+   - Rival between Bugsy (Gym 2) and Whitney (Gym 3) → typically `azalea`
+   - Rival between Whitney (Gym 3) and Morty (Gym 4) → `burnedtower`
+   - Rival between Jasmine/Chuck/Pryce (Gyms 5-7) and Clair (Gym 8) → `goldenrod`
+   - Rival between Clair and E4 → `victoryroad`
+
+3. **Explicit transcript mentions can MISLEAD — be careful.** The streamer might say "Burned Tower" because they're describing the location they're walking through, not because that's where the rival fight is. Verify against the team composition before trusting a verbal cue.
+
+4. **Streamer ordinal mentions** ("rival number 2") usually refer to the canonical Crystal rival # — but again, verify against composition.
+
+The numbered "Rival N" trainer_name from detect_battles is an in-video ordinal (1st rival fight, 2nd, etc.), NOT a canonical position — if the streamer skipped a fight, the numbering shifts. Use composition + gym position to recover the canonical location.
 
 ## Intro context (first 120 seconds)
 

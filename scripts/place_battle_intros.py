@@ -314,6 +314,22 @@ def main() -> int:
         print('\nNothing to place.')
         return 0
 
+    # Idempotency: clear any prior battle-intro V2 clips before placing new
+    # ones. We identify them by source-name suffix '-battle-intro.mov' which
+    # is unique to the two intro bins. This way re-running with corrected
+    # rival-starter.json data does the right thing without manual cleanup.
+    track = tl.GetItemListInTrack('video', args.track_index) or []
+    stale = [c for c in track
+             if (c.GetName() or '').endswith('-battle-intro.mov')]
+    if stale:
+        print(f'\nClearing {len(stale)} stale battle-intro clip(s) from '
+              f'V{args.track_index}:')
+        for c in stale:
+            print(f'  - {c.GetName()}')
+        ok = tl.DeleteClips(stale, False)
+        if not ok:
+            print(f'  WARN: DeleteClips returned {ok!r}; some stale clips may remain')
+
     # Build the AppendToTimeline payload — video only, V<track_index>
     payload = []
     for p in placements:
