@@ -142,36 +142,76 @@ Pick your answer in this order:
 
 ## Part 2 — Per-battle location
 
-Map each rival battle to one of these canonical locations:
+Map each rival battle to one of these canonical Gen-2 locations. Vanilla Crystal/GSC has 5 pre-E4 rival fights; HGSS keeps all 5 and adds 2 post-Champion encounters (mtmoon, indigoplateau).
 
-- `cherrygrove` — 1st rival encounter outside Cherrygrove City. **Team = starter only (level ~5), nothing else.**
-- `azalea` — Slowpoke Well after Team Rocket. **Team = starter + Gastly + Zubat. The Gastly+Zubat pair (no Haunter yet) is the signature.**
-- `burnedtower` — Ecruteak Burned Tower, between Whitney (Goldenrod Gym 3) and Morty (Ecruteak Gym 4). **Team = starter + Haunter (evolved Gastly) + Zubat or Golbat. Has HAUNTER but NO Magnemite. Must occur BEFORE Morty in the video.**
-- `goldenrod` — Goldenrod underground / Magnet Train tunnel. **Team includes Magnemite + Haunter + Zubat/Golbat + evolved starter. Must occur AFTER Jasmine / Chuck / Pryce but BEFORE Clair.**
-- `victoryroad` — Inside Victory Road. **Team = fully evolved starter (Meganium/Typhlosion/Feraligatr) + Magneton + Gengar/Haunter + Crobat/Golbat + Sneasel + Kadabra. Occurs after Clair, right before E4.**
-- `indigoplateau` — Pokémon League encounter (HGSS post-game-style rematch).
-- `mtmoon` — Mt. Moon rematch (HGSS post-game, different from Red on Mt. Silver).
+### Canonical team table (research-grounded; sources: Bulbapedia, Serebii)
 
-**Cues, in order of reliability:**
+| # | Location key | Team (Crystal levels in parens) | Gym position |
+|---|---|---|---|
+| 1 | `cherrygrove` | Starter only (Lv 5) | Pre-Falkner |
+| 2 | `azalea` | Gastly (12) + Zubat (14) + Starter (14-16) | After Bugsy, before Whitney |
+| 3 | `burnedtower` | Magnemite (18) + Zubat (20) + Gastly (20) + Starter (22, 1st evo) | After Whitney, before Morty |
+| 4 | `goldenrod` | Golbat + Haunter + Magnemite + **Sneasel** + Starter (~30, 1st or 2nd evo) | After Pryce, before Clair (Radio Tower / Underground takeover) |
+| 5 | `victoryroad` | Crobat/Golbat + Gengar/Haunter + **Magneton** + Kadabra + Sneasel + **fully evolved starter** | After Clair, before E4 |
+| 6 | `mtmoon` | Crobat + Gengar + Magneton + **Alakazam** + Sneasel + fully evolved starter (L50+) | HGSS post-Champion (first encounter) |
+| 7 | `indigoplateau` | Same as Mt. Moon but levels 45-50 | HGSS post-Champion (Mon/Wed rematch) |
 
-1. **Team composition is the PRIMARY signal — it's deterministic.**
-   - Just starter → `cherrygrove`
-   - Gastly + Zubat + starter (no Haunter, no Magnemite) → `azalea`
-   - Haunter + Zubat/Golbat + starter (no Magnemite) → `burnedtower`
-   - Magnemite present (anywhere in team) → `goldenrod` (UNLESS Magneton is fully evolved, then `victoryroad`)
-   - Fully evolved starter + Magneton + Crobat / Gengar / Sneasel → `victoryroad`
+### Distinguishing signatures (in decreasing reliability)
 
-2. **Position relative to gym leaders is a strong cross-check.**
-   - Rival between Bugsy (Gym 2) and Whitney (Gym 3) → typically `azalea`
-   - Rival between Whitney (Gym 3) and Morty (Gym 4) → `burnedtower`
-   - Rival between Jasmine/Chuck/Pryce (Gyms 5-7) and Clair (Gym 8) → `goldenrod`
-   - Rival between Clair and E4 → `victoryroad`
+**1. Sneasel** — appears starting at Goldenrod. The single strongest signal.
+   - No Sneasel → `cherrygrove`, `azalea`, or `burnedtower`
+   - Sneasel present → `goldenrod`, `victoryroad`, `mtmoon`, or `indigoplateau`
 
-3. **Explicit transcript mentions can MISLEAD — be careful.** The streamer might say "Burned Tower" because they're describing the location they're walking through, not because that's where the rival fight is. Verify against the team composition before trusting a verbal cue.
+**2. Magnemite vs Magneton** (Sneasel-resolved)
+   - Magnemite (not evolved) + no Sneasel → `burnedtower`
+   - Magnemite + Sneasel → `goldenrod`
+   - Magneton → `victoryroad` / `mtmoon` / `indigoplateau`
 
-4. **Streamer ordinal mentions** ("rival number 2") usually refer to the canonical Crystal rival # — but again, verify against composition.
+**3. Starter evolution stage**
+   - Unevolved Lv 5 starter → `cherrygrove`
+   - First-stage evolution (Bayleaf/Quilava/Croconaw) → `azalea` / `burnedtower` / `goldenrod`
+   - Fully evolved (Meganium/Typhlosion/Feraligatr) → `victoryroad` / `mtmoon` / `indigoplateau`
 
-The numbered "Rival N" trainer_name from detect_battles is an in-video ordinal (1st rival fight, 2nd, etc.), NOT a canonical position — if the streamer skipped a fight, the numbering shifts. Use composition + gym position to recover the canonical location.
+**4. Zubat → Golbat → Crobat**
+   - Zubat → `azalea` / `burnedtower`
+   - Golbat → `goldenrod` / `victoryroad`
+   - Crobat (Silver "matured") → `mtmoon` / `indigoplateau`
+
+**5. Gastly → Haunter → Gengar**
+   - Gastly → `azalea` / `burnedtower`
+   - Haunter → `goldenrod` / `victoryroad`
+   - Gengar → `victoryroad` (Crystal) or `mtmoon` / `indigoplateau` (HGSS post-game)
+
+**6. Kadabra → Alakazam**
+   - Kadabra → `victoryroad`
+   - Alakazam → `mtmoon` or `indigoplateau`
+
+**7. Team size**
+   - 1 → `cherrygrove`
+   - 3 → `azalea`
+   - 4 → `burnedtower`
+   - 5 → `goldenrod`
+   - 6 → `victoryroad` / `mtmoon` / `indigoplateau`
+
+### Cross-check by gym position
+
+| Rival fight comes... | Then location is |
+|---|---|
+| Before Falkner | `cherrygrove` |
+| After Bugsy, before Whitney | `azalea` |
+| After Whitney, before Morty | `burnedtower` |
+| After Pryce, before Clair | `goldenrod` |
+| After Clair, before E4 | `victoryroad` |
+| Post-Champion (first) | `mtmoon` |
+| Post-Champion (rematch) | `indigoplateau` |
+
+When composition and gym position disagree (rare, romhack territory), **trust gym position over composition** — the streamer's gym progress is more stable than the romhack's specific roster.
+
+### Things to ignore / common pitfalls
+
+- **Explicit transcript mentions of place names can MISLEAD.** The streamer might say "Burned Tower" while describing surroundings during a different fight. Always verify against composition + gym position before trusting verbal cues.
+- **`Rival N` from detect_battles is an in-video ordinal, NOT a canonical position.** If the streamer skipped or cut a fight, the numbering shifts. Use the rules above to recover canonical location.
+- **Mahogany Rocket Hideout has a Silver CUTSCENE in HGSS but typically no battle** — don't slot a rival here.
 
 ## Intro context (first 120 seconds)
 
