@@ -435,6 +435,25 @@ CDL values follow this structure:
 
 ## Rendering workflow
 
+For pipeline-end deliverables, use `scripts/render_timeline.py` which wraps Resolve's built-in YouTube presets:
+
+```bash
+# QA pass: 720p H.264 via YouTube - 720p preset (review-quality)
+.venv\Scripts\python scripts\render_timeline.py --preset qa
+
+# Final: 4K H.264 via YouTube - 2160p preset (production-quality)
+.venv\Scripts\python scripts\render_timeline.py --preset 4k
+```
+
+Output filename: `<timeline-name>_QA_720p.mp4` / `<timeline-name>_FINAL_4K.mp4`.
+Default output dir: next to the source video (auto-detected by walking up from the transcript's `audio` field). Override with `--output-dir`.
+
+The script blocks until the render completes, polling `IsRenderingInProgress` and `GetRenderJobStatus` every 10s.
+
+**Two-pass workflow for /edittimeline:** render QA first, then ask user to approve before kicking off the 4K render. Reasoning: a 30-min 4K-source timeline takes ~2h to QA-render and ~3-4h to 4K-render — committing to 4K without first verifying the cut would be expensive.
+
+**Manual API equivalents** (for ad-hoc renders outside the standard preset):
+
 1. `get_render_formats` — see what's available
 2. `set_render_settings` — configure format, codec, resolution, output path
 3. `add_render_job` — queue the job

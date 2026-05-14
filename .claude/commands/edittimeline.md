@@ -394,11 +394,53 @@ The script installs the bundled `assets/fairlight-presets/CONSOLE_FLEXI/Standard
 
 If Apply returns False (rare — happens after a true cold install on a new machine), restart Resolve once and re-run.
 
+### Step 15 — Normalize audio (UI step, then confirm)
+
+**This step is the only manual operation in the pipeline.** Tell the user to do it in the Resolve UI:
+
+> **Edit page (or Fairlight page):**
+>
+> 1. Click the first clip on each audio track, then press **Ctrl+Shift+End** to select every clip to the end of that track.
+> 2. **Right-click** any selected clip → **Normalize Audio Levels…**
+> 3. Settings:
+>    - **Normalization Mode** → `Sample Peak Program`
+>    - **Target Level** → `-9.0 dBFS`
+>    - **Set Level** → `Relative`
+>    - **Reference** → `Independently` (each clip's own peak)
+> 4. Click **Normalize**.
+> 5. Repeat for **A1 (Dialogue)**, **A2 (Music)**, **A3 (Music 2 / outro audio)**.
+
+**Ask the user via AskUserQuestion** to confirm audio normalization is done before proceeding to render.
+
+### Step 16 — Render QA 720p
+
+After audio normalization is confirmed, render a fast 720p pass for review.
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\render_timeline.py --preset qa"
+```
+
+Output: `<source-dir>\<timeline-name>_QA_720p.mp4` (uses Resolve's `YouTube - 720p` built-in preset). A ~30-min timeline typically renders in 90-120 minutes on a single NVIDIA GPU using H.264 NVENC with 4K-source downscaling.
+
+This step blocks until the render completes. After it does, **ask the user** to review and approve before kicking off the 4K final render.
+
+### Step 17 — Render 4K final (after QA approval)
+
+Once the user approves the QA pass:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\render_timeline.py --preset 4k"
+```
+
+Output: `<source-dir>\<timeline-name>_FINAL_4K.mp4` (uses Resolve's `YouTube - 2160p` built-in preset). Expect ~2-4 hours for a ~30-min timeline.
+
+If the user wants changes, hold here — don't start the 4K render until the QA is approved. If the user re-edits the timeline, re-run audio normalization + QA render before the 4K render.
+
 ---
 
 ## Final summary
 
-After all fourteen steps complete, print a summary table:
+After all seventeen steps complete, print a summary table:
 
 | Step | Result |
 |------|--------|
@@ -416,25 +458,10 @@ After all fourteen steps complete, print a summary table:
 | 12. Carousel layout | N clips copied to V2 with CropBottom=530, V1 extended to outro |
 | 13. A2 audio | DSL + N general BGM + N battle audio loops + N fade variants |
 | 14. Fairlight preset | "Standard Gameplay youtube" applied |
+| 15. Normalize audio | Confirmed by user (UI step) |
+| 16. QA 720p render | `<stem>_QA_720p.mp4` rendered, X.X GB, Y min runtime |
+| 17. Final 4K render | `<stem>_FINAL_4K.mp4` rendered, X.X GB, Y min runtime |
 
 The final timeline name is `<original> (cuts: all) (edit)`. The `(cuts: high)` sibling remains in the project as a less-aggressive alternative. The `(battle-gaps)` and original timelines can be deleted or kept for reference.
 
----
-
-## Final manual step — Normalize Audio (UI only)
-
-The Resolve scripting API does NOT expose `NormalizeAudio`. Tell the user to do this in the UI:
-
-> **Edit page** (or Fairlight page):
->
-> 1. Click the first clip on the track you want to normalize, then press **Ctrl+Shift+End** to select every clip out to the end.
-> 2. **Right-click** any selected clip → **Normalize Audio Levels…**
-> 3. Set:
->    - **Normalization Mode** → `Sample Peak Program`
->    - **Target Level** → `-9.0 dBFS`
->    - **Set Level** → `Relative`
->    - **Reference** → `Independently` (each clip's own peak)
-> 4. Click **Normalize**.
-> 5. Repeat for every audio track that needs leveling (A1 dialogue, A2 music/battles, plus any others in the Fairlight preset).
->
-> The Fairlight preset's limiter on the master bus will catch any peaks after this; the per-track normalize just gives the mixer a consistent input level to work with.
+**A2 lock-after-Fairlight note:** Step 14's Fairlight preset locks A2 (Music). If you need to re-run any audio placement (Steps 13c-13f) after the preset is applied, unlock A2 first with `tl.SetTrackLock('audio', 2, False)`.
