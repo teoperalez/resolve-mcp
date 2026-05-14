@@ -272,6 +272,8 @@ Examples:
 
 If a clip has only ONE sub-segment shown (or no `sub` lines at all), output the whole-clip src range as before. Sub-clip ranges should always START or END at a sub-segment boundary — never in the middle of a word.
 
+**`start_sec` must be strictly less than `end_sec` — at least 0.2s apart.** If the only thing to cut is a single aborted word or a momentary glitch, expand the range out to the nearest sub-segment boundary or by at least 0.3s on either side. Zero-length or single-point cuts cannot be applied as markers.
+
 ## What is NOT a cut candidate
 
 - **Outro / wrap-up speech.** "Thanks for watching", "see you next time", "if you enjoyed", "shoutout to my members" — scripted, intentional, keep.

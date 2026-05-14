@@ -131,6 +131,13 @@ Categories:
 - HIGH: empty-transcript noise, pre-roll / mic-check, Whisper hallucination, stuttered repeats
 - MEDIUM: false starts, true repetitions (failed-take redos), abandoned narrative threads
 
+**Mid-clip cuts.** A single V1 clip often contains multiple Whisper sub-segments — a false start + a clean restart, a mid-sentence correction, an aborted word followed by a real take. The prompt shows each sub-segment on its own `sub [start-end] "text"` line so the LLM can flag a SUBSET of a clip's source range. Output `type` is prefixed `mid_clip_*` (e.g. `mid_clip_false_start`, `mid_clip_repetition`). When the apply step sees a mid-clip flag it:
+1. Snaps each cut edge to the largest word-gap within ±0.3s (uses Whisper word-level timestamps as a guide, then cuts at the actual gap between words)
+2. Sets the parent clip's color (Yellow/Orange)
+3. Places two `Red` markers on the clip — **Cut start** at the refined source frame, **Cut end** at the refined end frame — using `customData='cut_candidates'` for idempotent re-runs
+
+The editor blades at the two red markers and deletes the marked section. Sub-clip ranges must be at least 0.2s apart; the prompt rejects zero-length flags.
+
 ```bash
 cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_cut_candidates.py [transcript.json] [--dry-run] [--skip-relay]"
 ```
