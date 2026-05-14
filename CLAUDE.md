@@ -153,6 +153,8 @@ After cut candidates are flagged (and optionally edited by the user), `apply_cut
 
 The two imported timelines are auto-named `... (cuts: high)` and `... (cuts: all)` (suffix appended via the FCPXML `<project name>` attribute). The ALL-cuts timeline is set as current — **all downstream pipeline steps (BGM, carousel, Fairlight, etc.) run on the ALL-cuts timeline**.
 
+**Linked-audio refs dropped by default.** The auto-editor stacks 1 video + 4 audio asset-clips at each spine position (refs r2 + r4/r6/r8/r10 — the latter four are the WAV splits from `<video>_tracks/1.wav`-`4.wav`). On Resolve import these would land on A2-A5, blocking the Fairlight preset that expects those tracks free. The script auto-detects the video ref via `<asset hasVideo="1">` declarations and emits only video-ref clips in the output spine; the video's embedded audio still maps to A1, giving a clean V1+A1 timeline. Pass `--keep-linked-audio` to preserve the auto-editor's 4 audio refs (old behavior).
+
 ```bash
 cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\apply_cuts_to_fcpxml.py INPUT_ALTERED_BATTLEGAPS.fcpxml [--cuts plans/prompts/cut-analysis-<stem>.out.md] [-o OUT_DIR] [--import-to-resolve]"
 ```

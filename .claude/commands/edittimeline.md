@@ -264,11 +264,11 @@ Pass `--crop-bottom N` to override the crop value, or `--dry-run` to preview wit
 
 Fill A2 with dynamic music: Dual Screen Lovelife → chained random general BGM → looped battle audio during battles → -3dB crossfades at every battle boundary.
 
-**12prep. Clear A2–A5 again on the edit timeline:**
+**12prep. Defensive clear A2–A5 on the edit timeline:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\clear_audio_tracks.py"
 ```
-Necessary because the FCPXML import in Step 2 brought back the auto-editor's 4 audio refs (1.wav–4.wav), they got carried through Step 5's apply_cuts (FCPXML preserves all spine refs), and Step 8's insert_intro_outro.py copied them all into the new edit timeline. The Fairlight preset expects A2-A5 free for BGM/battle audio placement.
+Defensive: Step 5's apply_cuts_to_fcpxml.py now drops the auto-editor's 4 linked audio refs (r4/r6/r8/r10 → 1.wav-4.wav) by default, so the imported (cuts: all) timeline has V1+A1 only and the new edit timeline inherits that. This sweep is a no-op in the typical case but catches any A2-A5 content if `--keep-linked-audio` was passed to apply_cuts or if A2-A5 were populated by hand for testing. The Fairlight preset expects A2-A5 free for BGM/battle audio placement.
 
 **12a. Classify BGM tracks if not already done (one-time per project):**
 
