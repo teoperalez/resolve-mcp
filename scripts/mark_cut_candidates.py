@@ -109,17 +109,93 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
     For each clip, attach any Whisper segments whose source range overlaps the
     clip's source range. Modifies clips in place. Each clip gains:
       - `transcript`: list of {start_sec, end_sec, text} dicts (possibly empty)
+      - `internal_word_gap`: dict with the largest internal word-gap inside any
+        Whisper segment attached to this clip, in seconds — or None if no
+        intra-segment gap > 1.0s exists. Format: {gap_sec, before_word,
+        after_word, gap_center_sec}.
     """
     for clip in clips:
         hits = []
+        biggest_gap = None  # (gap_sec, before_word, after_word, center_sec)
         for s in segments:
             seg_start = float(s.get('start', 0))
             seg_end   = float(s.get('end', 0))
             if seg_start < clip['src_end'] and seg_end > clip['src_start']:
                 txt = (s.get('text') or '').strip()
                 hits.append({'start_sec': seg_start, 'end_sec': seg_end, 'text': txt})
-        clip['transcript'] = hits
+                # Inspect word-level gaps inside this Whisper segment
+                words = s.get('words') or []
+                for w1, w2 in zip(words[:-1], words[1:]):
+                    try:
+                        w1_end   = float(w1['end'])
+                        w2_start = float(w2['start'])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    gap = w2_start - w1_end
+                    center = (w1_end + w2_start) / 2.0
+                    # Only consider gaps whose CENTER lies inside this clip's
+                    # source range — otherwise the gap is outside the clip
+                    if center < clip['src_start'] or center > clip['src_end']:
+                        continue
+                    if gap > 1.0 and (biggest_gap is None or gap > biggest_gap['gap_sec']):
+                        biggest_gap = {
+                            'gap_sec':     gap,
+                            'before_word': (w1.get('word') or '').strip(),
+                            'after_word':  (w2.get('word') or '').strip(),
+                            'gap_center_sec': center,
+                        }
+        clip['transcript']        = hits
+        clip['internal_word_gap'] = biggest_gap
     return clips
+
+
+def annotate_clip_relationships(clips: list[dict]) -> None:
+    """
+    Walk consecutive clips and compute relationship flags. Modifies in place.
+
+    Flags computed per clip:
+      - `src_overlap_with_prev`: source-frame overlap with the previous clip
+        (in seconds). Indicates audio duplication from upstream processing
+        (e.g. battle-gap insertion pulling source-start backward without
+        truncating the previous clip).
+      - `dup_text_cluster_size`: if this clip's joined transcript text is
+        identical or near-identical to the next AND/OR previous clip's text,
+        this is the size of the contiguous cluster of duplicate-text clips
+        the clip belongs to. > 1 means the clip is in a cluster. Cluster
+        members with short durations (< 1.5s) are likely artifacts that
+        Whisper merged into the surrounding segment.
+    """
+    sorted_clips = sorted(clips, key=lambda c: c['tl_start'])
+
+    # ── source-overlap with previous ──
+    for i in range(1, len(sorted_clips)):
+        prev = sorted_clips[i-1]
+        cur  = sorted_clips[i]
+        overlap = prev['src_end'] - cur['src_start']
+        if overlap > 0.05:  # > 3 frames at 60fps; ignore noise
+            cur['src_overlap_with_prev'] = overlap
+        else:
+            cur['src_overlap_with_prev'] = 0.0
+
+    # ── duplicate-text cluster detection ──
+    def joined_text(c):
+        return ' | '.join(t['text'] for t in c.get('transcript', []) if t.get('text')).strip().lower()
+
+    texts = [joined_text(c) for c in sorted_clips]
+    # Identify cluster membership: consecutive identical non-empty texts
+    cluster_id = [0] * len(sorted_clips)
+    cur_id = 0
+    for i in range(len(sorted_clips)):
+        if i == 0 or texts[i] != texts[i-1] or not texts[i]:
+            cur_id += 1
+        cluster_id[i] = cur_id
+    # Count size of each cluster
+    sizes: dict[int, int] = {}
+    for cid in cluster_id:
+        sizes[cid] = sizes.get(cid, 0) + 1
+    for i, (clip, cid) in enumerate(zip(sorted_clips, cluster_id)):
+        size = sizes[cid] if texts[i] else 1
+        clip['dup_text_cluster_size'] = size
 
 
 def flatten_words(segments: list) -> list[dict]:
@@ -165,21 +241,35 @@ def format_clip_line(c: dict) -> str:
             f'src={c["src_start"]:8.2f}-{c["src_end"]:8.2f}s  '
             f'dur={c["duration"]:5.2f}s')
 
+    # Compose flag annotations
+    flags: list[str] = []
+    overlap = c.get('src_overlap_with_prev', 0.0)
+    if overlap > 0.1:
+        flags.append(f'!!SRC_OVERLAP_PREV={overlap:.2f}s')
+    gap = c.get('internal_word_gap')
+    if gap:
+        flags.append(f"!!INTERNAL_WORD_GAP={gap['gap_sec']:.2f}s "
+                     f"between {gap['before_word']!r} and {gap['after_word']!r}")
+    cluster_size = c.get('dup_text_cluster_size', 1)
+    if cluster_size > 1 and c['duration'] < 1.5:
+        flags.append(f'!!DUP_TEXT_CLUSTER_MEMBER (size={cluster_size}, short clip)')
+    flag_str = ('  ' + '  '.join(flags)) if flags else ''
+
     if not c['transcript']:
-        return f'{head}  (NO TRANSCRIPT — empty / noise / artifact)'
+        return f'{head}{flag_str}  (NO TRANSCRIPT — empty / noise / artifact)'
 
     # Filter out empty text segments
     real = [t for t in c['transcript'] if t['text']]
     if not real:
-        return f'{head}  (transcript present but blank)'
+        return f'{head}{flag_str}  (transcript present but blank)'
 
     if len(real) == 1:
         t = real[0]
-        return f'{head}  [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"'
+        return f'{head}{flag_str}  [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"'
 
     # Multi-segment clip — expand each sub-segment onto its own indented line so
     # the LLM can see the internal boundaries that are candidates for mid-clip cuts.
-    lines = [head]
+    lines = [f'{head}{flag_str}']
     for t in real:
         lines.append(f'           sub [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"')
     return '\n'.join(lines)
@@ -227,6 +317,12 @@ The list below is **every V1 clip on the timeline** (in order). Each line shows:
 
 **Multi-segment clips.** When a clip contains more than one Whisper segment, each sub-segment is shown on its own `sub [...] "..."` line with its own source-time range. These internal boundaries are the natural cut points if you want to flag only part of the clip — see "Mid-clip cuts" below.
 
+**Pre-computed flags surfaced per clip** (when applicable, shown inline after the head):
+
+- `!!SRC_OVERLAP_PREV=Xs` — this clip's source range overlaps the previous clip's by X seconds. Means the rendered audio plays X seconds of source frames TWICE in a row (a duplicate). **Always flag the overlap region** — this is mechanical audio duplication, not narrative.
+- `!!INTERNAL_WORD_GAP=Xs between A and B` — inside one of this clip's Whisper segments, there's an X-second word-gap between words A and B. The auto-editor likely stripped silence in the middle of a Whisper segment. Inspect the words around the gap: if "A...B" reads as a clean continuation, keep. If "A" looks like a trail-off and "B" starts a recovery/new thought, flag the trail-off.
+- `!!DUP_TEXT_CLUSTER_MEMBER (size=N, short clip)` — this short clip (<1.5s) is one of N consecutive clips that all have the SAME transcript text. Whisper assigned its segment text to all of them. The short clips in the middle are very likely artifacts (throat clears, breath bursts, mic bumps) that the auto-editor kept above the noise floor and Whisper labeled with the surrounding segment's text. Flag the short cluster members.
+
 There are {len(clips)} clips total; {n_empty} have no transcript text.
 
 ## Categories of cuts
@@ -255,6 +351,30 @@ There are {len(clips)} clips total; {n_empty} have no transcript text.
   - NO  cut: Restating for emphasis ("we won, we actually won") — intentional.
 
 **7. Abandoned narrative threads.** Setup mentioned ("we're going to try X strategy"), never followed through. Verify abandonment by scanning forward before flagging.
+
+**8. Mid-segment self-correction** (HIGH for "so X, so Y" form; MEDIUM otherwise). Whisper sometimes merges a self-correction into ONE segment because the streamer paused only briefly. Look for these patterns inside a single segment's text:
+
+  - `"so X, so Y"` — streamer started saying X, corrected to Y. Flag the X portion.
+    - Example: `"So these barriers, so these berries are"` → cut "barriers, " (keep "so these berries are")
+  - `"the X, the Y"` / `"I'm gonna X, I'm gonna Y"` — same pattern.
+  - `"...X... Y..."` (ellipses inside a Whisper segment, especially when followed by "But" or "However" or a new sentence start) — trail-off + recovery.
+    - Example: `"with this team, or does it turn out that... But today we're going to find out"` → cut "or does it turn out that..."
+  - `"X. X"` or `"X X"` (immediate verbal repeat that Whisper transcribed) — flag one copy.
+
+When a single Whisper segment contains a self-correction, you may need a MID-CLIP cut (a sub-clip range). Use word-level reasoning: estimate the source-time where the correction happens (between the abandoned phrase and the recovery) and flag the appropriate sub-range. Use the `!!INTERNAL_WORD_GAP` annotation if present — its `gap_center_sec` is the natural cut point.
+
+**9. Internal-gap-followed-by-recovery** (HIGH when gap > 5s). When you see a clip flagged `!!INTERNAL_WORD_GAP=Xs`, the streamer paused inside a sentence for X seconds. Look at the words/phrases around the gap:
+
+  - If pre-gap is `"...something, in her"` and post-gap is `"actual gym."` → clean continuation, keep.
+  - If pre-gap is `"...something."` (period or natural sentence end) and post-gap is `"So now it's just a question..."` → the post-gap is a NEW thought that began after a long pause. The mid-clip silence got stripped but reveals a topic shift. Often you want to keep both, but if the pre-gap content is itself a trail-off ("X is going to be a question"), flag the pre-gap as abandoned.
+
+**10. Source-frame audio duplication** (HIGH, always cut). When a clip is flagged `!!SRC_OVERLAP_PREV=Xs`, X seconds of source frames play TWICE on the rendered timeline. This is a mechanical bug from upstream processing (typically the battle-gap insertion). Flag the OVERLAP region. The natural source-time range to cut is `(this_clip.src_start, this_clip.src_start + overlap)` — i.e. the redundant head of this clip. Always flag, regardless of what the duplicated words say.
+
+**11. Throat-clear cluster artifact** (HIGH). When you see a clip flagged `!!DUP_TEXT_CLUSTER_MEMBER (size=N, short clip)`, this short clip is one of N consecutive clips that all share the SAME transcript text. The auto-editor preserved a short noise (throat clear, breath, mic bump) above the silence floor, and Whisper assigned the surrounding segment's text to it. Flag the short cluster members as `artifact`. Keep the LONGER cluster members (those carrying the real speech).
+
+## Consistency requirement (read carefully)
+
+If you identify a pattern at one point in the transcript, **scan the ENTIRE transcript for the same pattern and flag ALL instances**. Common failure mode: catching one "and with that... and with that..." trail-off and forgetting another identical pattern elsewhere. Do not stop after the first instance — search globally for every occurrence of any pattern you flag.
 
 ## Mid-clip cuts (sub-clip ranges)
 
@@ -507,6 +627,14 @@ def main() -> int:
 
         clips, structural = enumerate_v1_clips(timeline, fps)
         clips = attach_transcript_to_clips(clips, transcript.get('segments', []))
+        annotate_clip_relationships(clips)
+        # Report annotation summary
+        n_overlap = sum(1 for c in clips if c.get('src_overlap_with_prev', 0) > 0.1)
+        n_gap     = sum(1 for c in clips if c.get('internal_word_gap'))
+        n_dup     = sum(1 for c in clips
+                        if c.get('dup_text_cluster_size', 1) > 1 and c['duration'] < 1.5)
+        print(f'Annotations: {n_overlap} src-overlap-prev | {n_gap} internal-word-gap '
+              f'| {n_dup} short-clip-in-dup-cluster')
         n_empty = sum(1 for c in clips if not c['transcript'])
         print(f'Enumerated {len(clips)} gameplay clips ({n_empty} have no transcript text)')
         if structural:
