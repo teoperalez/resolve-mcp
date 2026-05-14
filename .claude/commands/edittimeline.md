@@ -370,6 +370,8 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Filters to `general`-tagged tracks only. Truncates at each battle start; picks a new track at each battle end.
 
+**Final segment override** (after the LAST battle, up to the outro): plays a fixed sequence — `Dual Screen Lovelife` → `Motivated By Clouds` → `Roll Me in Stardust` — then chains random `audio_classification: "energetic"` tracks until the outro starts. Truncates the final pick to fit. Each placement is labeled `[fixed | upbeat-random | random]` in the dry-run plan so the override is visible. Pass `--final-sequence ""` to disable and use random for the last segment too. Customize the sequence with `--final-sequence "Track A,Track B,Track C"` (file stems, comma-separated).
+
 **13e. Place looped battle audio (one track per battle type):**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_audio.py --rival-track ""Take them down!.mp3"" --gym-track ""Big Baddies.mp3"" --other-track ""A new Challenger.mp3"""
