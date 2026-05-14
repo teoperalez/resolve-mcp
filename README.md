@@ -412,6 +412,53 @@ Cache: `~/.resolve-mcp/cache/audio-fades/<stem>__s<start>_e<end>__fi<N>_fo<N>.mp
 - `scripts/clear_a2_except_first.py` — removes every A2 clip except the first one (the Dual Screen Lovelife clip). Useful for cleanly re-running stages 3b-5 without losing DSL.
 - `scripts/test_audio_fades.py` — one-off probe that confirms no audio fade properties are settable via the Resolve scripting API. Re-run on future Resolve versions to detect any new fade property.
 
+### `scripts/apply_fairlight_preset.py` — Fairlight mixer preset (FX + levels + routing)
+
+Applies a Fairlight Configuration Preset (full mixer state: track FX chains, levels, routing, bus structure) to the target timeline. The preset travels with the repo at `assets/fairlight-presets/<TYPE>/<Name>.dat`, so it works on any machine even if the preset isn't installed locally.
+
+```cmd
+rem Default: install the bundled "Standard Gameplay youtube" preset (CONSOLE_FLEXI)
+rem and apply it to the current timeline
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py
+
+rem Apply to a specific edit timeline by name
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py --timeline "My Edit (edit) 3"
+
+rem Just install the .dat into Resolve's Presets folder; don't apply
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py --install-only
+
+rem Different preset/type bundled in the repo
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py --preset "Foo" --type CONSOLE_FLEXI
+
+rem Force overwrite of the host preset (otherwise leave host file alone if present)
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py --force-install
+```
+
+**How it works:**
+
+1. Locates the repo preset at `assets/fairlight-presets/<TYPE>/<Name>.dat` (relative to the script, not CWD).
+2. Resolves the platform-specific Fairlight Presets dir:
+   - Windows: `%APPDATA%\Blackmagic Design\DaVinci Resolve\Preferences\Fairlight\Presets\<TYPE>\`
+   - macOS: `~/Library/Preferences/Blackmagic Design/DaVinci Resolve/Fairlight/Presets/<TYPE>/`
+   - Linux: `~/.config/Blackmagic Design/DaVinci Resolve/Fairlight/Presets/<TYPE>/`
+3. Copies the repo file into the host dir if it's missing (no-op if already present and same size — pass `--force-install` to overwrite).
+4. Switches to `--timeline` if given.
+5. Calls `Project.ApplyFairlightPresetToCurrentTimeline(<Name>)`. Returns True on success.
+6. Prints the manual **Normalize Audio** walkthrough (Sample Peak -9.0 dB, independent per track) — this step is UI-only because the Resolve scripting API doesn't expose `NormalizeAudio`.
+
+**Saving your own preset:** Resolve's API doesn't expose a "save preset" call — saving is UI-only. To capture a new preset:
+
+1. Fairlight page → Mixer panel → click the `···` button (or use Mixer → **Preset Library**).
+2. Filter dropdown → **Fairlight Configuration Presets** (for the full mixer config).
+3. Click **Save New**, name it.
+4. Find the resulting `.dat` file at `<Resolve Presets dir>\CONSOLE_FLEXI\<Name>.dat`.
+5. Copy it into `assets/fairlight-presets/CONSOLE_FLEXI/<Name>.dat` in this repo to make it travel.
+
+**Caveats:**
+
+- After a first-time fresh install of a preset file on a new machine, Resolve usually picks it up immediately. If `Apply` returns False, restart Resolve once and re-run with `--install-only` to confirm the file is in place, then run again to apply.
+- `NormalizeAudio` and per-track volume / pan / FX-chain reads/writes are NOT exposed by the scripting API. Anything beyond `ApplyFairlightPresetToCurrentTimeline` must be done in the UI.
+
 ---
 
 ## Usage
