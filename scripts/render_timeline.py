@@ -43,8 +43,11 @@ DEFAULT_FILENAME_TAGS = {
 
 
 def default_output_dir(project_name_hint: str | None = None) -> Path:
-    """Use the directory of the most-recently-modified transcript's source
-    audio file. Falls back to ./renders if no transcript is available."""
+    """Find the source-video directory by walking up from the transcript's
+    `audio` field. Auto-editor convention: source video is at
+    `<dir>/<name>.mp4` and split audio is at `<dir>/<name>_tracks/1.wav` —
+    so if the audio's parent ends with `_tracks`, the video's parent is the
+    grandparent. Falls back to ./renders if no transcript is available."""
     tdir = Path('transcripts')
     if tdir.exists():
         candidates = sorted(tdir.glob('*.json'),
@@ -55,12 +58,15 @@ def default_output_dir(project_name_hint: str | None = None) -> Path:
             except Exception:
                 continue
             audio = data.get('audio') if isinstance(data, dict) else None
-            if audio:
-                p = Path(audio)
-                if p.exists():
-                    return p.parent
-                if p.parent.exists():
-                    return p.parent
+            if not audio:
+                continue
+            p = Path(audio)
+            # Walk up if we're inside an auto-editor `<name>_tracks` folder
+            parent = p.parent
+            if parent.name.endswith('_tracks') and parent.parent.exists():
+                return parent.parent
+            if parent.exists():
+                return parent
     return Path('renders').resolve()
 
 
