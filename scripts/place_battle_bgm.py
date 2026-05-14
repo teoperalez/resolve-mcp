@@ -1,17 +1,24 @@
 """
-Chain random BGM tracks on A2 from the end of the existing Dual Screen
-Lovelife clip up to the start of the outro, pausing during battles.
+Chain BGM tracks on A2 from the end of the existing Dual Screen Lovelife
+clip up to the start of the outro, pausing during battles.
 
-Rules:
-  - Random pick from the bgm bin, EXCLUDING "Dual Screen Lovelife" and
-    "Golden Goose". The previous track is also excluded each round to avoid
-    back-to-back repeats.
-  - If the placed BGM would overlap the next battle start, truncate it at
-    the battle start frame.
+Between-battle rules:
+  - Random pick from the bgm bin's `general`-tagged tracks, EXCLUDING the
+    EXCLUDED_TRACKS set ("Dual Screen Lovelife", "Golden Goose"). The
+    previous track is excluded each round to avoid back-to-back repeats.
   - Between battle start and battle end → silence on A2 (no BGM).
   - At each battle end → pick a new random BGM.
-  - Continue chaining BGMs within each non-battle segment until the segment
-    ends (next battle, or start of outro).
+
+**Final-segment override** (after the LAST battle, up to the outro):
+  - Place a FIXED sequence first: Dual Screen Lovelife → Motivated By
+    Clouds → Roll Me in Stardust. Each track plays at its natural length,
+    truncated only if it would run past the outro start.
+  - After the fixed sequence, fill remaining time by chaining random
+    `audio_classification: "energetic"` tracks (the "upbeat" pool) until
+    the outro starts. Truncate the final pick to fit.
+  - The fixed sequence is configurable via --final-sequence (comma list of
+    file stems). Pass --final-sequence "" to disable the override and use
+    the random logic for the last segment too.
 
 Battle start positions come from `transcripts/battles.json` (mapped through
 the V1 source-seconds map). Battle end positions come from the green
@@ -19,6 +26,7 @@ markers on the current timeline.
 
 Usage:
     python place_battle_bgm.py [--seed N] [--track-index 2] [--dry-run]
+                               [--final-sequence "Dual Screen Lovelife,Motivated By Clouds,Roll Me in Stardust"]
 """
 import sys
 import os
@@ -34,6 +42,8 @@ EXCLUDED_TRACKS  = {'dual screen lovelife', 'golden goose'}
 BATTLES_JSON     = Path('transcripts/battles.json')
 TAGS_PATH        = Path.home() / '.resolve-mcp' / 'bgm-tags.json'
 MIN_BGM_FRAMES   = 12   # ~0.2s — skip placements shorter than this
+
+DEFAULT_FINAL_SEQUENCE = ['Dual Screen Lovelife', 'Motivated By Clouds', 'Roll Me in Stardust']
 
 
 # ── Bin / clip lookup ──────────────────────────────────────────────────────
@@ -131,7 +141,13 @@ def main() -> int:
     ap.add_argument('--track-index', type=int, default=2,
                     help='Audio track to place on (default: 2 = A2)')
     ap.add_argument('--dry-run', action='store_true')
+    ap.add_argument('--final-sequence', default=','.join(DEFAULT_FINAL_SEQUENCE),
+                    help='Comma-separated track stems (filenames without .ext) to '
+                         'play in order at the start of the post-last-battle segment. '
+                         'After the sequence is exhausted, the remainder is filled '
+                         'with chained random energetic tracks. Pass "" to disable.')
     args = ap.parse_args()
+    final_seq = [s.strip() for s in args.final_sequence.split(',') if s.strip()]
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -165,28 +181,51 @@ def main() -> int:
             print(f'WARN: could not parse {TAGS_PATH}: {e} — using all tracks',
                   file=sys.stderr)
 
-    all_bgm  = collect_clips_recursive(bgm_bin)
-    eligible = []
+    all_bgm = collect_clips_recursive(bgm_bin)
+
+    # Full general pool — includes DSL/Golden Goose (used by final-sequence
+    # lookup). The random pool below filters them out.
+    full_general = []
     for mpi in all_bgm:
         full_name = (mpi.GetName() or '').strip()
         stem      = Path(full_name).stem
-        if stem.lower() in EXCLUDED_TRACKS:
-            continue
-        # If tags exist, restrict to "general"
         if tags:
             t = (tags.get(full_name) or {}).get('tag', 'general')
             if t != 'general':
                 continue
         dur = mpi_duration_frames(mpi, fps)
         if dur and dur >= MIN_BGM_FRAMES:
-            eligible.append((mpi, dur, stem))
+            full_general.append((mpi, dur, stem, full_name))
 
-    print(f'Eligible BGM tracks: {len(eligible)}')
+    # Random pool for between-battle segments: excludes EXCLUDED_TRACKS
+    eligible = [(m, d, n) for m, d, n, _fn in full_general
+                if n.lower() not in EXCLUDED_TRACKS]
+
+    # Upbeat pool: filter to audio_classification='energetic'. Used to fill
+    # the tail of the final segment after the fixed sequence.
+    upbeat = []
+    for m, d, n, fn in full_general:
+        if n.lower() in EXCLUDED_TRACKS:
+            continue
+        cls = (tags.get(fn) or {}).get('audio_classification')
+        if cls == 'energetic':
+            upbeat.append((m, d, n))
+    if not upbeat:
+        # Fallback: use the random pool if no classifications available
+        upbeat = list(eligible)
+
+    print(f'Random pool: {len(eligible)} tracks  |  Upbeat pool: {len(upbeat)} tracks')
     if not eligible:
         print('ERROR: no eligible BGM tracks after exclusions.', file=sys.stderr)
         return 1
-    for _m, d, n in sorted(eligible, key=lambda x: x[2].lower()):
-        print(f'  {n:35s}  {d}f  ({d/fps:.1f}s)')
+
+    # Helper: lookup MPI by stem (case-insensitive, with or without extension)
+    def find_by_stem(stem: str):
+        s = stem.lower()
+        for m, d, n, _fn in full_general:
+            if n.lower() == s:
+                return (m, d, n)
+        return None
 
     # ── V1: identify gameplay clips, outro start, DSL end ──────────────────
     v1 = sorted(tl.GetItemListInTrack('video', 1) or [],
@@ -274,40 +313,77 @@ def main() -> int:
         print(f'  [{s:8d} → {e:8d}]   rel [{(s-tl_start)/fps:7.1f}s → '
               f'{(e-tl_start)/fps:7.1f}s]   {(e-s)/fps:6.1f}s')
 
-    # ── Fill each segment with chained random BGMs ─────────────────────────
+    # ── Fill each segment with chained BGMs ────────────────────────────────
+    # The LAST segment (after the final battle, ending at outro) uses the
+    # fixed final_seq first, then random upbeat. Other segments use random.
     placements = []
-    last_name  = 'Dual Screen Lovelife'  # so we don't immediately re-pick DSL-adjacent
+    last_name  = 'Dual Screen Lovelife'  # avoid immediate DSL-adjacent repeat
 
-    for seg_start, seg_end in segments:
+    def place(track_mpi, track_dur, track_name, cur, seg_end, label):
+        """Plan one placement, truncated to remaining segment. Returns advance frames."""
+        available = seg_end - cur
+        place_dur = min(track_dur, available)
+        if place_dur < MIN_BGM_FRAMES:
+            return 0
+        placements.append({
+            'mediaPoolItem': track_mpi,
+            'startFrame':    0,
+            'endFrame':      place_dur,
+            'recordFrame':   cur,
+            'trackIndex':    args.track_index,
+            'mediaType':     2,
+            '_name':         track_name,
+            '_label':        label,
+        })
+        return place_dur
+
+    for i, (seg_start, seg_end) in enumerate(segments):
+        is_final = (i == len(segments) - 1)
         cur = seg_start
+
+        if is_final and final_seq:
+            print(f'\n── Final segment override (segment {i+1}/{len(segments)}) ──')
+            print(f'   Fixed sequence: {final_seq}')
+            for stem in final_seq:
+                hit = find_by_stem(stem)
+                if not hit:
+                    print(f'   WARN: {stem!r} not found in general pool — skipping')
+                    continue
+                mpi, dur, name = hit
+                advance = place(mpi, dur, name, cur, seg_end, 'fixed')
+                if advance == 0:
+                    break
+                cur += advance
+                last_name = name
+            # Fill remaining with chained random UPBEAT picks
+            while cur < seg_end:
+                pickable = [(m, d, n) for m, d, n in upbeat if n != last_name]
+                if not pickable:
+                    pickable = upbeat
+                track_mpi, track_dur, track_name = random.choice(pickable)
+                advance = place(track_mpi, track_dur, track_name, cur, seg_end, 'upbeat-random')
+                if advance == 0:
+                    break
+                cur += advance
+                last_name = track_name
+            continue
+
+        # Non-final segments: random general
         while cur < seg_end:
-            # Random track excluding last
             pickable = [(m, d, n) for m, d, n in eligible if n != last_name]
             if not pickable:
                 pickable = eligible
             track_mpi, track_dur, track_name = random.choice(pickable)
-
-            available = seg_end - cur
-            place_dur = min(track_dur, available)
-            if place_dur < MIN_BGM_FRAMES:
+            advance = place(track_mpi, track_dur, track_name, cur, seg_end, 'random')
+            if advance == 0:
                 break
-
-            placements.append({
-                'mediaPoolItem': track_mpi,
-                'startFrame':    0,
-                'endFrame':      place_dur,
-                'recordFrame':   cur,
-                'trackIndex':    args.track_index,
-                'mediaType':     2,
-                '_name':         track_name,
-            })
-            cur       += place_dur
-            last_name  = track_name
+            cur += advance
+            last_name = track_name
 
     print(f'\nPlanned BGM placements: {len(placements)}')
     for p in placements:
         print(f"  A{p['trackIndex']}  rel={(p['recordFrame']-tl_start)/fps:7.1f}s  "
-              f"dur={p['endFrame']/fps:6.1f}s  {p['_name']!r}")
+              f"dur={p['endFrame']/fps:6.1f}s  [{p['_label']:14s}]  {p['_name']!r}")
 
     if args.dry_run:
         print('\nDRY RUN — no changes made.')
