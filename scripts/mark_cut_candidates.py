@@ -51,6 +51,22 @@ def latest_transcript() -> tuple[Path, str]:
     return candidates[0], candidates[0].stem
 
 
+def gameplay_v1_clips(timeline) -> list:
+    """
+    Return TimelineItem objects for V1 clips from the dominant (gameplay)
+    source only — excludes intro/outro/B-roll clips whose source-frame ranges
+    can spuriously overlap gameplay source-frame ranges and cause cross-source
+    false matches in apply_colors.
+    """
+    v1 = sorted(timeline.GetItemListInTrack('video', 1) or [],
+                key=lambda c: c.GetStart())
+    if not v1:
+        return []
+    names = [c.GetName() for c in v1]
+    dominant = Counter(names).most_common(1)[0][0]
+    return [c for c in v1 if c.GetName() == dominant]
+
+
 def enumerate_v1_clips(timeline, fps: float) -> tuple[list[dict], list[dict]]:
     """
     Return (gameplay_clips, structural_clips). Both lists hold dicts with
@@ -326,7 +342,10 @@ def apply_colors(segments: list, fps: float, timeline, words: list[dict],
     long as the source media starts at frame 0 — true for all gameplay capture
     files in this pipeline.
     """
-    v1 = timeline.GetItemListInTrack('video', 1) or []
+    # Filter to gameplay-source clips only — intro/outro/B-roll source ranges
+    # can spuriously overlap gameplay frame numbers (different source files,
+    # but the API exposes only source-frame offsets per clip).
+    v1 = gameplay_v1_clips(timeline)
     n_orange = n_yellow = 0
     n_markers = 0
 
