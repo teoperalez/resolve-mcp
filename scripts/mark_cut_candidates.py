@@ -45,49 +45,90 @@ def build_prompt(transcript: dict) -> str:
     lines = [f'[{s["start"]:.2f}–{s["end"]:.2f}] {s.get("text", "").strip()}'
              for s in segs]
     body = '\n'.join(lines)
-    return f"""Analyze this Pokémon gameplay commentary transcript to identify segments that should be cut.
+    return f"""You are identifying cut candidates in a Pokémon gameplay commentary transcript.
 
-The footage was pre-processed by an auto-editor that removes silence based on noise level. True silence is
-already gone, but brief sounds ABOVE the noise floor — throat clears, coughs, mic bumps — remain and
-Whisper transcribes these as artifacts (single periods, isolated words like "you", garbled short phrases).
+The footage has already been silence-stripped by an auto-editor. True silence is gone, but brief sounds above the noise floor (throat clears, coughs, mic bumps, breath bursts) remain — and Whisper hallucinates these into garbled short transcriptions. The video typically also has a scripted intro and outro that ARE intentional commentary.
 
-## Transcript (timestamps in seconds)
+## Transcript (Whisper segments, timestamps in seconds)
 
 {body}
 
 ---
 
-## Task
+## Phase 1 — Read for narrative comprehension FIRST
 
-Identify two types of cut candidates:
+Before identifying ANY cuts, mentally read the entire transcript as a continuous narrative — not as discrete Whisper segments. The Whisper segment boundaries are mostly arbitrary breath/pause points; the real "sentences" cross multiple segments. Understand:
 
-### 1. Non-speech sounds (throat clears, coughs, mic bumps)
-Short segments where Whisper's transcription is clearly not genuine commentary:
-- A single period "." or near-empty text — Whisper had nothing real to transcribe
-- A single isolated word ("you", "the") with no connection to the surrounding context — likely a cough or mic bump
-- Very short duration (< 2 s) with text that is implausibly long or completely unrelated to the gameplay
-KEEP: laughter, genuine reactions ("oh no!", "yes!", "let's go"), brief real utterances
+- The overall challenge framing (e.g., "use Gen 1 Brock's team in Crystal")
+- Each trainer fight as a mini-arc with setup → events → outcome → reflection
+- The arc of the video: intro setup → gameplay → outro / wrap-up
+- The streamer's natural speech patterns: hesitations, mild restatements, "ums", and conversational connectors are part of HOW they speak, not signs to cut
 
-### 2. False starts, repetitions, topic changes
-- Speaker begins a sentence but abandons it and restarts the same or a different thought
-- Substantially the same content repeated within ~30 seconds
-- Speaker starts explaining one strategy/Pokémon/move but changes course mid-sentence in a way a viewer would find confusing
-Use the full context (game, challenge rules, current battle) to distinguish genuine false starts from intentional topic transitions.
+**Default action is KEEP.** Cut only when you can articulate a concrete editorial reason that a viewer would notice and benefit from.
+
+## Phase 2 — Identify cuts in two categories
+
+### Category A: Whisper hallucination over non-speech (HIGH confidence cuts)
+
+Cut when Whisper had no real speech to transcribe and invented something from noise:
+
+- The text is a single period `.`, empty, or just punctuation
+- The text is a single isolated word ("you", "the", "and", "I", "a") with NO connection to the surrounding sentences
+- A very short segment (< 1.5s typical) whose text is implausibly long, in a different language, or completely off-topic
+- Repeated identical short utterances back-to-back (Whisper's "stutter" failure mode)
+
+DO NOT cut: genuine short reactions like "yes!", "no", "oh!", "wow", "let's go", "got it", laughter, sighs that fit the moment.
+
+### Category B: False starts / true repetitions / abandoned threads (MEDIUM, sometimes HIGH confidence)
+
+Only cut when the surrounding narrative confirms it. Three sub-types:
+
+**B1. Real false starts** — speaker says a few words, audibly cuts themselves off, and restarts the same thought from scratch immediately after. The first attempt should be cut so the take is clean.
+
+  - YES cut: "I'm gonna— let me try Tackle here. I'm gonna use Tackle on this one."  (cut "I'm gonna—" through the dash)
+  - NO  cut: "I'm gonna use Tackle here, and then probably Defense Curl after that." (one flowing sentence, no restart)
+
+**B2. True repetitions implying a redo** — the speaker delivers a line, pauses, and re-delivers a noticeably cleaner version of the same line within ~15s. This usually means they messed up the first take and re-recorded.
+
+  - YES cut: 60s mark "Brock's Onix has 14 HP", 73s mark "So Brock's Onix is sitting at 14 HP remaining."  → cut the first.
+  - NO  cut: Returning to the same idea 2 minutes apart with new framing or new information — that's normal storytelling.
+  - NO  cut: Restating a fact for emphasis ("we won, we actually won") — that's intentional.
+
+**B3. Abandoned narrative threads** — the speaker sets up an expectation ("we're going to try X strategy"), then NEVER follows through later in the transcript. Cut the setup so the viewer isn't waiting for a payoff that never comes.
+
+  Verify abandonment by scanning the rest of the transcript AFTER the setup before deciding. If the thread is picked up even briefly, KEEP.
+
+## What is NOT a cut candidate
+
+Be explicit about avoiding these false positives:
+
+- **Outro / wrap-up speech.** "Thanks for watching", "see you next time", "if you enjoyed", "let me know in the comments", "this was a fun one", "shoutout to my members" — these are intentional and belong on the timeline. They often appear segmented oddly by Whisper but they are scripted content.
+- **Mild filler / restatement that flows.** "Yeah, so… we're gonna want to use Tackle here. Tackle does decent damage." — natural emphasis, not a redo.
+- **Natural hesitation that resolves.** "I think we're going to… actually let me check the HP first." — the speaker is thinking through gameplay live; this is the video.
+- **Recaps and reminders.** "Remember, this Bugsy fight is impossible for us." — even if mentioned earlier, recaps for the viewer are intentional.
+- **Reactions to gameplay.** Excited yells, frustration, surprise — these ARE the entertainment.
+
+Bias the call toward KEEP. A false-positive cut (something that should have stayed) is worse than a missed cut (something the editor will catch by ear later).
 
 ---
 
 ## Output
 
-Respond with ONLY a raw JSON array (no markdown fences, no explanation):
+Respond with ONLY a raw JSON array (no markdown fences, no explanation outside the JSON):
 
 [
-  {{"start_sec": 12.3, "end_sec": 13.7, "confidence": "high", "type": "artifact", "reason": "1.4s — single period, likely throat clear above noise floor"}},
-  {{"start_sec": 45.0, "end_sec": 52.3, "confidence": "medium", "type": "false_start", "reason": "Starts describing Leech Seed strategy then immediately pivots to Tackle"}}
+  {{"start_sec": 12.3, "end_sec": 13.7, "confidence": "high", "type": "artifact",
+    "reason": "Single period transcription, 0.4s duration — Whisper hallucination over throat clear"}},
+  {{"start_sec": 187.0, "end_sec": 191.5, "confidence": "medium", "type": "false_start",
+    "reason": "Begins describing Onix's HP, audibly cuts off and restarts the same statement at 191.6s"}},
+  {{"start_sec": 412.5, "end_sec": 425.0, "confidence": "medium", "type": "abandoned_thread",
+    "reason": "Sets up plan to try Defense Curl strategy; never returns to it in the remainder of the transcript"}}
 ]
 
-"confidence": "high"   — cut is almost certain
-"confidence": "medium" — cut is likely but context is ambiguous
-Only include segments you are at least medium-confident about.
+`confidence`: `high` only for Category A (clear Whisper hallucination); Category B is almost always `medium`.
+`type`: one of `artifact`, `false_start`, `repetition`, `abandoned_thread`.
+
+If you are NOT at least medium-confident the cut would be uncontroversial to an experienced editor, omit it. An empty array `[]` is a valid answer.
 """
 
 
