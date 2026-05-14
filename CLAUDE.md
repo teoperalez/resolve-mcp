@@ -144,6 +144,31 @@ cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\r
 
 `--skip-relay`: reapply colors from an existing `plans/prompts/cut-analysis-<stem>.out.md` without re-running the LLM. Use after manually editing the .out.md or after clearing stale clip colors and re-running with the same analysis.
 
+### Apply cuts → generate HIGH-only and ALL-cuts timelines
+
+After cut candidates are flagged (and optionally edited by the user), `apply_cuts_to_fcpxml.py` produces two ripple-cut FCPXML variants from the auto-editor's FCPXML and imports both as new Resolve timelines:
+
+- `*_CUTS_HIGH.fcpxml` — only high-confidence cuts removed
+- `*_CUTS_ALL.fcpxml`  — high + medium cuts removed
+
+The two imported timelines are auto-named `... (cuts: high)` and `... (cuts: all)` (suffix appended via the FCPXML `<project name>` attribute). The ALL-cuts timeline is set as current — **all downstream pipeline steps (BGM, carousel, Fairlight, etc.) run on the ALL-cuts timeline**.
+
+```bash
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\apply_cuts_to_fcpxml.py INPUT_ALTERED_BATTLEGAPS.fcpxml [--cuts plans/prompts/cut-analysis-<stem>.out.md] [-o OUT_DIR] [--import-to-resolve]"
+```
+
+**Algorithm.** Auto-editor FCPXML stacks 1 video + N linked audio `<asset-clip>` elements per timeline position. The script:
+1. Parses the spine, groups asset-clips by `offset` (5 per position for typical 1-video + 4-audio output)
+2. For each position, decides keep / delete / trim_start / trim_end / split / multi vs. the source-time cut intervals
+3. Applies the SAME action across all refs in the position (V + linked A stay synchronized)
+4. Maintains a cumulative timeline-shift, ripple-lefts every subsequent position
+5. Remaps `<marker>` entries by the same shift; drops markers that fall inside removed ranges
+
+**Replay metadata.** A sidecar `*_cuts_replay.json` captures both variants' source-frame cuts AND the resulting removed timeline ranges (in frames), plus the raw per-flag records with reasons. This data is sufficient to:
+- Reproduce the cuts on a sibling timeline
+- Translate timeline coordinates between HIGH and ALL variants (e.g. to mirror a marker placed on (cuts: all) onto (cuts: high))
+- Apply additional downstream operations to (cuts: high) that mirror what was done on (cuts: all)
+
 Relay protocol (Claude's job): read `plans/prompts/cut-analysis-<stem>.in.md` (a clip list with attached transcripts and a categorized prompt), write ONLY the JSON cut array to the `.out.md`. The clip list can be ~500+ entries on a typical 30-min video — dispatch a subagent with a fresh context if the prompt is large.
 
 ---
