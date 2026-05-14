@@ -116,14 +116,24 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
     """
     for clip in clips:
         hits = []
-        biggest_gap = None  # (gap_sec, before_word, after_word, center_sec)
+        biggest_gap = None  # gap in a Whisper segment that touches this clip
         for s in segments:
             seg_start = float(s.get('start', 0))
             seg_end   = float(s.get('end', 0))
             if seg_start < clip['src_end'] and seg_end > clip['src_start']:
                 txt = (s.get('text') or '').strip()
                 hits.append({'start_sec': seg_start, 'end_sec': seg_end, 'text': txt})
-                # Inspect word-level gaps inside this Whisper segment
+                # Look at all word-gaps inside this Whisper segment. If a gap
+                # is > 1s AND at least one of the words bracketing the gap is
+                # inside (or at the boundary of) this clip's source range,
+                # flag it. This catches:
+                #   - Internal silence inside a clip (gap fully inside the clip)
+                #   - Long auto-edited silence BETWEEN this clip and the next
+                #     clip within the same Whisper segment (gap straddles the
+                #     clip boundary — the rendered audio jumps from this
+                #     clip's last word to the next clip's first word but
+                #     Whisper still groups them in one segment because the
+                #     ORIGINAL recording was continuous).
                 words = s.get('words') or []
                 for w1, w2 in zip(words[:-1], words[1:]):
                     try:
@@ -132,17 +142,24 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
                     except (KeyError, TypeError, ValueError):
                         continue
                     gap = w2_start - w1_end
-                    center = (w1_end + w2_start) / 2.0
-                    # Only consider gaps whose CENTER lies inside this clip's
-                    # source range — otherwise the gap is outside the clip
-                    if center < clip['src_start'] or center > clip['src_end']:
+                    if gap <= 1.0:
                         continue
-                    if gap > 1.0 and (biggest_gap is None or gap > biggest_gap['gap_sec']):
+                    # Either word inside this clip's source range?
+                    w1_inside = clip['src_start'] <= w1_end <= clip['src_end']
+                    w2_inside = clip['src_start'] <= w2_start <= clip['src_end']
+                    # OR gap straddles a clip boundary (w1 before, w2 after, or vice versa)
+                    straddles = (w1_end <= clip['src_end'] and w2_start >= clip['src_start']
+                                  and (w1_end < clip['src_start'] or w2_start > clip['src_end']))
+                    if not (w1_inside or w2_inside or straddles):
+                        continue
+                    if biggest_gap is None or gap > biggest_gap['gap_sec']:
                         biggest_gap = {
                             'gap_sec':     gap,
                             'before_word': (w1.get('word') or '').strip(),
                             'after_word':  (w2.get('word') or '').strip(),
-                            'gap_center_sec': center,
+                            'gap_center_sec': (w1_end + w2_start) / 2.0,
+                            'w1_in_clip':  w1_inside,
+                            'w2_in_clip':  w2_inside,
                         }
         clip['transcript']        = hits
         clip['internal_word_gap'] = biggest_gap
@@ -248,8 +265,17 @@ def format_clip_line(c: dict) -> str:
         flags.append(f'!!SRC_OVERLAP_PREV={overlap:.2f}s')
     gap = c.get('internal_word_gap')
     if gap:
+        # Tag whether the gap is inside this clip vs straddles a clip boundary
+        inside_count = int(gap.get('w1_in_clip', False)) + int(gap.get('w2_in_clip', False))
+        if inside_count == 2:
+            where = 'inside-clip'
+        elif inside_count == 1:
+            where = 'straddles-clip-edge'
+        else:
+            where = 'spans-this-clip'
         flags.append(f"!!INTERNAL_WORD_GAP={gap['gap_sec']:.2f}s "
-                     f"between {gap['before_word']!r} and {gap['after_word']!r}")
+                     f"between {gap['before_word']!r} and {gap['after_word']!r} "
+                     f"({where})")
     cluster_size = c.get('dup_text_cluster_size', 1)
     if cluster_size > 1 and c['duration'] < 1.5:
         flags.append(f'!!DUP_TEXT_CLUSTER_MEMBER (size={cluster_size}, short clip)')
