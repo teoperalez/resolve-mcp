@@ -38,16 +38,27 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
   ```
 - detect_battles.py detects the `.out.md`, writes `transcripts\battles.json`, and exits
 
-**2d. Insert or preview gaps:**
+**2d. Insert battle gaps via FCPXML (canonical IRLPC approach):**
 
-If --dry-run in $ARGUMENTS:
+Resolve's Python API CANNOT ripple-insert into existing timeline content — runtime `AppendToTimeline` with `recordFrame` returns a hollow handle without actually placing the clip when the position is occupied. So the canonical approach is to modify the auto-editor's `_ALTERED.fcpxml` (which lives next to the source media on disk) and import the modified version as a new timeline.
+
+Locate the auto-editor's FCPXML — it's typically next to the source video at `<source-dir>/<video-name>_ALTERED.fcpxml`. The source video path can be read from `transcripts/<stem>.json`'s `"audio"` field (the `_tracks/` parent dir is the source dir).
+
+Run the FCPXML rewrite + auto-import:
 ```
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts\battles.json --dry-run"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps_fcpxml.py "<source-dir>\<video-name>_ALTERED.fcpxml" --battles transcripts\battles.json --import-to-resolve"
 ```
-Otherwise:
-```
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts\battles.json"
-```
+
+This script:
+1. Reads the auto-editor's _ALTERED.fcpxml as the clean baseline.
+2. For each battle, back-fills the matching V1 clip's `start` (source-in) BACKWARD by `gap_frames`, grows its `duration`, and pulls its timeline `offset` back. Audio refs shift forward only — no back-fill — leaving a silent slot.
+3. All clips after a battle on every ref shift forward by the cumulative pull amount.
+4. Renames the FCPXML's project (e.g. adds `(battle-gaps)`) so the imported timeline doesn't collide with the existing one.
+5. Imports the modified FCPXML into Resolve as a new timeline. Resolve drops the FCPXML's `<marker>` entries on import, so the script also calls `Timeline.AddMarker` for each battle with `'Sand'` color (the API rejects `'Orange'` silently).
+
+After the import, the NEW timeline (named `<original> (battle-gaps)`) becomes the current timeline. All subsequent steps operate on it. The old silence-stripped timeline can be renamed `<original> (broken)` and deleted later.
+
+**Note on `insert_battle_gaps.py`** (the runtime script): this version places Sand markers correctly but cannot actually insert gaps on V1 — `AppendToTimeline` without `recordFrame` appends to end of track, and with `recordFrame` silently fails when the position is occupied. Use the `_fcpxml.py` script for any video where you need the back-fill pre-roll room.
 
 ### Step 3 — Detect battle ends and place end markers
 
@@ -233,6 +244,12 @@ Pass `--crop-bottom N` to override the crop value, or `--dry-run` to preview wit
 ### Step 11 — A2 audio pipeline (BGM + battle audio + fades)
 
 Fill A2 with dynamic music: Dual Screen Lovelife → chained random general BGM → looped battle audio during battles → -3dB crossfades at every battle boundary.
+
+**11prep. Clear A2–A5 again on the new edit timeline:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\clear_audio_tracks.py"
+```
+Necessary because the FCPXML import in Step 2 brought back the auto-editor's 4 audio refs (1.wav–4.wav), and Step 7's insert_intro_outro.py copied them all into the new edit timeline. The Fairlight preset expects A2-A5 free for BGM/battle audio placement.
 
 **11a. Classify BGM tracks if not already done (one-time per project):**
 

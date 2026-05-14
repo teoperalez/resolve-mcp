@@ -143,19 +143,36 @@ Ripple deletes clips shorter than N frames from V1 and A1 simultaneously.
 .venv\Scripts\python.exe scripts\remove_short_clips.py 10       # removes clips < 10 frames
 ```
 
-### `scripts/battle_workflow.py` (+ `transcribe_audio.py`, `detect_battles.py`, `insert_battle_gaps.py`)
+### `scripts/battle_workflow.py` (+ `transcribe_audio.py`, `detect_battles.py`, `insert_battle_gaps_fcpxml.py`)
 
-Full pipeline for Pokémon stream editing: transcribes A1 audio → Claude Code identifies first-time trainer battles → inserts 1-second (60-frame) gaps of source footage at each battle start.
+Full pipeline for Pokémon stream editing: transcribes A1 audio → Claude Code identifies first-time trainer battles → inserts 1-second (60-frame) of source footage as PRE-ROLL before each battle start via FCPXML rewrite.
 
 ```cmd
-rem Full pipeline
-.venv\Scripts\python.exe scripts\battle_workflow.py [--dry-run]
-
-rem Individual steps
+rem Step 1: transcribe
 .venv\Scripts\python.exe scripts\transcribe_audio.py [--model medium.en]
+
+rem Step 2: detect battles (relay)
 .venv\Scripts\python.exe scripts\detect_battles.py transcripts/4.json
-.venv\Scripts\python.exe scripts\insert_battle_gaps.py transcripts/battles.json [--gap-frames 60] [--dry-run]
+
+rem Step 3: insert battle gaps via FCPXML rewrite + import
+.venv\Scripts\python.exe scripts\insert_battle_gaps_fcpxml.py ^
+    "E:\<source-dir>\<video>_ALTERED.fcpxml" ^
+    --battles transcripts\battles.json ^
+    --import-to-resolve
 ```
+
+**Why FCPXML and not runtime API:** DaVinci Resolve's Python scripting API cannot ripple-insert into an existing timeline. `MediaPool.AppendToTimeline` without `recordFrame` appends to the end of the track; WITH `recordFrame` it returns a hollow handle without actually placing the clip when the position is occupied. The canonical IRLPC Hyperframes approach (and what this script ports) is to modify the auto-editor's `_ALTERED.fcpxml` BEFORE Resolve imports it:
+
+1. For each battle, find the video-ref clip whose source range contains the battle's source-second.
+2. Pull the clip's `start` (source in-point) BACKWARD by `gap_frames` (capped by available left-handle).
+3. Pull its timeline `offset` back by the same amount. Grow `duration`.
+4. For every clip on every ref (video + each audio), shift `offset` forward by the cumulative pull from prior battles. Audio refs shift only, no back-fill — leaving silence in the new pre-roll slot.
+5. Inject `<marker>` entries at the new battle positions.
+6. Rename the FCPXML's `<project>` (e.g. add ` (battle-gaps)`) so Resolve doesn't reject the import as a duplicate.
+
+The `--import-to-resolve` flag then calls `MediaPool.ImportTimelineFromFile` and applies the markers via `Timeline.AddMarker` (Resolve drops `<marker>` from FCPXML imports — IRLPC's known workaround). Markers use `'Sand'` color (the Resolve API silently rejects `'Orange'` — see `scripts/test_audio_fades.py` for the test that surfaced this).
+
+**`scripts/insert_battle_gaps.py`** (the runtime version) is kept as a marker-only fallback: it places `'Sand'` battle markers correctly but does NOT actually create back-fill pre-roll on V1 (API limitation). Use the `_fcpxml.py` script for any video that needs the 1-second pre-roll room.
 
 **Relay mode:** `detect_battles.py` uses the same relay pattern as IRLPC Hyperframes — it writes a prompt to `plans/prompts/battle-detect-<stem>.in.md` and waits (up to 10 min) for Claude Code to write the JSON response to the corresponding `.out.md`. No Anthropic API key needed; Claude Code running in the conversation IS the LLM.
 
