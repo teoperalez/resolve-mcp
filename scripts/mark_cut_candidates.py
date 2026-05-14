@@ -25,6 +25,7 @@ import os
 import json
 import time
 import argparse
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -50,27 +51,41 @@ def latest_transcript() -> tuple[Path, str]:
     return candidates[0], candidates[0].stem
 
 
-def enumerate_v1_clips(timeline, fps: float) -> list[dict]:
+def enumerate_v1_clips(timeline, fps: float) -> tuple[list[dict], list[dict]]:
     """
-    Return a list of V1 clips, each as a dict with seconds-resolution times:
-      { idx, tl_start, tl_end, src_start, src_end, duration }
-    All times are in seconds; idx is 1-based and matches order on the timeline.
+    Return (gameplay_clips, structural_clips). Both lists hold dicts with
+    seconds-resolution times: { idx, tl_start, tl_end, src_start, src_end,
+    duration, source_name }. idx is 1-based and matches order on the timeline.
+
+    The dominant source-name (the gameplay capture file) populates
+    gameplay_clips; everything else (intro card, outro card, B-roll inserts
+    from the assets bin) ends up in structural_clips. Structural clips are
+    intentional pre-rendered content and should not be analyzed for cuts.
     """
     v1 = sorted(timeline.GetItemListInTrack('video', 1) or [],
                 key=lambda c: c.GetStart())
     tl_start_frame = timeline.GetStartFrame()
-    out = []
+
+    # Identify the dominant source name = gameplay capture
+    names = [c.GetName() for c in v1]
+    if not names:
+        return [], []
+    dominant_name = Counter(names).most_common(1)[0][0]
+
+    gameplay, structural = [], []
     for i, c in enumerate(v1, start=1):
         tl_in_frames = c.GetStart() - tl_start_frame
-        out.append({
-            'idx':       i,
-            'tl_start':  tl_in_frames / fps,
-            'tl_end':    (tl_in_frames + c.GetDuration()) / fps,
-            'src_start': c.GetLeftOffset() / fps,
-            'src_end':   (c.GetLeftOffset() + c.GetDuration()) / fps,
-            'duration':  c.GetDuration() / fps,
-        })
-    return out
+        entry = {
+            'idx':         i,
+            'tl_start':    tl_in_frames / fps,
+            'tl_end':      (tl_in_frames + c.GetDuration()) / fps,
+            'src_start':   c.GetLeftOffset() / fps,
+            'src_end':     (c.GetLeftOffset() + c.GetDuration()) / fps,
+            'duration':    c.GetDuration() / fps,
+            'source_name': c.GetName(),
+        }
+        (gameplay if c.GetName() == dominant_name else structural).append(entry)
+    return gameplay, structural
 
 
 def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
@@ -304,10 +319,15 @@ def main() -> int:
         if out_path.exists():
             out_path.unlink()
 
-        clips = enumerate_v1_clips(timeline, fps)
+        clips, structural = enumerate_v1_clips(timeline, fps)
         clips = attach_transcript_to_clips(clips, transcript.get('segments', []))
         n_empty = sum(1 for c in clips if not c['transcript'])
-        print(f'Enumerated {len(clips)} V1 clips ({n_empty} have no transcript text)')
+        print(f'Enumerated {len(clips)} gameplay clips ({n_empty} have no transcript text)')
+        if structural:
+            print(f'Excluded {len(structural)} structural clip(s) (intro/outro/inserts):')
+            for s in structural:
+                print(f'  [{s["idx"]:5d}] tl={s["tl_start"]:7.2f}-{s["tl_end"]:7.2f}s  '
+                      f'dur={s["duration"]:5.2f}s  {s["source_name"]}')
 
         in_path.write_text(build_prompt(clips), encoding='utf-8')
         print(f'Relay prompt -> {in_path}')
