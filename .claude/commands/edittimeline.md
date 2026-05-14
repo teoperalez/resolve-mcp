@@ -230,11 +230,83 @@ This script:
 
 Pass `--crop-bottom N` to override the crop value, or `--dry-run` to preview without modifying the timeline.
 
+### Step 11 — A2 audio pipeline (BGM + battle audio + fades)
+
+Fill A2 with dynamic music: Dual Screen Lovelife → chained random general BGM → looped battle audio during battles → -3dB crossfades at every battle boundary.
+
+**11a. Classify BGM tracks if not already done (one-time per project):**
+
+Check whether `~/.resolve-mcp/bgm-tags.json` exists. If it doesn't, run both classifier stages now. If it does, skip to 11b.
+
+If the cache is missing — start `classify_bgm.py` in the BACKGROUND:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\classify_bgm.py"
+```
+
+Relay — YOU must complete this step:
+- Poll until `plans/prompts/bgm-tags.in.md` appears.
+- Spawn ONE Haiku subagent (`model: "haiku"`) with the prompt. It classifies every BGM filename into `battle_rival`, `battle_gym`, `battle_generic`, `general`, or `exclude` and writes the JSON object directly to `plans/prompts/bgm-tags.out.md`.
+
+After `classify_bgm.py` exits, run the audio-feature pass to confirm/reclassify ambiguous picks:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\analyze_bgm_audio.py"
+```
+
+This adds BPM / RMS / spectral centroid / onset rate to each tag entry. It reports mismatches between the name-tag and audio classification. Review the mismatches and decide whether to manually correct any in `~/.resolve-mcp/bgm-tags.json` before continuing.
+
+**11b. Classify battle types (rival / gym / other):**
+
+Start `classify_battles.py` in the BACKGROUND:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\classify_battles.py"
+```
+
+Relay — YOU must complete this step:
+- Poll until `plans/prompts/battle-types.in.md` appears.
+- Read the prompt. For each battle, classify as `rival` / `gym` / `other` using the surrounding transcript context. Write a single JSON object to the `.out.md`:
+  ```json
+  {"0": {"type": "rival", "reasoning": "..."}, "1": {"type": "gym", "reasoning": "..."}, ...}
+  ```
+- The script caches to `transcripts/battle-types.json` and exits.
+
+**11c. Place Dual Screen Lovelife on A2 (intro-speed-aware offset):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_bgm.py --game GAME_KEY"
+```
+
+**11d. Chain general BGM between battles:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_bgm.py --seed 1"
+```
+Filters to `general`-tagged tracks only. Truncates at each battle start; picks a new track at each battle end.
+
+**11e. Place looped battle audio (one track per battle type):**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_audio.py --rival-track ""Take them down!.mp3"" --gym-track ""Big Baddies.mp3"" --other-track ""A new Challenger.mp3"""
+```
+Auto-picks the alphabetical-first track in each tag if `--rival-track` / `--gym-track` / `--other-track` are omitted. Loops within each battle interval; truncates the last loop at the battle end.
+
+**11f. Apply -3dB fades at battle boundaries:**
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\apply_audio_fades.py"
+```
+Pre-renders fade variants via ffmpeg (half-sine = constant power = -3dB), then replaces the existing clips with the faded variants. Fades pre-battle BGM end, battle audio start/end (first/last loop), post-battle BGM start, and the very last A2 clip.
+
+### Step 12 — Apply Fairlight mixer preset (FX + levels + routing)
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\apply_fairlight_preset.py --timeline ""<edit timeline name>"""
+```
+
+The script installs the bundled `assets/fairlight-presets/CONSOLE_FLEXI/Standard Gameplay youtube.dat` into Resolve's Fairlight Presets directory (if not already there), switches to the edit timeline, and calls `Project.ApplyFairlightPresetToCurrentTimeline("Standard Gameplay youtube")`. This applies the full mixer state: track names + subtypes, FX chains (compressors / EQ / limiters), levels, bus routing.
+
+If Apply returns False (rare — happens after a true cold install on a new machine), restart Resolve once and re-run.
+
 ---
 
 ## Final summary
 
-After all ten steps complete, print a summary table:
+After all twelve steps complete, print a summary table:
 | Step | Result |
 |------|--------|
 | 1. Clear audio tracks | N clips removed from A2–A5 |
@@ -243,7 +315,29 @@ After all ten steps complete, print a summary table:
 | 4. Short clip removal | N clips ripple deleted |
 | 5. Gap markers | N gaps marked |
 | 6. Cut candidates | N orange (high confidence), N yellow (medium confidence) |
-| 7. Import + edit timeline | Game detected, N shared files + N game files imported, edit timeline created with intro at X% |
+| 7. Import + edit timeline | Game detected, N shared + N game files imported, edit timeline created with intro at X% |
 | 8. Battle end markers (refined) | N markers refined on edit timeline |
 | 9. Member Carousel Start | Marker placed at v1[N] (TC HH:MM:SS:FF) |
 | 10. Carousel layout | N clips copied to V2 with CropBottom=530, V1 extended to outro |
+| 11. A2 audio | DSL + N general BGM + N battle audio loops + N fade variants |
+| 12. Fairlight preset | "Standard Gameplay youtube" applied |
+
+---
+
+## Final manual step — Normalize Audio (UI only)
+
+The Resolve scripting API does NOT expose `NormalizeAudio`. Tell the user to do this in the UI:
+
+> **Edit page** (or Fairlight page):
+>
+> 1. Click the first clip on the track you want to normalize, then press **Ctrl+Shift+End** to select every clip out to the end.
+> 2. **Right-click** any selected clip → **Normalize Audio Levels…**
+> 3. Set:
+>    - **Normalization Mode** → `Sample Peak Program`
+>    - **Target Level** → `-9.0 dBFS`
+>    - **Set Level** → `Relative`
+>    - **Reference** → `Independently` (each clip's own peak)
+> 4. Click **Normalize**.
+> 5. Repeat for every audio track that needs leveling (A1 dialogue, A2 music/battles, plus any others in the Fairlight preset).
+>
+> The Fairlight preset's limiter on the master bus will catch any peaks after this; the per-track normalize just gives the mixer a consistent input level to work with.
