@@ -121,11 +121,23 @@ cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\r
 
 ### Color cut candidates (relay)
 
-Analyzes transcript via LLM relay. Colors V1 clips: **Orange** = high confidence cut, **Yellow** = medium confidence cut. Two detection types: (1) non-dialogue artifacts where Whisper hallucinated over silence, (2) false starts, repetitions, and significant topic changes. Uses the same relay pattern as detect_battles.py — writes a prompt file, polls for Claude Code's JSON response.
+Analyzes the **live Resolve V1 timeline clip-by-clip** via LLM relay. Colors V1 clips: **Orange** = high confidence cut, **Yellow** = medium confidence cut.
+
+The analyzer enumerates every V1 clip, attaches any overlapping Whisper transcript text to each, and asks the LLM to flag clips whose narrative purpose cannot be established. Clips from non-gameplay source media (intro card, outro card, B-roll inserts) are automatically excluded — only clips from the dominant gameplay source are analyzed.
+
+**Editorial bias:** the inverse of "default to KEEP". The auto-editor's silence threshold keeps everything above the noise floor — not only speech — so anything left on the timeline must earn its place. **If a clip's narrative purpose cannot be articulated, FLAG IT.** Empty-transcript clips (throat clears, breath bursts, mic bumps, mic checks) are the highest-priority flags and were invisible to the old transcript-only approach.
+
+Categories:
+- HIGH: empty-transcript noise, pre-roll / mic-check, Whisper hallucination, stuttered repeats
+- MEDIUM: false starts, true repetitions (failed-take redos), abandoned narrative threads
 
 ```bash
-cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_cut_candidates.py [transcript.json] [--dry-run]"
+cmd.exe /c "C:\Programming\resolve-mcp\.venv\Scripts\python.exe C:\Programming\resolve-mcp\scripts\mark_cut_candidates.py [transcript.json] [--dry-run] [--skip-relay]"
 ```
+
+`--skip-relay`: reapply colors from an existing `plans/prompts/cut-analysis-<stem>.out.md` without re-running the LLM. Use after manually editing the .out.md or after clearing stale clip colors and re-running with the same analysis.
+
+Relay protocol (Claude's job): read `plans/prompts/cut-analysis-<stem>.in.md` (a clip list with attached transcripts and a categorized prompt), write ONLY the JSON cut array to the `.out.md`. The clip list can be ~500+ entries on a typical 30-min video — dispatch a subagent with a fresh context if the prompt is large.
 
 ---
 
