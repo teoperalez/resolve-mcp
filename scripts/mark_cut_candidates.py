@@ -183,6 +183,9 @@ def main() -> int:
                     help='Show segments without coloring clips in Resolve')
     ap.add_argument('--timeout', type=int, default=TIMEOUT_SEC,
                     help=f'Relay timeout in seconds (default: {TIMEOUT_SEC})')
+    ap.add_argument('--skip-relay', action='store_true',
+                    help='Read existing cut-analysis-<stem>.out.md and apply colors '
+                         'without re-running the relay (use after manually editing the .out.md)')
     args = ap.parse_args()
 
     if args.transcript:
@@ -198,18 +201,25 @@ def main() -> int:
     in_path  = PROMPTS_DIR / f'cut-analysis-{stem}.in.md'
     out_path = PROMPTS_DIR / f'cut-analysis-{stem}.out.md'
 
-    if out_path.exists():
-        out_path.unlink()
+    if args.skip_relay:
+        if not out_path.exists():
+            print(f'ERROR: --skip-relay requires existing {out_path}', file=sys.stderr)
+            return 1
+        print(f'Skip-relay: reading existing {out_path}')
+        segments = json.loads(out_path.read_text(encoding='utf-8').strip())
+    else:
+        if out_path.exists():
+            out_path.unlink()
 
-    in_path.write_text(build_prompt(transcript), encoding='utf-8')
-    print(f'Relay prompt → {in_path}')
-    print(f'Waiting for {out_path} ...')
+        in_path.write_text(build_prompt(transcript), encoding='utf-8')
+        print(f'Relay prompt → {in_path}')
+        print(f'Waiting for {out_path} ...')
 
-    try:
-        segments = poll_for_response(out_path, timeout_sec=args.timeout)
-    except TimeoutError as e:
-        print(f'ERROR: {e}', file=sys.stderr)
-        return 1
+        try:
+            segments = poll_for_response(out_path, timeout_sec=args.timeout)
+        except TimeoutError as e:
+            print(f'ERROR: {e}', file=sys.stderr)
+            return 1
 
     print(f'\nReceived {len(segments)} cut candidate(s).')
 
