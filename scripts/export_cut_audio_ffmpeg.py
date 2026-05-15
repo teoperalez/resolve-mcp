@@ -146,32 +146,55 @@ def main() -> int:
     total_kept_sec = sum((e - s) for s, e in keep) / args.fps
     print(f'Keep segments: {len(keep)}  total kept: {total_kept_sec:.2f}s')
 
-    # Build a single ffmpeg command that uses concat-filter to stitch keep ranges
-    # in one pass — much faster than per-segment extract + concat.
+    # Per-segment extract + concat-demuxer stitch. The aselect-filter approach
+    # blows up at ~100 segments due to filter-graph memory limits, so we take
+    # the segment-extract path which scales cleanly.
     ff = _ffmpeg_cmd()
-    inputs = ['-y', '-i', str(src)]
-    # filter_complex: aselect=between(t,a0,b0)+between(t,a1,b1)+...,asetpts
-    parts = []
-    for s, e in keep:
-        s_sec = s / args.fps
-        e_sec = e / args.fps
-        parts.append(f'between(t,{s_sec:.5f},{e_sec:.5f})')
-    select_expr = '+'.join(parts)
-    fc = f'[0:a]aselect=\'{select_expr}\',asetpts=N/SR/TB[a]'
-    cmd = [ff] + inputs + [
-        '-filter_complex', fc,
-        '-map', '[a]',
-        '-c:a', 'pcm_s16le',
-        '-ar', '48000',
-        '-ac', '2',
-        str(out_path),
-    ]
-    print(f'\nRunning ffmpeg ({len(parts)} keep segments)...')
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        print('ffmpeg failed:', file=sys.stderr)
-        print(res.stderr[-3000:], file=sys.stderr)
-        return 1
+    with tempfile.TemporaryDirectory(prefix='cut_audio_') as tmpdir:
+        tmp = Path(tmpdir)
+        seg_paths = []
+        print(f'\nExtracting {len(keep)} keep segments to {tmp} ...')
+        for i, (s, e) in enumerate(keep):
+            s_sec = s / args.fps
+            dur_sec = (e - s) / args.fps
+            seg_path = tmp / f'seg_{i:05d}.wav'
+            cmd = [
+                ff, '-y', '-loglevel', 'error',
+                '-ss', f'{s_sec:.5f}',
+                '-t',  f'{dur_sec:.5f}',
+                '-i', str(src),
+                '-vn',
+                '-c:a', 'pcm_s16le',
+                '-ar', '48000',
+                '-ac', '2',
+                str(seg_path),
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                print(f'ffmpeg failed on segment {i}:', file=sys.stderr)
+                print(res.stderr[-1500:], file=sys.stderr)
+                return 1
+            seg_paths.append(seg_path)
+
+        # Build concat list
+        list_path = tmp / 'concat.txt'
+        list_path.write_text(
+            '\n'.join(f"file '{p.as_posix()}'" for p in seg_paths),
+            encoding='utf-8',
+        )
+        print(f'Concatenating ...')
+        cmd = [
+            ff, '-y', '-loglevel', 'error',
+            '-f', 'concat', '-safe', '0',
+            '-i', str(list_path),
+            '-c', 'copy',
+            str(out_path),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print('ffmpeg concat failed:', file=sys.stderr)
+            print(res.stderr[-1500:], file=sys.stderr)
+            return 1
 
     sz_mb = out_path.stat().st_size / (1024 * 1024)
     print(f'\nWrote: {out_path}  ({sz_mb:.1f} MB)')
