@@ -1,18 +1,14 @@
 """
-Extract the post-cut audio of a cut FCPXML directly from the source video
-via ffmpeg, bypassing Resolve's render pipeline.
+Extract the post-cut audio of the current Resolve timeline directly from
+the source video via ffmpeg, bypassing Resolve's render pipeline.
 
-Reads the cut variant's `_cuts_replay.json` (produced by
-apply_cuts_to_fcpxml.py) — its `src_cuts_frames` field tells us which
-source-frame intervals were removed. The complement = keep-segments. We
-extract each keep-segment's audio as a temp WAV and concat into the output.
-
-Output: a 48kHz/16-bit mono (or stereo) WAV that matches what re-rendering
-the cut timeline's A1 would produce — but in seconds instead of hours.
+The keep-segments come from the CURRENT TIMELINE'S V1 layout (filtered to
+the dominant gameplay source). Each V1 clip's source range is one keep
+segment. This matches exactly what re-rendering the cut timeline's A1
+would produce — but in seconds instead of hours.
 
 Usage:
     python export_cut_audio_ffmpeg.py [--source-video PATH]
-                                      [--cuts-replay PATH]
                                       [--output PATH]
                                       [--iter N]
 """
@@ -89,22 +85,41 @@ def compute_keep_segments(cuts_frames: list[dict], source_duration_frames: int):
     return keep
 
 
+def keep_segments_from_timeline(args_fps_hint=60.0):
+    """Read V1 clips from current Resolve timeline, return a list of
+    (src_start_frame, src_end_frame) keep ranges (filtered to the dominant
+    source name). Sorted by timeline position."""
+    import DaVinciResolveScript as dvr
+    from collections import Counter
+    resolve = dvr.scriptapp('Resolve')
+    project = resolve.GetProjectManager().GetCurrentProject()
+    tl = project.GetCurrentTimeline()
+    fps = float(project.GetSetting('timelineFrameRate') or args_fps_hint)
+    v1 = sorted(tl.GetItemListInTrack('video', 1) or [], key=lambda c: c.GetStart())
+    if not v1:
+        return [], fps
+    names = [c.GetName() for c in v1]
+    dominant = Counter(names).most_common(1)[0][0]
+    print(f'Timeline: {tl.GetName()!r}  dominant source: {dominant!r}  fps={fps}')
+    keep = []
+    for c in v1:
+        if c.GetName() != dominant:
+            continue
+        keep.append((c.GetLeftOffset(), c.GetLeftOffset() + c.GetDuration()))
+    return keep, fps
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--source-video', default=None,
                     help='Source video path (default: auto-detect)')
-    ap.add_argument('--cuts-replay', default=None,
-                    help='Cut replay JSON (default: auto-detect next to source)')
     ap.add_argument('--output', default=None,
                     help='Output WAV (default: transcripts/audio-cut-iter<N>.wav)')
     ap.add_argument('--iter', type=int, default=2,
                     help='Iteration number (controls default filename only)')
-    ap.add_argument('--variant', default='all_cuts',
-                    choices=['all_cuts', 'high_only'],
-                    help='Which cut variant from the replay JSON to use')
     ap.add_argument('--fps', type=float, default=60.0,
-                    help='Source frames per second (default: 60)')
+                    help='Source frames per second hint (default: 60)')
     args = ap.parse_args()
 
     src = Path(args.source_video).resolve() if args.source_video \
@@ -114,36 +129,16 @@ def main() -> int:
         return 1
     print(f'Source: {src}')
 
-    replay_path = Path(args.cuts_replay).resolve() if args.cuts_replay \
-                  else find_default_cuts_replay()
-    if not replay_path or not replay_path.exists():
-        print('ERROR: could not find cuts_replay.json', file=sys.stderr)
-        return 1
-    print(f'Cuts:   {replay_path}')
-    replay = json.loads(replay_path.read_text(encoding='utf-8'))
-    variant = replay.get(args.variant, {})
-    cuts_frames = variant.get('src_cuts_frames', [])
-    if not cuts_frames:
-        print('No cuts found in replay file (variant=%s)' % args.variant,
-              file=sys.stderr)
-        return 1
-
     out_path = Path(args.output).resolve() if args.output \
                else Path('transcripts').resolve() / f'audio-cut-iter{args.iter}.wav'
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Get source duration in frames via ffprobe
-    probe = subprocess.run(
-        ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-         '-show_entries', 'stream=duration', '-of', 'default=nw=1:nk=1', str(src)],
-        capture_output=True, text=True, check=True,
-    )
-    src_dur_sec = float(probe.stdout.strip())
-    src_dur_frames = int(round(src_dur_sec * args.fps))
-    print(f'Source duration: {src_dur_sec:.2f}s ({src_dur_frames} frames @ {args.fps}fps)')
-
-    keep = compute_keep_segments(cuts_frames, src_dur_frames)
-    total_kept_sec = sum((e - s) for s, e in keep) / args.fps
+    keep, fps = keep_segments_from_timeline(args.fps)
+    if not keep:
+        print('ERROR: no V1 keep segments from current timeline', file=sys.stderr)
+        return 1
+    args.fps = fps
+    total_kept_sec = sum((e - s) for s, e in keep) / fps
     print(f'Keep segments: {len(keep)}  total kept: {total_kept_sec:.2f}s')
 
     # Per-segment extract + concat-demuxer stitch. The aselect-filter approach
