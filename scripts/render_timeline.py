@@ -33,12 +33,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 import _resolve_env  # noqa: F401
 
 PRESET_MAP = {
-    'qa': 'YouTube - 720p',
-    '4k': 'YouTube - 2160p',
+    'qa':    'YouTube - 720p',
+    '4k':    'YouTube - 2160p',
+    'audio': None,                # special — manual settings, no preset
 }
 DEFAULT_FILENAME_TAGS = {
-    'qa': 'QA_720p',
-    '4k': 'FINAL_4K',
+    'qa':    'QA_720p',
+    '4k':    'FINAL_4K',
+    'audio': 'AUDIO_MIX',
 }
 
 
@@ -120,21 +122,47 @@ def main() -> int:
     if not resolve.OpenPage('deliver'):
         print('WARN: OpenPage("deliver") returned False — continuing anyway')
 
-    # ── Load the chosen preset ──
-    if not project.LoadRenderPreset(preset_name):
-        print(f'ERROR: LoadRenderPreset({preset_name!r}) returned False — '
-              f'preset may not exist in this Resolve install.', file=sys.stderr)
-        return 1
-    print(f'Loaded preset: {preset_name!r}')
+    if args.preset == 'audio':
+        # Audio-only render: no Resolve preset, configure settings manually
+        ok = project.SetRenderSettings({
+            'TargetDir':       str(out_dir),
+            'CustomName':      output_name,
+            'ExportVideo':     False,
+            'ExportAudio':     True,
+            'VideoFormat':     'mp4',     # container; video stream disabled
+            'AudioCodec':      'aac',     # widely-playable; high enough for review
+            'AudioBitDepth':   '16',
+            'AudioSampleRate': '48000',
+            'FormatWidth':     1280,      # required even when video disabled
+            'FormatHeight':    720,
+        })
+        if not ok:
+            print('WARN: SetRenderSettings returned False — trying H.264 Master',
+                  'with audio-only override', file=sys.stderr)
+            project.LoadRenderPreset('H.264 Master')
+            project.SetRenderSettings({
+                'TargetDir':     str(out_dir),
+                'CustomName':    output_name,
+                'ExportVideo':   False,
+                'ExportAudio':   True,
+            })
+        print(f'Audio-only mode: AAC into MP4 container')
+    else:
+        # ── Load the chosen preset (video render) ──
+        if not project.LoadRenderPreset(preset_name):
+            print(f'ERROR: LoadRenderPreset({preset_name!r}) returned False — '
+                  f'preset may not exist in this Resolve install.', file=sys.stderr)
+            return 1
+        print(f'Loaded preset: {preset_name!r}')
 
-    # ── Override output path + filename ──
-    ok = project.SetRenderSettings({
-        'TargetDir':   str(out_dir),
-        'CustomName':  output_name,
-    })
-    if not ok:
-        print('WARN: SetRenderSettings returned False — render path overrides '
-              'may not have applied', file=sys.stderr)
+        # ── Override output path + filename ──
+        ok = project.SetRenderSettings({
+            'TargetDir':   str(out_dir),
+            'CustomName':  output_name,
+        })
+        if not ok:
+            print('WARN: SetRenderSettings returned False — render path overrides '
+                  'may not have applied', file=sys.stderr)
 
     # ── Track existing render jobs so we can identify ours ──
     pre_existing = {j.get('JobId') for j in (project.GetRenderJobs() or [])
@@ -175,22 +203,23 @@ def main() -> int:
     print(f'\nFinal status: {final}')
 
     # ── Resolve final output path ──
-    # Resolve's CustomName + TargetDir → <CustomName>.<ext>
-    out_path = out_dir / f'{output_name}.mp4'
-    if out_path.exists():
-        sz_mb = out_path.stat().st_size / (1024 * 1024)
-        print(f'Output:        {out_path}  ({sz_mb:.1f} MB)')
+    # Try common extensions Resolve might use; mp4 covers both video and
+    # audio-only AAC; m4a sometimes used for audio-only.
+    candidates = []
+    for ext in ('.mp4', '.m4a', '.wav'):
+        p = out_dir / f'{output_name}{ext}'
+        if p.exists():
+            candidates.append(p)
+    if not candidates:
+        # Resolve sometimes appends a trailing _ or frame-range before ext
+        for ext in ('.mp4', '.m4a', '.wav'):
+            candidates.extend(out_dir.glob(f'{output_name}*{ext}'))
+    if candidates:
+        for c in candidates:
+            sz_mb = c.stat().st_size / (1024 * 1024)
+            print(f'Output:        {c}  ({sz_mb:.1f} MB)')
     else:
-        # Resolve sometimes appends a frame range or trailing _ before ext.
-        # Show all matching candidates.
-        cands = list(out_dir.glob(f'{output_name}*.mp4'))
-        if cands:
-            for c in cands:
-                sz_mb = c.stat().st_size / (1024 * 1024)
-                print(f'Found:         {c}  ({sz_mb:.1f} MB)')
-        else:
-            print(f'WARN: expected output {out_path} not found. Check '
-                  f'{out_dir} for the rendered file.', file=sys.stderr)
+        print(f'WARN: expected output not found in {out_dir}.', file=sys.stderr)
 
     job_status = (final.get('JobStatus') or final.get('Status') or '').lower()
     if 'fail' in job_status or 'cancel' in job_status:
