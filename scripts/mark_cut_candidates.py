@@ -430,7 +430,7 @@ When a single Whisper segment contains a self-correction, you may need a MID-CLI
 
 ## Speech-style preservation filter (mandatory second pass on every flagged cut)
 
-The streamer is **Teo / IRL Pokemon Challenges** — his speech style is documented in `C:\Users\teope\.claude\Teo Speech Style.md` (read it before doing this analysis if you have not). The doc was built from 20 finished published videos on @RBYPokemonChallenges (~24h, ~200K words) plus IRL channel analysis.
+The streamer is **Teo / IRL Pokemon Challenges** — his speech style is documented in `C:/Users/teope/.claude/Teo Speech Style.md` (read it before doing this analysis if you have not). The doc was built from 20 finished published videos on @RBYPokemonChallenges (~24h, ~200K words) plus IRL channel analysis.
 
 **Two filters apply to every cut you propose:**
 1. **Narrative integrity** — does the post-cut audio still make sense as a sequence of complete thoughts?
