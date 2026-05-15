@@ -195,24 +195,51 @@ def annotate_clip_relationships(clips: list[dict]) -> None:
             cur['src_overlap_with_prev'] = 0.0
 
     # ── duplicate-text cluster detection ──
+    # IMPORTANT: "clips share Whisper text" does NOT mean "duplicate speech."
+    # Auto-editor silence-strips often split ONE Whisper segment across two
+    # adjacent clips (each carrying half the words but Whisper assigns the
+    # full segment text to both). That is NOT an artifact — both clips
+    # carry real speech. The TRUE artifact pattern is a cluster of 3+ clips
+    # where SHORT middle ones (<0.7s) are throat clears that Whisper
+    # over-assigned the surrounding segment text to.
+    #
+    # We therefore only flag a clip as `dup_text_cluster_artifact` when:
+    #   - cluster size >= 3 AND
+    #   - this clip's duration < 0.7s AND
+    #   - this clip's duration < 0.5x the cluster's MEDIAN duration
+    #     (i.e. it's clearly the runt of the cluster)
     def joined_text(c):
         return ' | '.join(t['text'] for t in c.get('transcript', []) if t.get('text')).strip().lower()
 
     texts = [joined_text(c) for c in sorted_clips]
-    # Identify cluster membership: consecutive identical non-empty texts
     cluster_id = [0] * len(sorted_clips)
     cur_id = 0
     for i in range(len(sorted_clips)):
         if i == 0 or texts[i] != texts[i-1] or not texts[i]:
             cur_id += 1
         cluster_id[i] = cur_id
-    # Count size of each cluster
-    sizes: dict[int, int] = {}
-    for cid in cluster_id:
-        sizes[cid] = sizes.get(cid, 0) + 1
-    for i, (clip, cid) in enumerate(zip(sorted_clips, cluster_id)):
-        size = sizes[cid] if texts[i] else 1
-        clip['dup_text_cluster_size'] = size
+    clusters: dict[int, list] = {}
+    for clip, cid in zip(sorted_clips, cluster_id):
+        clusters.setdefault(cid, []).append(clip)
+
+    for clip in sorted_clips:
+        clip['dup_text_cluster_size']     = 1
+        clip['dup_text_cluster_artifact'] = False
+
+    for cid, members in clusters.items():
+        size = len(members)
+        for m in members:
+            m['dup_text_cluster_size'] = size
+        if size < 3:
+            # Length-2 clusters are almost always one Whisper segment split
+            # across silence-strip — both carry real speech. Don't flag.
+            continue
+        durs = sorted(m['duration'] for m in members)
+        median = durs[len(durs) // 2]
+        for m in members:
+            m['dup_text_cluster_artifact'] = (
+                m['duration'] < 0.7 and m['duration'] < 0.5 * median
+            )
 
 
 def flatten_words(segments: list) -> list[dict]:
@@ -276,9 +303,10 @@ def format_clip_line(c: dict) -> str:
         flags.append(f"!!INTERNAL_WORD_GAP={gap['gap_sec']:.2f}s "
                      f"between {gap['before_word']!r} and {gap['after_word']!r} "
                      f"({where})")
-    cluster_size = c.get('dup_text_cluster_size', 1)
-    if cluster_size > 1 and c['duration'] < 1.5:
-        flags.append(f'!!DUP_TEXT_CLUSTER_MEMBER (size={cluster_size}, short clip)')
+    if c.get('dup_text_cluster_artifact'):
+        cs = c.get('dup_text_cluster_size', 1)
+        flags.append(f'!!DUP_TEXT_CLUSTER_ARTIFACT (cluster_size={cs}, '
+                     f'short runt {c["duration"]:.2f}s in 3+-cluster)')
     flag_str = ('  ' + '  '.join(flags)) if flags else ''
 
     if not c['transcript']:
@@ -347,7 +375,7 @@ The list below is **every V1 clip on the timeline** (in order). Each line shows:
 
 - `!!SRC_OVERLAP_PREV=Xs` — this clip's source range overlaps the previous clip's by X seconds. Means the rendered audio plays X seconds of source frames TWICE in a row (a duplicate). **Always flag the overlap region** — this is mechanical audio duplication, not narrative.
 - `!!INTERNAL_WORD_GAP=Xs between A and B` — inside one of this clip's Whisper segments, there's an X-second word-gap between words A and B. The auto-editor likely stripped silence in the middle of a Whisper segment. Inspect the words around the gap: if "A...B" reads as a clean continuation, keep. If "A" looks like a trail-off and "B" starts a recovery/new thought, flag the trail-off.
-- `!!DUP_TEXT_CLUSTER_MEMBER (size=N, short clip)` — this short clip (<1.5s) is one of N consecutive clips that all have the SAME transcript text. Whisper assigned its segment text to all of them. The short clips in the middle are very likely artifacts (throat clears, breath bursts, mic bumps) that the auto-editor kept above the noise floor and Whisper labeled with the surrounding segment's text. Flag the short cluster members.
+- `!!DUP_TEXT_CLUSTER_ARTIFACT (cluster_size=N, short runt Xs in 3+-cluster)` — this short clip is the runt of a cluster of 3 or more consecutive clips that all share the same Whisper segment text. The flag is conservative: it only fires when the cluster has ≥3 members AND this clip is <0.7s AND less than half the cluster's median duration. In that case it's almost certainly a throat clear / breath burst / mic bump that the auto-editor preserved above the noise floor and Whisper over-assigned the surrounding text to. **Two-clip "clusters" are NOT flagged** — those are usually one Whisper segment split across a silence-stripped gap with both halves carrying real speech words.
 
 There are {len(clips)} clips total; {n_empty} have no transcript text.
 
@@ -396,7 +424,9 @@ When a single Whisper segment contains a self-correction, you may need a MID-CLI
 
 **10. Source-frame audio duplication** (HIGH, always cut). When a clip is flagged `!!SRC_OVERLAP_PREV=Xs`, X seconds of source frames play TWICE on the rendered timeline. This is a mechanical bug from upstream processing (typically the battle-gap insertion). Flag the OVERLAP region. The natural source-time range to cut is `(this_clip.src_start, this_clip.src_start + overlap)` — i.e. the redundant head of this clip. Always flag, regardless of what the duplicated words say.
 
-**11. Throat-clear cluster artifact** (HIGH). When you see a clip flagged `!!DUP_TEXT_CLUSTER_MEMBER (size=N, short clip)`, this short clip is one of N consecutive clips that all share the SAME transcript text. The auto-editor preserved a short noise (throat clear, breath, mic bump) above the silence floor, and Whisper assigned the surrounding segment's text to it. Flag the short cluster members as `artifact`. Keep the LONGER cluster members (those carrying the real speech).
+**11. Throat-clear cluster artifact** (HIGH, but only when explicitly flagged). When you see a clip flagged `!!DUP_TEXT_CLUSTER_ARTIFACT`, the pre-computed heuristic has already verified it's a true artifact (cluster size ≥3, this clip <0.7s and <0.5x cluster median). Flag the short artifact runt as `artifact`. The other cluster members are real speech — leave them alone.
+
+**Important: do NOT flag "two clips with the same Whisper text" as duplicates.** That pattern is almost always one Whisper segment whose words got split across a silence-stripped gap into two clips. Each clip carries different words (one carries the first half of the phrase, the other carries the second half). Cutting one would leave a half-sentence. Only flag when you have an explicit `!!DUP_TEXT_CLUSTER_ARTIFACT` annotation.
 
 ## Consistency requirement (read carefully)
 
@@ -658,9 +688,9 @@ def main() -> int:
         n_overlap = sum(1 for c in clips if c.get('src_overlap_with_prev', 0) > 0.1)
         n_gap     = sum(1 for c in clips if c.get('internal_word_gap'))
         n_dup     = sum(1 for c in clips
-                        if c.get('dup_text_cluster_size', 1) > 1 and c['duration'] < 1.5)
+                        if c.get('dup_text_cluster_artifact'))
         print(f'Annotations: {n_overlap} src-overlap-prev | {n_gap} internal-word-gap '
-              f'| {n_dup} short-clip-in-dup-cluster')
+              f'| {n_dup} dup-text-cluster-artifact')
         n_empty = sum(1 for c in clips if not c['transcript'])
         print(f'Enumerated {len(clips)} gameplay clips ({n_empty} have no transcript text)')
         if structural:
