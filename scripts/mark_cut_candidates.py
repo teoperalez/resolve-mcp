@@ -428,6 +428,55 @@ When a single Whisper segment contains a self-correction, you may need a MID-CLI
 
 **Important: do NOT flag "two clips with the same Whisper text" as duplicates.** That pattern is almost always one Whisper segment whose words got split across a silence-stripped gap into two clips. Each clip carries different words (one carries the first half of the phrase, the other carries the second half). Cutting one would leave a half-sentence. Only flag when you have an explicit `!!DUP_TEXT_CLUSTER_ARTIFACT` annotation.
 
+## Speech-style preservation filter (mandatory second pass on every flagged cut)
+
+The streamer is **Teo / IRL Pokemon Challenges** — his speech style is documented in `C:\Users\teope\.claude\Teo Speech Style.md` (read it before doing this analysis if you have not). The doc was built from 20 finished published videos on @RBYPokemonChallenges (~24h, ~200K words) plus IRL channel analysis.
+
+**Two filters apply to every cut you propose:**
+1. **Narrative integrity** — does the post-cut audio still make sense as a sequence of complete thoughts?
+2. **Speech-style integrity** — does the post-cut audio still SOUND LIKE Teo, or have we accidentally created sentences he would never produce?
+
+If a cut breaks #2 even when #1 holds, the cut is wrong — REVERT IT.
+
+### Style features that must survive cuts
+
+These are recurring features of his finished-video voice. A cut that erases or distorts them is suspect:
+
+- **Softener density.** Teo speaks with heavy softeners — *"of course"* (top-tier — appears in 19/20 videos, 226 hits), *"actually"*, *"basically"*, *"kind of"*, *"really"*, *"you know"*, *"like"*. If a proposed cut removes the only softener in a 10-second window AND leaves a hard declarative behind, the cut probably reads as "not him." Keep the softener.
+- **"Now, ..." mid-video transitions.** Teo opens new thoughts with *"Now,"* / *"Now of course,"* / *"Now we have to..."*. Cutting one of these strips the natural transition cadence. Only cut if the *"Now,"* is itself part of an abandoned thought.
+- **"of course" used to soften facts.** Pattern: *"and of course it's going to..."*, *"of course we have to switch to..."*. Critical channel idiom. Never treat as filler.
+- **"And with that..." battle-arc closer.** Signature phrase — closes a battle/section before transitioning. If a cut would remove the *"And with that..."* without removing the surrounding closure beat, the post-cut audio jumps abruptly. Keep the closer; cut the trail-off content WITHIN it if needed.
+- **"But..." pivots.** His most common transition word for setting up contrast. *"But today we're going to find out..."*, *"But don't worry about any of that..."*. Cuts that strip *"But"* and leave the contrasting clause floating sound wrong.
+- **Approximate quantifiers around precise stats.** Pattern: *"like 29 resets"* (the *"like"* softens the precision). Cuts that remove the *"like"* / *"about"* / *"or so"* hedge but keep the number make the line sound stiffer than him.
+- **Post-clause asides.** *"Misty's ace, Starmie, which is actually a legitimately strong Pokemon..."* — the *", which is..."* aside is a signature pattern. Don't cut into the middle of an aside; cut at its boundary.
+- **Rules-block / numbered enumerations** (*"first things first"* + *"number one... number two..."*). Channel format-rules signature. Always KEEP — never cut even if it sounds repetitive.
+- **Outro-template phrases.** *"thanks for watching"*, *"see you in the next [video/one]"*, *"if you enjoyed", "shoutout to my members"*, *"hit the subscribe button"*. These are scripted closing beats — always keep, even if delivery feels redundant.
+- **"Smart AI" / game-mechanic asides.** Channel-vocabulary explanations like *"because the smart AI in this generation will..."* or *"because in this gen they made struggle a normal-type move"*. These are explanatory beats for the viewer — keep.
+- **Reset/attempt meta.** *"attempt number one"*, *"reset 29"*, *"we've taken like 20-ish resets"* — informational meta about the run. Always keep (cut a redo-of-the-same-line, never the meta itself).
+
+### Style features that should be CUT (they're NOT his voice)
+
+- Mic checks (*"check, check"*) — never appear in finished videos.
+- Mis-named challenge subjects (carryover from previous video) — *"this is Misty... she's still Brock"*-style mis-takes.
+- Failed-take re-records where the SAME line is delivered twice with a recording-pause between — cut the first.
+- Wrong-move announcements that get corrected (*"Bubble Beam... actually Surf"*) — cut the first attempt to the natural sub-segment boundary.
+- Stuttered word-pairs (*"Number two number two"*) — cut one copy.
+
+### Per-cut self-check (apply mentally to every proposed cut)
+
+Before locking in any cut, simulate the post-cut audio in your head:
+
+1. **Does the joined audio across the cut produce a sentence Teo would say?**
+   - If joining clip A (ending "...Misty's Starmie") + clip C (starting "Bubble Beam") yields *"Misty's Starmie Bubble Beam"* (no verb, no softener), that's wrong. Either keep clip B (the connector) or extend the cut.
+2. **Does the post-cut transition match his cadence?**
+   - If clip A ends mid-thought and clip C starts a new thought without a *"Now,"* / *"And with that,"* / *"But..."* / *"of course"* bridge, the transition reads as cut. Look for whether B contains the bridge word — if so, keep B.
+3. **Does removing the cut preserve at least one softener every ~5-10 seconds?**
+   - If your cut leaves a long stretch of declarative speech with no softeners, you've trimmed his voice signature. Either revert OR cut differently.
+4. **Are you cutting an aside that explains a game mechanic?**
+   - The streamer's audience expects these. Cut only if the aside is FULLY redundant with content nearby.
+
+If a cut fails any of these checks, **revert it** and either skip or propose a different boundary. Be willing to skip a cut you initially flagged — it's better to miss a cut than to break the voice.
+
 ## Consistency requirement (read carefully)
 
 If you identify a pattern at one point in the transcript, **scan the ENTIRE transcript for the same pattern and flag ALL instances**. Common failure mode: catching one "and with that... and with that..." trail-off and forgetting another identical pattern elsewhere. Do not stop after the first instance — search globally for every occurrence of any pattern you flag.
