@@ -117,12 +117,23 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
     for clip in clips:
         hits = []
         biggest_gap = None  # gap in a Whisper segment that touches this clip
+        words_in_clip: list[dict] = []  # words whose timestamps fall inside this clip's source range
         for s in segments:
             seg_start = float(s.get('start', 0))
             seg_end   = float(s.get('end', 0))
             if seg_start < clip['src_end'] and seg_end > clip['src_start']:
                 txt = (s.get('text') or '').strip()
                 hits.append({'start_sec': seg_start, 'end_sec': seg_end, 'text': txt})
+                # Collect words from this segment whose midpoint falls in the clip
+                for w in s.get('words') or []:
+                    try:
+                        ws = float(w['start']); we = float(w['end'])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    midpoint = (ws + we) / 2.0
+                    if clip['src_start'] <= midpoint <= clip['src_end']:
+                        words_in_clip.append({'word': (w.get('word') or '').strip(),
+                                               'start': ws, 'end': we})
                 # Look at all word-gaps inside this Whisper segment. If a gap
                 # is > 1s AND at least one of the words bracketing the gap is
                 # inside (or at the boundary of) this clip's source range,
@@ -163,6 +174,7 @@ def attach_transcript_to_clips(clips: list[dict], segments: list) -> list[dict]:
                         }
         clip['transcript']        = hits
         clip['internal_word_gap'] = biggest_gap
+        clip['words_in_clip']     = words_in_clip
     return clips
 
 
@@ -237,8 +249,15 @@ def annotate_clip_relationships(clips: list[dict]) -> None:
         durs = sorted(m['duration'] for m in members)
         median = durs[len(durs) // 2]
         for m in members:
+            # CRITICAL: a clip with ANY word whose midpoint falls inside its
+            # source range carries real audio — never flag as artifact, even
+            # if the cluster heuristic says it's a runt. Whisper segment text
+            # spans clips; word midpoints don't.
+            has_real_words = bool(m.get('words_in_clip'))
             m['dup_text_cluster_artifact'] = (
-                m['duration'] < 0.7 and m['duration'] < 0.5 * median
+                m['duration'] < 0.7
+                and m['duration'] < 0.5 * median
+                and not has_real_words
             )
 
 
@@ -285,6 +304,19 @@ def format_clip_line(c: dict) -> str:
             f'src={c["src_start"]:8.2f}-{c["src_end"]:8.2f}s  '
             f'dur={c["duration"]:5.2f}s')
 
+    # Surface the ACTUAL words spoken inside this clip's source range. This
+    # is critical because Whisper's segment text often spans multiple clips
+    # — assigning the FULL segment text to clips that contain only PART of
+    # the words. Cutting based on assigned-text alone risks removing real
+    # spoken words. The words-in-clip list shows EXACTLY what would be lost
+    # if this clip were cut.
+    words_in = c.get('words_in_clip') or []
+    if words_in:
+        actual = ''.join(w.get('word', '') for w in words_in).strip()
+        words_field = f'  WORDS_IN_CLIP({len(words_in)}): "{actual}"'
+    else:
+        words_field = '  WORDS_IN_CLIP(0): (no words inside this clip)'
+
     # Compose flag annotations
     flags: list[str] = []
     overlap = c.get('src_overlap_with_prev', 0.0)
@@ -310,20 +342,20 @@ def format_clip_line(c: dict) -> str:
     flag_str = ('  ' + '  '.join(flags)) if flags else ''
 
     if not c['transcript']:
-        return f'{head}{flag_str}  (NO TRANSCRIPT — empty / noise / artifact)'
+        return f'{head}{flag_str}{words_field}  (NO WHISPER TRANSCRIPT — empty / noise / artifact)'
 
     # Filter out empty text segments
     real = [t for t in c['transcript'] if t['text']]
     if not real:
-        return f'{head}{flag_str}  (transcript present but blank)'
+        return f'{head}{flag_str}{words_field}  (transcript present but blank)'
 
     if len(real) == 1:
         t = real[0]
-        return f'{head}{flag_str}  [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"'
+        return f'{head}{flag_str}{words_field}  ASSIGNED_SEGMENT [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s]: "{t["text"]}"'
 
     # Multi-segment clip — expand each sub-segment onto its own indented line so
     # the LLM can see the internal boundaries that are candidates for mid-clip cuts.
-    lines = [f'{head}{flag_str}']
+    lines = [f'{head}{flag_str}{words_field}']
     for t in real:
         lines.append(f'           sub [{t["start_sec"]:7.2f}-{t["end_sec"]:7.2f}s] "{t["text"]}"')
     return '\n'.join(lines)
@@ -371,11 +403,23 @@ The list below is **every V1 clip on the timeline** (in order). Each line shows:
 
 **Multi-segment clips.** When a clip contains more than one Whisper segment, each sub-segment is shown on its own `sub [...] "..."` line with its own source-time range. These internal boundaries are the natural cut points if you want to flag only part of the clip — see "Mid-clip cuts" below.
 
-**Pre-computed flags surfaced per clip** (when applicable, shown inline after the head):
+**Per-clip annotations (read carefully — these change cut decisions):**
 
+- `WORDS_IN_CLIP(N): "actual words"` — **THE most important annotation**. These are the actual spoken words whose midpoint falls inside this clip's source range. This is what the listener actually hears in this clip. Cutting this clip removes EXACTLY these words. The `ASSIGNED_SEGMENT` field below it shows the FULL Whisper segment that touches this clip — it often spans neighbors. **Always reason about cuts using `WORDS_IN_CLIP`, never `ASSIGNED_SEGMENT`.** A clip can have `WORDS_IN_CLIP(0)` (empty — no real audio) while still having an `ASSIGNED_SEGMENT` text (Whisper assigned the spanning segment). Empty `WORDS_IN_CLIP` = real artifact candidate. Non-empty `WORDS_IN_CLIP` = real speech, NEVER cut as artifact.
+- `ASSIGNED_SEGMENT [...]: "..."` — the Whisper segment that overlaps this clip. Use only for context (which sentence is the clip part of). Does NOT tell you what's in this specific clip.
 - `!!SRC_OVERLAP_PREV=Xs` — this clip's source range overlaps the previous clip's by X seconds. Means the rendered audio plays X seconds of source frames TWICE in a row (a duplicate). **Always flag the overlap region** — this is mechanical audio duplication, not narrative.
 - `!!INTERNAL_WORD_GAP=Xs between A and B` — inside one of this clip's Whisper segments, there's an X-second word-gap between words A and B. The auto-editor likely stripped silence in the middle of a Whisper segment. Inspect the words around the gap: if "A...B" reads as a clean continuation, keep. If "A" looks like a trail-off and "B" starts a recovery/new thought, flag the trail-off.
-- `!!DUP_TEXT_CLUSTER_ARTIFACT (cluster_size=N, short runt Xs in 3+-cluster)` — this short clip is the runt of a cluster of 3 or more consecutive clips that all share the same Whisper segment text. The flag is conservative: it only fires when the cluster has ≥3 members AND this clip is <0.7s AND less than half the cluster's median duration. In that case it's almost certainly a throat clear / breath burst / mic bump that the auto-editor preserved above the noise floor and Whisper over-assigned the surrounding text to. **Two-clip "clusters" are NOT flagged** — those are usually one Whisper segment split across a silence-stripped gap with both halves carrying real speech words.
+- `!!DUP_TEXT_CLUSTER_ARTIFACT (cluster_size=N, short runt Xs in 3+-cluster)` — this short clip is the runt of a cluster of 3+ consecutive clips that all share the same Whisper segment text. The flag is conservative: cluster ≥3 AND this clip <0.7s AND less than half the cluster's median AND `WORDS_IN_CLIP(0)`. When all four conditions hold it's almost certainly a throat clear / breath burst / mic bump.
+
+### CRITICAL: word-content gate
+
+**A clip with `WORDS_IN_CLIP(N>0)` carries real spoken words.** Cutting it removes those exact words from the rendered audio. NEVER cut a clip with `WORDS_IN_CLIP > 0` as an "artifact" or "duplicate." Only flag it as a cut candidate if:
+- The words it contains are themselves the unwanted content (a false start, a trail-off, a mis-take, a repetition); AND
+- You can articulate the post-cut joined audio as something the streamer would say.
+
+**A clip with `WORDS_IN_CLIP(0)` and empty Whisper transcript** is an artifact candidate (throat clear / breath burst / mic bump) UNLESS it sits inside a clearly-excited reaction sequence.
+
+**A clip with `WORDS_IN_CLIP(0)` but ASSIGNED_SEGMENT text** is the silence between sentences that Whisper grouped with surrounding speech. Almost always an artifact in 3+-clusters; check `WORDS_IN_CLIP` of neighbors before flagging — if neighbors carry the segment's words, this clip is the silent gap.
 
 There are {len(clips)} clips total; {n_empty} have no transcript text.
 
