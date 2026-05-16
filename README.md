@@ -9,6 +9,13 @@ This is a **Windows-patched fork** of [barckley75/resolve-mcp](https://github.co
 
 > **Not affiliated with Blackmagic Design or Anthropic.**
 
+## Recent updates
+
+- Updated `scripts/mark_cut_candidates.py` to preserve `!!SRC_OVERLAP_PREV`
+  duplicate audio instead of flagging it as a cut. This prevents the
+  downstream timeline processor from accidentally removing repeated source
+  frames when overlapping clips share the same source range.
+
 ---
 
 ## How it works
