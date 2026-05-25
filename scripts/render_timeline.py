@@ -92,6 +92,12 @@ def main() -> int:
                          f'4k→{DEFAULT_FILENAME_TAGS["4k"]}')
     ap.add_argument('--poll-sec', type=float, default=10.0,
                     help='Polling interval for render progress (default: 10s)')
+    ap.add_argument('--skip-fairlight-check', action='store_true',
+                    help='Skip the Fairlight preset pre-flight (only use if the timeline '
+                         'genuinely should ship without a mixer preset, e.g. audio-only render)')
+    ap.add_argument('--auto-fix-fairlight', action='store_true',
+                    help='If Fairlight preset is missing, auto-apply it before rendering '
+                         '(default: refuse to render and surface diagnostic)')
     args = ap.parse_args()
 
     import DaVinciResolveScript as dvr
@@ -117,6 +123,43 @@ def main() -> int:
     print(f'Preset:         {preset_name!r}  ({args.preset})')
     print(f'Output dir:     {out_dir}')
     print(f'Output name:    {output_name}.mp4')
+
+    # ── PRE-FLIGHT: verify Fairlight preset is applied (skip for audio-only) ──
+    if args.preset != 'audio' and not args.skip_fairlight_check:
+        import subprocess as _subp
+        verify_script = Path.home() / '.claude' / 'skills' / 'verify-fairlight-preset' / 'scripts' / 'verify.py'
+        if not verify_script.exists():
+            print(f'WARN: Fairlight verify skill not found at {verify_script} — skipping pre-flight',
+                  file=sys.stderr)
+        else:
+            verify_args = [sys.executable, str(verify_script)]
+            if args.auto_fix_fairlight:
+                verify_args.append('--verbose')  # show what was applied
+            else:
+                verify_args.extend(['--no-apply', '--verbose'])  # report-only mode
+            print(f'Pre-flight: verifying Fairlight preset...')
+            r = _subp.run(verify_args, capture_output=True, text=True, timeout=120)
+            print(r.stdout)
+            if r.returncode != 0:
+                print(r.stderr, file=sys.stderr)
+                if not args.auto_fix_fairlight:
+                    print('', file=sys.stderr)
+                    print('REFUSING TO RENDER: Fairlight preset is not applied to the current timeline.',
+                          file=sys.stderr)
+                    print('Fix options:', file=sys.stderr)
+                    print('  1. Re-run with --auto-fix-fairlight to auto-apply + save',
+                          file=sys.stderr)
+                    print('  2. Run: python scripts/apply_fairlight_preset.py --timeline "<name>"',
+                          file=sys.stderr)
+                    print('  3. Pass --skip-fairlight-check if this is intentional',
+                          file=sys.stderr)
+                    return 1
+                # else: --auto-fix-fairlight was set, so verify.py already attempted apply.
+                # If it still failed (exit 2), the auto-fix didn\'t work — halt.
+                if r.returncode == 2:
+                    print('REFUSING TO RENDER: --auto-fix-fairlight tried to apply but failed.',
+                          file=sys.stderr)
+                    return 1
 
     # ── Switch to Deliver page so render runs reliably ──
     if not resolve.OpenPage('deliver'):

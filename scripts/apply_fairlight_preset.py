@@ -166,6 +166,22 @@ def main() -> int:
               "incompatible with the preset's track layout.")
         return 1
 
+    # CRITICAL: save the project so the preset persists across Resolve restarts.
+    # Without this, a crash before the next auto-save loses the preset silently.
+    # Trigger event (Brock Red v3, 2026-05-22): the v3 render shipped without
+    # the Fairlight FX chain because the original script never saved after apply.
+    pm = resolve.GetProjectManager()
+    saved = pm.SaveProject()
+    if saved:
+        print(f'pm.SaveProject(): True  (preset durably persisted)')
+    else:
+        print(f'WARNING: pm.SaveProject() returned False after apply.',
+              file=sys.stderr)
+        print(f'         The preset is on the timeline NOW but may be lost if Resolve crashes.',
+              file=sys.stderr)
+        print(f'         Re-run this script after the next successful Resolve operation.',
+              file=sys.stderr)
+
     print_normalize_walkthrough()
     return 0
 
