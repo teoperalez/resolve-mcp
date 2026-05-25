@@ -1,0 +1,198 @@
+{
+  "text": " get in Pokemon Crystal, no experience, just his two Pokemon using the exact moves that they would normally have. Now, one of the things that makes Brock very special",
+  "language": "en",
+  "duration": 10.048,
+  "audio": "C:\\Programming\\resolve-mcp\\audio-checks\\final-video-qa\\cuda_smoke.wav",
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 6.24,
+      "text": " get in Pokemon Crystal, no experience, just his two Pokemon using the exact moves that",
+      "words": [
+        {
+          "word": " get",
+          "start": 0.0,
+          "end": 0.28,
+          "probability": 0.8286
+        },
+        {
+          "word": " in",
+          "start": 0.28,
+          "end": 0.62,
+          "probability": 0.7676
+        },
+        {
+          "word": " Pokemon",
+          "start": 0.62,
+          "end": 0.96,
+          "probability": 0.5493
+        },
+        {
+          "word": " Crystal,",
+          "start": 0.96,
+          "end": 1.6,
+          "probability": 0.8149
+        },
+        {
+          "word": " no",
+          "start": 1.86,
+          "end": 2.16,
+          "probability": 0.9663
+        },
+        {
+          "word": " experience,",
+          "start": 2.16,
+          "end": 2.8,
+          "probability": 0.9771
+        },
+        {
+          "word": " just",
+          "start": 3.26,
+          "end": 3.6,
+          "probability": 0.9707
+        },
+        {
+          "word": " his",
+          "start": 3.6,
+          "end": 3.8,
+          "probability": 0.8477
+        },
+        {
+          "word": " two",
+          "start": 3.8,
+          "end": 4.0,
+          "probability": 0.792
+        },
+        {
+          "word": " Pokemon",
+          "start": 4.0,
+          "end": 4.4,
+          "probability": 0.8364
+        },
+        {
+          "word": " using",
+          "start": 4.4,
+          "end": 4.96,
+          "probability": 0.8511
+        },
+        {
+          "word": " the",
+          "start": 4.96,
+          "end": 5.18,
+          "probability": 0.9888
+        },
+        {
+          "word": " exact",
+          "start": 5.18,
+          "end": 5.54,
+          "probability": 0.9863
+        },
+        {
+          "word": " moves",
+          "start": 5.54,
+          "end": 6.04,
+          "probability": 0.9932
+        },
+        {
+          "word": " that",
+          "start": 6.04,
+          "end": 6.24,
+          "probability": 0.8311
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "start": 6.24,
+      "end": 9.96,
+      "text": " they would normally have. Now, one of the things that makes Brock very special",
+      "words": [
+        {
+          "word": " they",
+          "start": 6.24,
+          "end": 6.36,
+          "probability": 0.9897
+        },
+        {
+          "word": " would",
+          "start": 6.36,
+          "end": 6.48,
+          "probability": 0.9453
+        },
+        {
+          "word": " normally",
+          "start": 6.48,
+          "end": 6.84,
+          "probability": 0.9819
+        },
+        {
+          "word": " have.",
+          "start": 6.84,
+          "end": 7.26,
+          "probability": 0.981
+        },
+        {
+          "word": " Now,",
+          "start": 7.44,
+          "end": 7.62,
+          "probability": 0.9624
+        },
+        {
+          "word": " one",
+          "start": 7.9,
+          "end": 8.02,
+          "probability": 0.9937
+        },
+        {
+          "word": " of",
+          "start": 8.02,
+          "end": 8.12,
+          "probability": 0.9976
+        },
+        {
+          "word": " the",
+          "start": 8.12,
+          "end": 8.22,
+          "probability": 0.9966
+        },
+        {
+          "word": " things",
+          "start": 8.22,
+          "end": 8.44,
+          "probability": 0.9961
+        },
+        {
+          "word": " that",
+          "start": 8.44,
+          "end": 8.66,
+          "probability": 0.9971
+        },
+        {
+          "word": " makes",
+          "start": 8.66,
+          "end": 8.88,
+          "probability": 0.9927
+        },
+        {
+          "word": " Brock",
+          "start": 8.88,
+          "end": 9.2,
+          "probability": 0.98
+        },
+        {
+          "word": " very",
+          "start": 9.2,
+          "end": 9.46,
+          "probability": 0.9951
+        },
+        {
+          "word": " special",
+          "start": 9.46,
+          "end": 9.96,
+          "probability": 0.9985
+        }
+      ]
+    }
+  ]
+}

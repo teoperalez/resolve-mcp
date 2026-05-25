@@ -1,0 +1,33 @@
+Audio Check Group B: Investigating Hidden False-Starts
+Source: E:/Misty Red/Misty Red and Blue Crystal Gym Leader Challenge.mp4
+
+Region 775-795s (so 1.74s smear at 784.98)
+  Transcript: does massive damage and even if we just randomize between our two moves it turns out that Staryu just completely destroys that Koffing and we get through on the first attempt. So Kurt's gonna be so impressed he's gonna take us back upstairs and say well you should go and take on Bugsy to prove that you're good enough to be the second gym leader.
+
+Region 860-880s (even 1.64s smear at 869.80)
+  Transcript: two pokemon with our staryu and then for the scyther starmie's bubble beam might be enough to get us through even if we get there even if we do have to use our second pokemon but we'll just have to see how it actually works out
+  ! Potential false-start: ['and the']
+
+Region 895-920s (bugsy 3.20s smear at 905.76)
+  Transcript: so it is bugsy time let's see if misty would actually get a victory against the second gym leader of johto bugsy attempt number one of course he leads off with the metapod i'm just gonna use the x defend right away just giving the metapod an extra turn to attack me then if we go tackle
+
+Region 947-968s (we're 1.88s smear at 956.18)
+  Transcript: misses the fury cutter round two we can hit the water gun dealing pretty significant damage we get another fury cutter here from this scyther but we're just slowly whittling it down we have one hp remaining as it finally knocks me out i've gotten it all the way down to h i've gotten it all All the way down to 8H.
+  ! Potential false-start: ['all']
+
+Region 973-993s (with 1.74s smear at 983.04)
+  Transcript: for its weakest move we might be able to win let's just try tackle and sure enough that gets the job done so it turns out that you can pretty easily beat Bugsy with this team with Staryu doing most of the work and then the Starmie is just faster at the end of the day than the Scyther so it completely destroys that Pokemon
+  ! Potential false-start: ['and the']
+
+Region 1110-1137s (so 4.84s smear at 1122.44)
+  Transcript: the bay leaf goes growl against me though and that might be the end because the razor leaf is doing too much damage and yet again without a critical hit we do not get through because of the growl so this looks so incredibly close we get paralyzed by ghastly this time which is pretty bad because that does mean we're slower than the bay leaf and it gets it.
+
+Region 1215-1235s (but 1.62s smear at 1223.92)
+  Transcript: So we're getting extra hits, but then we get a tackle miss. That's pretty terrible. But at least no reflect or growl from the Bayleaf this time. But now a critical hits me with the Razor Leaf, and we get the Razor Leaf miss the next turn. So we finally get through the Bayleaf. That brings out the...
+  ! Potential false-start: ['but the', 'but a']
+
+Region 1267-1295s (than/as smears at 1272+1276)
+  Transcript: actually beat rival 2 still with that being done we can now move on to whitney and if we can manage to get through a third gym that will actually make misty slightly better than her typical placement would be because she would have gotten through more battles as i mentioned when i was doing this with lorelei i'm kind of looking at these based on how they perform relative to their normal position in a
+
+Results written to: C:/Programming/resolve-mcp/audio-checks/qa-v6/hidden_false_starts_groupB.json
+Found 4 potential false-starts in 8 regions

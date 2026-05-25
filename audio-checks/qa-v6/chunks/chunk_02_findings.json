@@ -1,0 +1,96 @@
+{
+  "chunk_index": 2,
+  "v6_range": [571.32, 894.48],
+  "findings": [
+    {
+      "v6_time_start": 571.16,
+      "v6_time_end": 572.88,
+      "category": "splice_hallucination",
+      "default_text": "and now we can just tackle it down.",
+      "loose_text": "hand, it nearly, it does well over half to this Metapod. And now we can just tackle it down. And",
+      "corrected_text": "[FROM_PREV_OVERLAP] hand, it nearly, it does well over half to this Metapod. [SPLICE] And now we can just tackle it down.",
+      "recommended_action": "investigate",
+      "confidence": "high",
+      "evidence": "Default loses ~35 words before splice point at 576.75s. Loose catches prior segment about Metapod. Overlap with chunk 01 confirmed. Default truncation at clip boundary is hallucination suppression, not real audio."
+    },
+    {
+      "v6_time_start": 573.04,
+      "v6_time_end": 577.04,
+      "category": "splice_hallucination",
+      "default_text": "And I'm just going to rotate between my moves, so let's go Water Gun on the Kakuna.",
+      "loose_text": "I'm just going to rotate between my moves. So let's go Water Gun on the Kakuna. It goes hardened.",
+      "corrected_text": "And I'm just going to rotate between my moves, so let's go Water Gun on the Kakuna. It goes Hardened.",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Default drops sentence start 'And' probabilities (0.9956) + splits next segment's opening 'It goes hardened' across boundary. Loose catches all three sentences; 'hardened' is real audio (move name: Harden)."
+    },
+    {
+      "v6_time_start": 577.3,
+      "v6_time_end": 580.15,
+      "category": "splice_hallucination",
+      "default_text": "It goes hardened, we can go tackle after that.",
+      "loose_text": "we can go tackle after that we get poison sting but we simply water gun it down from there",
+      "corrected_text": "[SPLICE at 577.35] we can go tackle after that. We get Poison Sting, but we simply Water Gun it down from there.",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Default is split across two segments due to splice at v6 577.35s. Loose reconstructs full thought. The 'It goes hardened' at start of Default segment 2 should be end of segment 1."
+    },
+    {
+      "v6_time_start": 635.8,
+      "v6_time_end": 640.4,
+      "category": "homophone",
+      "default_text": "because he does no Razor Leaf with his Bayleaf, and we might not be able to deal enough damage to actually take him out.",
+      "loose_text": "because he does no razor leaf with his bay leaf and we might not be able to deal enough damage to actually take him out let's get",
+      "corrected_text": "because he does know Razor Leaf with his Bayleaf, and we might not be able to deal enough damage to actually take him out.",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Normalizer flags 'he does no Razor' → 'he does know Razor'. Context: rival trainer's strategy. Default's 'no' is homophone error; loose also captures 'no' so audio ambiguous but context demands 'know'."
+    },
+    {
+      "v6_time_start": 648.6,
+      "v6_time_end": 655.5,
+      "category": "pokemon_name",
+      "default_text": "Misty's smart AI would tell her to only use Water Gun against a Ghastly because she knows that",
+      "loose_text": "misty's smart ai would tell her to only use water gun against a gasoline because she knows that",
+      "corrected_text": "Misty's smart AI would tell her to only use Water Gun against a Gastly because she knows that",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Default has 'Ghastly' (normalizer correction → 'Gastly'). Loose has 'gasoline' (severe OCR-style hallucination). Pokemon name is Gastly; both misheard but default is closer. Apply normalizer fix."
+    },
+    {
+      "v6_time_start": 655.5,
+      "v6_time_end": 671.4,
+      "category": "pokemon_name",
+      "default_text": "hit KO on that Pokemon. That brings out the Bayleaf where we have to go Tackle because yet again that's what Misty's AI would tell her and Tackle does pitifully little here as we take a massive Razor Leaf. So we're getting two hit KO'd with the Staryu here even though we are two level higher. That's going to bring out Starmie and now Starmie might get absolutely wrecked. Let's go for the tackle here. It does a reasonable amount of damage and we do survive against the non-crit Razor Leaf. I just don't know that we're going to deal enough damage to actually get through here. We would need a crit possibly from this range, but let's find out. And sure enough, we will need a critical hit to get through that Bayleaf at that point. So let's try this again because one critical hit isn't that bad to get through this fight and then maybe bubble beam just one shots against that final zubat and maybe that's enough to get the victory so i'm just gonna test this and see this time the bayleaf tried to go poison powder once and it's still two shots to star you that's gonna bring out star me again but maybe we have a better chance because we got that one extra hit the bayleaf goes growl against me though and that might be the end because the razor leaf is doing too much damage and yet again without a critical hit we do not get through because of the growl so this looks so incredibly close we get paralyzed by ghastly this time which is pretty bad because that does mean we're slower than the bay leaf and it gets to go reflect this time so it's going to take even less damage from our tackles and now she even growls at our starmie pretty sure that's the end of this one because she's just reduced our damage output so much we get a razor leaf miss but even that is not enough there we simply lose i'm just gonna say the rival's strategies here are sometimes kind of insane we get a critical hit tackle from the star you there after he reflects but of course we're going to have the reflect still up as we send out the star me and once again he growls at us it's like he's figured out how to actually defeat this team he goes Poison Powder here. Now the Razor Leaf takes us to 2 HP, and anything short of a crit, yet again, does not get the job done. I think this is worth resetting for just on the basis that we are getting a lot of turns to try to get a critical hit, so in theory it could work out eventually. We even get a Razor Leaf Miss and Poison Powder this time, so we're getting extra hits, but then we get a Tackle Miss. That's pretty terrible. But at least no Reflect or Growl from the Bayleaf this time but now it critical hits me with the razor leaf we get the razor leaf miss the next turn so we finally get through the bay leaf that brings out the zoom out i'm gonna go bubble beam just to see what would happen it would be a one in three chance of using bubble beam here but if bubble beam one shots we will get through we use it and sure enough we get the victory so there would at least be a one in three chance of misty getting through after she got through that bay leaf but it would require a lot of luck with misses or crits and not getting things like reflect and growl from the bay leaf in order to get it to go that way.",
+      "loose_text": "hit ko on that pokemon that brings out the bay leaf where we have to go tackle because yet again that's what misty's ai would tell her and tackle does pitifully little here as we take a massive razor leaf so we're getting two hit ko'd with the star you here even though we are two levels higher that's going to bring out star me and now star me might get absolutely wrecked let's go for the tackle here it does a reasonable amount of damage and we do survive against the non-crit razor leaf i just don't know that we're gonna deal enough damage to actually get through here we would need a crit possibly from this range but let's find out and sure enough we will need a critical hit to get through that bay leaf at that point so let's try this again because one critical hit isn't that bad to get through this fight and then maybe bubble beam just one shots against that final zubat and maybe that's enough to get the victory so i'm just gonna test this and see this time the bay leaf tried to go poison powder once and it's still two shots to star you that's going to bring out star me again but maybe we have a better chance because we got that one extra hit the bay leaf goes growl against me though and that might be the end because the razor leaf is doing too much damage and yet again without a critical hit we do not get through because of the growl so this looks so incredibly close we get paralyzed by ghastly this time which is pretty bad because that does mean we're slower than the bay leaf and it gets to go reflect this time so it's going to take even less damage from our tackles and now she even growls at our starby pretty sure that's the end of this one because she's just reduced our damage output so much we get a razor leaf miss but even that is not enough there we simply lose i'm just gonna say the rival's strategies here are sometimes kind of insane",
+      "corrected_text": "[Multi-segment: Bayleaf → Bayleaf corrections applied. Staryu → Staryu. Starmie → Starmie. Ghastly → Gastly. Starby → Starmie.] The entire passage is complex with multiple Pokemon name variants.",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Default uses canonical names (Bayleaf, Staryu, Starmie, Ghastly). Loose substitutes: 'bay leaf' (2-word), 'star you' (homophone), 'star me' (typo/mishear), 'starby' (OCR-like error), 'ghastly' (spelling variant). Normalizer catches: Ghastly→Gastly, Bayleaf (keep), Starbu→Starmie. Default is generally correct; loose shows alternate transcription paths."
+    },
+    {
+      "v6_time_start": 780.8,
+      "v6_time_end": 786.3,
+      "category": "pokemon_name",
+      "default_text": "Poison Powder here. Now the Razor Leaf takes us to 2 HP, and anything short of a crit, yet again, does not get the job done. I think this is worth resetting for just on the basis that we are getting a lot of turns to try to get a critical hit, so in theory it could work out eventually. We even get a Razor Leaf Miss and Poison Powder this time, so we're getting extra hits, but then we get a Tackle Miss. That's pretty terrible. But at least no Reflect or Growl from the Bayleaf this time but now it critical hits me with the razor leaf we get the razor leaf miss the next turn so we finally get through the bay leaf that brings out the zoom out i'm gonna go bubble beam",
+      "loose_text": "poison powder here now the razor leaf takes us to 2 hp and anything short of a crit yet again does not get the job done i think this is worth resetting for just on the basis that we are getting a lot of turns to try to get a critical hit so in theory it could work out eventually we even get a razor leaf miss and poison powder this time so we're getting extra hits but then we get a tackle miss that's pretty terrible but at least no reflect or growl from the bay leaf this time but now it critical hits me with the razor leaf we get the razor leaf miss the next turn so we finally get through the bay leaf that brings out the zoom out i'm gonna go bubble beam",
+      "corrected_text": "[All names correct] 'Zoom out' is slang for Zubat (Pokemon). Normalizer flags 'zoom out' → 'Zubat'.",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Both default and loose transcribe 'zoom out' literally. Normalizer phrase_corrections has 'zoom out' → 'Zubat'. Context confirms Pokemon name. Apply normalizer fix."
+    },
+    {
+      "v6_time_start": 835.8,
+      "v6_time_end": 841.8,
+      "category": "trainer_name",
+      "default_text": "would at least be a one in three chance of misty getting through after she got through that bay leaf but it would require a lot of luck with misses or crits and not getting things like reflect and growl from the bay leaf in order to get it to go that way.",
+      "loose_text": "would at least be a one in three chance of misty getting through after she got through that bay leaf but it would require a lot of luck with misses or crits and not getting things like reflect and growl from the bay leaf in order to get it to go that is just insanely close to actually beat rival 2 still with that being done we can now move on to whitney and if we can manage to get through a third gym that will actually make misty slightly better than her typical placement would be because she would have gotten through more battles as i mentioned when i was doing this with lorelei i'm kind of looking at these based on how they perform relative to their normal position in a in generation one lorelei for example was the first member of the elite four so in order to be considered a success she needed to beat will Brock, being the first gym leader, only needed to beat Falkner to be considered at least like on par.",
+      "corrected_text": "[Splice continuation beyond default segment boundary] Loose catches Whitney + Lorelei + Falkner. Default cuts before this segment ends. Trainer names: Whitney (correct), Lorelei (correct), Falkner (normalizer: Falkner/Faulkner).",
+      "recommended_action": "investigate",
+      "confidence": "medium",
+      "evidence": "Default segment 57 ends at 841.8s with 'leaf in order to get it to go that'. Loose continues: 'way is just insanely close to actually beat rival 2...'. Another splice boundary artifact. Segments need realignment across chunks (chunk 02 ends ~894s; chunk 03 begins ~640s v6 with overlap)."
+    }
+  ],
+  "overall_quality": "minor_issues",
+  "notes_for_main_thread": "Chunk 02 has seven findings: (1) major splice boundary at 576.75s loses ~35 words from previous clip (Metapod segment); (2-3) two more splices in Kakuna/Metapod sequence cause truncation/hallucination suppression in default transcript; (4) one homophone ('no' vs 'know') in rival strategy narration; (5-7) Pokemon name variants across Bayleaf/Staryu/Starmie/Ghastly/Starby sequence, with normalizer corrections available. All issues are transcript-only fixes or investigation of splice handling—no audio cuts needed. Splice points cluster in v6 576-580s region (three consecutive in 3.4s window). Cross-chunk pattern: chunk 02 exit segment (seq 57 at 841.8s) is truncated and continues into chunk 03 opening. Recommend re-segment transcripts relative to actual clip boundaries rather than 15s overlap windows."
+}

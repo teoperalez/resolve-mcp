@@ -1,0 +1,46 @@
+{
+  "chunk_index": 9,
+  "src_range": [2430.00, 2730.00],
+  "segments_reviewed": [292, 332],
+  "new_cuts": [
+    {
+      "start": 2700.12,
+      "end": 2702.40,
+      "type": "repeated_take",
+      "confidence": "high",
+      "category": 2,
+      "segments": [328],
+      "reason": "Outro phrase 'anyway that's gonna do it for this one' spoken twice back-to-back. Word timestamps confirm: first instance 'anyway'→'one' = 2700.12-2702.40, second (clean) instance = 2702.40-2707.42. Cut removes the first duplicate; second instance flows naturally into seg 329 ('i just had to do this one...').",
+      "result_text": "...get the job done anyway that's gonna do it for this one i just had to do this one..."
+    },
+    {
+      "start": 2713.40,
+      "end": 2717.90,
+      "type": "false_start",
+      "confidence": "high",
+      "category": 1,
+      "segments": [329, 330],
+      "reason": "Seg 329 ends with 'but i will be coming back' (2712.28-2713.40). Seg 330 opens 'with a johto version but i will be coming back with a gen 2 version' — speaker began 'with a johto version' then abandoned it and restarted the full clause. The 1.56s duration of 'but' (2715.36-2716.92) in word timestamps signals the restart pause. Cutting 2713.40-2717.90 removes the false start 'with a johto version but i will be coming back' and joins cleanly to 'with a gen 2 version of brock we're gonna give him a chance...'",
+      "result_text": "...kind of a shorter video but i will be coming back with a gen 2 version of brock we're gonna give him a chance..."
+    }
+  ],
+  "existing_cuts_review": [
+    {
+      "existing_cut": "2692.58-2692.92",
+      "verdict": "KEEP",
+      "modification": null,
+      "rationale": "0.33s silent gap inside the transition 'i don't know oh but it turns out' (segs 326-327). Word timestamps are not in the overlap window for this range but the segment boundary context confirms a clean artifact cut removing dead air. Duration (0.33s) and classification (silent gap) are correct."
+    },
+    {
+      "existing_cut": "2722.73-2725.67",
+      "verdict": "KEEP",
+      "modification": null,
+      "rationale": "Word timestamps for seg 331 confirm the cut boundaries are clean. 'but' ends ~2722.73 (word span 2722.18-2722.73), then silence before 'with his greater' (2722.86). The cut removes 'with his greater but' (2722.86-2724.84) and lands on the restart 'with' at 2725.64. No atomic-numbered-reference is split; 'his much improved team' is intact. Boundary sits in a silence gap, not mid-word. Valid false-start cut."
+    }
+  ],
+  "cross_boundary_notes": [
+    "Segs 292-296 are in the overlap window with chunk 08. No new issues detected within the 2430.00+ range; the overlap word timestamps show clean continuous gameplay commentary with no repeats crossing the boundary.",
+    "Seg 332 extends to 2733.84, beyond this chunk's 2730.00 upper bound. The seg-332 content ('from gen 2 he'll have five pokemon of course he'll be using rollout strats with the graveler') is clean continuation of the outro — no issues, but chunk 10 should verify it completes without a false start."
+  ],
+  "subagent_notes": "Two high-confidence new cuts found in the outro section (segs 328-330): a full verbatim outro-phrase repeat and a 'with a johto version' false-start abandonment. Both existing cuts validated as correct with clean silence-gap boundaries confirmed by word timestamps. Total new cuts: 2. No atomic-numbered-reference violations in existing cuts."
+}

@@ -1,0 +1,92 @@
+{
+  "group": "B",
+  "source_video": "E:/Misty Red/Misty Red and Blue Crystal Gym Leader Challenge.mp4",
+  "summary": "Investigated 8 suspect regions from source_loose_transcript.json smearing patterns. Found 1 confirmed false-start (true repetition/stutter), 3 flagged as false positives (natural emphasis/parallelism patterns).",
+  "regions_checked": [
+    {
+      "region": "775-795",
+      "description": "so 1.74s smear at 784.98",
+      "transcript": "does massive damage and even if we just randomize between our two moves it turns out that Staryu just completely destroys that Koffing and we get through on the first attempt. So Kurt's gonna be so impressed he's gonna take us back upstairs and say well you should go and take on Bugsy to prove that you're good enough to be the second gym leader.",
+      "classification": "CLEAN",
+      "confidence": "high"
+    },
+    {
+      "region": "860-880",
+      "description": "even 1.64s smear at 869.80",
+      "transcript": "two pokemon with our staryu and then for the scyther starmie's bubble beam might be enough to get us through even if we get there even if we do have to use our second pokemon but we'll just have to see how it actually works out",
+      "classification": "FALSE_POSITIVE",
+      "pattern": "intentional parallel clauses (even if...even if)",
+      "confidence": "high",
+      "reason": "Natural conversational style with parallel structure for emphasis"
+    },
+    {
+      "region": "895-920",
+      "description": "bugsy 3.20s smear at 905.76",
+      "transcript": "so it is bugsy time let's see if misty would actually get a victory against the second gym leader of johto bugsy attempt number one of course he leads off with the metapod i'm just gonna use the x defend right away just giving the metapod an extra turn to attack me then if we go tackle",
+      "classification": "CLEAN",
+      "confidence": "high"
+    },
+    {
+      "region": "947-968",
+      "description": "we're 1.88s smear at 956.18",
+      "transcript": "misses the fury cutter round two we can hit the water gun dealing pretty significant damage we get another fury cutter here from this scyther but we're just slowly whittling it down we have one hp remaining as it finally knocks me out i've gotten it all the way down to h i've gotten it all All the way down to 8H.",
+      "classification": "CONFIRMED_FALSE_START",
+      "pattern": "true repetition/stutter (phrase restarts mid-utterance)",
+      "confidence": "high",
+      "snippet": "i've gotten it all the way down to h [glitch] i've gotten it all All the way down to 8H",
+      "recommendation": "Waveform inspection recommended to confirm silence boundary for precise cut at 956-958s range"
+    },
+    {
+      "region": "973-993",
+      "description": "with 1.74s smear at 983.04",
+      "transcript": "for its weakest move we might be able to win let's just try tackle and sure enough that gets the job done so it turns out that you can pretty easily beat Bugsy with this team with Staryu doing most of the work and then the Starmie is just faster at the end of the day than the Scyther so it completely destroys that Pokemon",
+      "classification": "FALSE_POSITIVE",
+      "pattern": "natural continuation (and then the Pokémon name)",
+      "confidence": "high",
+      "reason": "Normal grammar and conversational flow, not abandonment"
+    },
+    {
+      "region": "1110-1137",
+      "description": "so 4.84s smear at 1122.44",
+      "transcript": "the bay leaf goes growl against me though and that might be the end because the razor leaf is doing too much damage and yet again without a critical hit we do not get through because of the growl so this looks so incredibly close we get paralyzed by ghastly this time which is pretty bad because that does mean we're slower than the bay leaf and it gets it.",
+      "classification": "CLEAN",
+      "confidence": "high"
+    },
+    {
+      "region": "1215-1235",
+      "description": "but 1.62s smear at 1223.92",
+      "transcript": "So we're getting extra hits, but then we get a tackle miss. That's pretty terrible. But at least no reflect or growl from the Bayleaf this time. But now a critical hits me with the Razor Leaf, and we get the Razor Leaf miss the next turn. So we finally get through the Bayleaf. That brings out the...",
+      "classification": "FALSE_POSITIVE",
+      "pattern": "multiple but conjunctions (natural emphasis)",
+      "confidence": "high",
+      "reason": "Back-to-back 'But' sentence starts emphasize parallel situations, not an abandoned phrase"
+    },
+    {
+      "region": "1267-1295",
+      "description": "than/as smears at 1272+1276",
+      "transcript": "actually beat rival 2 still with that being done we can now move on to whitney and if we can manage to get through a third gym that will actually make misty slightly better than her typical placement would be because she would have gotten through more battles as i mentioned when i was doing this with lorelei i'm kind of looking at these based on how they perform relative to their normal position in a",
+      "classification": "CLEAN",
+      "confidence": "high"
+    }
+  ],
+  "false_starts_found": [
+    {
+      "src_start_sec": 947,
+      "src_end_sec": 968,
+      "region_description": "we're 1.88s smear at 956.18",
+      "before_text": "as it finally knocks me out",
+      "false_start_text": "i've gotten it all the way down to h",
+      "after_text": "i've gotten it all All the way down to 8H",
+      "transcript_snippet": "i've gotten it all the way down to h [glitch] i've gotten it all All the way down to 8H",
+      "evidence": "True repetition with incomplete first attempt followed by restart",
+      "recommendation": "Confirm with waveform/silence analysis before cutting"
+    }
+  ],
+  "statistics": {
+    "total_regions_checked": 8,
+    "confirmed_false_starts": 1,
+    "false_positives": 3,
+    "clean_regions": 4,
+    "actionable_cuts": 1
+  }
+}

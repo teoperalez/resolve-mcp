@@ -1,0 +1,44 @@
+{
+  "chunk_index": 5,
+  "src_range": [1350.00, 1650.00],
+  "segments_reviewed": [147, 198],
+  "new_cuts": [
+    {
+      "id": "c05-01",
+      "type": "empty_runt",
+      "confidence": "HIGH",
+      "src_start": 1627.24,
+      "src_end": 1628.60,
+      "duration_sec": 1.36,
+      "segments": [194],
+      "text": "This time, no poison,",
+      "reason": "Runt at 1.36s (under 1.5s threshold). One-clause filler between two poison events. Removing it tightens the poison-repetition sequence without losing narrative: seg 193 ('We get poisoned again') flows directly into seg 195 ('so we can go back to tackling only to get poisoned again'). The gap at 1622.52–1623.92 (1.4s) and 1625.42–1627.24 (1.82s) on either side are gameplay beats that survive independently."
+    },
+    {
+      "id": "c05-02",
+      "type": "mid_clip_false_start",
+      "confidence": "MEDIUM",
+      "src_start": 1603.90,
+      "src_end": 1604.20,
+      "duration_sec": 0.30,
+      "segments": [186],
+      "text": "we [we] can tackle and knock out the Metapod",
+      "reason": "Seg 186 transcript shows 'we we can tackle...' — a clear word-level stutter/false start on the opening 'we'. No word-level timestamps available for this segment to pin the exact split, but the stutter occupies roughly the first ~0.3s. Editor should blade at ~1603.90+0.3s and delete the false-start fragment. Segment duration is 1.92s so the clean remainder (~1.6s) is borderline but carries a complete clause.",
+      "action_note": "Manual blade needed: cut the first 'we' (approx 1603.90–1604.20). No precise word timestamp available — mark for human review."
+    }
+  ],
+  "existing_cuts_review": [],
+  "cross_boundary_notes": [
+    {
+      "boundary": "chunk-04 → chunk-05",
+      "note": "Seg 147 starts at 1344.08 (pre-window). Word timestamps for segs 147–152 are provided in overlap region. The opening of seg 147 ('So first attempt against Brockyboy here...') is a clean attempt-intro sentence — no false start visible. Gap between seg 150 (ends 1367.56) and seg 151 (starts 1373.38) is 5.82s of gameplay; no speech runt.",
+      "action": "No cut needed at boundary."
+    },
+    {
+      "boundary": "chunk-05 → chunk-06",
+      "note": "Segs 197–198 are in the overlap zone. Seg 197 ends 1646.88, seg 198 ends 1652.16 (post-window). Content is clean: 'And we get knocked out yet again by the Kakuna. Still, I think that's perfectly fine. I'm just going to tackle this Pokemon down with the Onix.' No repetition or false start visible. Word timestamps confirm clean boundaries.",
+      "action": "No cut needed at boundary. Chunk-06 reviewer should check whether the Onix commentary in seg 198 continues or restates anything from their window."
+    }
+  ],
+  "subagent_notes": "Chunk covers two distinct Bugsy attempt phases: (1) 'Playing as Brock' attempt (segs 147–168), which ends in loss to Scyther; (2) 'Smart Brock' phase (segs 169–198), testing tackle-only vs. defense-curl strategies. Despite the reset-heavy content, the commentary is mostly continuous strategic narration with minimal false starts — Teo is describing events as they unfold rather than re-recording over resets. The only clear false start is the 'we we' stutter in seg 186. The poison-repetition sequence (segs 191–197) runs 3 poison events in ~20s; seg 194 ('This time, no poison') is the one dispensable runt. Seg 193 ('We get poisoned again', 1.50s) is retained — it's on the keep-borderline and provides a structural beat between the full-heal explanation and the final poisoning. Atomic-numbered reference 'Smart Brock attempt number one' (seg 171) is intact and untouched."
+}

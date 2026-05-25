@@ -1,0 +1,212 @@
+[
+  {
+    "start_sec": 8.46,
+    "end_sec": 9.48,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "seg 0 [src 8.46-9.48] 'Thank you.' \u2014 isolated 1.02s acknowledgment (sub/donation stinger) with ~48s silence before the video intro begins at seg 1 [57.62]. No narrative connection to surrounding content; removing it avoids a jarring non-sequitur before the Brock intro."
+  },
+  {
+    "start_sec": 57.62,
+    "end_sec": 78.17,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "TAKE 1 of opening 'This is Brock. Brock likes rocks.' (src 57.62-61.94) is a false start \u2014 the streamer restarts at 78.18 with TAKE 2 ('This is Brock. Brock likes rocks. Rocks, theoretically...'). Cut removes Take 1 entirely + the dead air between takes (62-78s) so the video opens with the canonical Take 2 flowing into 'Rocks, theoretically...'"
+  },
+  {
+    "start_sec": 161.6,
+    "end_sec": 161.96,
+    "confidence": "medium",
+    "type": "artifact",
+    "reason": "seg 16 [153.28-161.96] ends '...exact same moves and' \u2014 seg 17 [161.96-165.42] opens 'and stats...' producing a doubled conjunction 'and and'. The trailing 'and' at the end of seg 16 (approx 161.60-161.96) is the stutter artifact and should be trimmed. The actual informational end of seg 16 is '...the exact same moves' \u2014 the dangling 'and' is the false start of the next clause."
+  },
+  {
+    "start_sec": 349.36,
+    "end_sec": 349.44,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Tightened to remove only the duplicated 'ahead' word from seg 44 head. Per Codex review: the original range deleted real words from 'we're just gonna go ahead and use tackle' \u2014 only the duplicate 'ahead' (~0.08s at the seg 43/44 stitch) should go."
+  },
+  {
+    "start_sec": 467.98,
+    "end_sec": 470.12,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Tightened to remove the abandoned 'i simply predict that' fragment at end of seg 61 (467.98-470.12). Preserves clean restart 'in fact i simply predict that...' starting at seg 62 (470.12). Original boundary clipped 'in fact'."
+  },
+  {
+    "start_sec": 485.68,
+    "end_sec": 488.12,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Extended to remove the whole transition phrase 'but i think' so the splice lands cleanly: 'we'll just have to see. I think honestly...'. Original boundary left 'but' dangling."
+  },
+  {
+    "start_sec": 504.44,
+    "end_sec": 504.52,
+    "confidence": "medium",
+    "type": "false_start",
+    "reason": "Tightened to remove only the duplicated 'going' word (~0.08s) at seg 67/68 stitch. Original range removed 'going to get that far' which is real content."
+  },
+  {
+    "start_sec": 522.24,
+    "end_sec": 523.2,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Tightened to keep 'Violet City and if he' and remove only the second duplicated 'and if he' phrase. Original cut removed 'Violet City' opener."
+  },
+  {
+    "start_sec": 634.0,
+    "end_sec": 634.82,
+    "confidence": "medium",
+    "type": "artifact",
+    "reason": "0.82s silence gap between seg 83 (ends 634.00) and seg 84 (starts 634.82). Falls in 0.5-1.5s CUT range. Dead air between a damage-report sentence and its follow-up tactical thought. No narrative content lost."
+  },
+  {
+    "start_sec": 640.88,
+    "end_sec": 641.2,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Tightened to remove only abandoned 'i'm gonna' fragment. Original range removed 'a second hit there' and part of the move call."
+  },
+  {
+    "start_sec": 674.16,
+    "end_sec": 676.26,
+    "confidence": "high",
+    "type": "self_correction",
+    "reason": "Tightened to remove 'i think would just randomize between' fragment only. Preserves restart 'which would simply randomize between...'."
+  },
+  {
+    "start_sec": 945.34,
+    "end_sec": 945.4,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "60ms 'Thank you.' \u2014 sub-threshold runt (0.06s), almost certainly a Whisper hallucination triggered by a game sound effect during Slowpoke Well traversal. No audible speech plausible at this duration."
+  },
+  {
+    "start_sec": 974.58,
+    "end_sec": 974.64,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "60ms 'Thank you.' \u2014 identical pattern to seg 118. Another Whisper hallucination at a game-audio transient. Sub-threshold runt."
+  },
+  {
+    "start_sec": 1001.32,
+    "end_sec": 1002.72,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "1.40s 'Thank you.' \u2014 falls in the 0.5\u20131.5s CUT range. Three consecutive 'Thank you.' segments (118/119/120) during silent Slowpoke Well traversal with no speech context; all three are Whisper hallucinations on ambient game sound. Cut all three."
+  },
+  {
+    "start_sec": 1089.0,
+    "end_sec": 1094.28,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "[chunk-4] Whisper word-timestamp shows 'even' spanning 1088.820\u20131094.280 (5.46s on one word), a reliable signal of dead air. Actual speech onset of 'even the critical hits...' is at ~1094.28. The gap between 'fight' (~1089.0) and the real onset of 'even' (~1094.28) is ~5.3s of silence that must be cut. Decision: CUT (well above 2.0s threshold). | [chunk-3] Whisper assigned a 5.46-second word timestamp to 'even' (1088.820\u20131094.280) inside seg 130. This is a Whisper alignment artifact covering a long silence during live gameplay. The word 'fight' (seg 129 tail / seg 130 head, 1088.52\u20131088.82) closes one thought; 'the critical hits really don't do that much' (1094.28\u20131096.90) begins a new observation after the game resolves. Cutting 1088.82\u20131094.28 removes ~5.46s of dead air while preserving both utterances intact."
+  },
+  {
+    "start_sec": 1184.56,
+    "end_sec": 1187.36,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Isolated 'Thank you.' at 1184.56\u20131187.36, ~38s after last real speech ended (seg 138 ends at 1146.84). No plausible live commentary reason for this phrase mid-travel. Classic Whisper hallucination on BGM/silence. Decision: CUT."
+  },
+  {
+    "start_sec": 1215.88,
+    "end_sec": 1215.94,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Segment 140 is 0.06s \u2014 essentially zero-length. A definite Whisper hallucination with no real audio content. Decision: CUT (empty runt, far below 0.5s floor)."
+  },
+  {
+    "start_sec": 1245.14,
+    "end_sec": 1247.94,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Isolated 'Thank you.' at 1245.14\u20131247.94, spaced ~60s into silent travel. Same hallucination pattern as seg 139 \u2014 no real commentary. Decision: CUT."
+  },
+  {
+    "start_sec": 1273.98,
+    "end_sec": 1276.78,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Isolated 'Thank you.' at 1273.98\u20131276.78, continuing the same hallucination cluster during silent travel to Bugsy's gym. Decision: CUT."
+  },
+  {
+    "start_sec": 1352.42,
+    "end_sec": 1352.58,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Seg 147 ends '...Tackle and Defense Girl.' (word 'Girl' ends at 1352.420). Seg 148 opens with 'girl' at 1352.420\u20131352.580 \u2014 this is a Whisper segment-boundary stitching artifact duplicating the tail word. The word was already spoken; this head occurrence is an artifact runt at 0.16s. Decision: CUT the head 'girl' of seg 148, continue from 'obviously' at 1352.580."
+  },
+  {
+    "start_sec": 1962.77,
+    "end_sec": 1967.65,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Three consecutive WORDS_IN_CLIP(0) clips (364/365/366) totaling 4.88s of empty-transcript dead air between 'i'm going to go for a bunch of' and 'poisoned which is pretty bad' \u2014 silent gameplay pause, no narrative content"
+  },
+  {
+    "start_sec": 1989.96,
+    "end_sec": 2016.76,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "26.80s speechless gap between seg 247 ('...the only resource for me to use here is full heals') and seg 248 ('but i'm clearly running out of options too'). Waveform verification: peak -39.2 dBFS, 98% silent (<-45 dBFS bins). Confirmed dead air \u2014 only ambient mic floor noise + ducked game audio. Removing reclaims a substantial chunk of pacing without losing content."
+  },
+  {
+    "start_sec": 2064.72,
+    "end_sec": 2065.13,
+    "confidence": "medium",
+    "type": "false_start",
+    "reason": "0.41s stutter 'i but' inside 'really really really close, but i, but with that said' \u2014 speaker false-starts 'but i' then restarts 'but with that said'; removing this 'i but' fragment leaves clean 'really really really close, but with that said i think...'"
+  },
+  {
+    "start_sec": 2273.38,
+    "end_sec": 2274.78,
+    "confidence": "high",
+    "type": "stream_chat_acknowledgment",
+    "reason": "1.4s isolated stream-chat acknowledgment with zero narrative content, falling squarely in the 0.5-1.5s CUT range. Surrounded by 47.8s of silence before (gameplay) and seg 271 begins immediately after at 2274.80 \u2014 the cut lands cleanly in surrounding silence, no word-boundary risk."
+  },
+  {
+    "start_sec": 2325.3,
+    "end_sec": 2325.78,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "DUP_TEXT_CLUSTER_ARTIFACT flagged: 0.48s runt in 3+-cluster, WORDS_IN_CLIP(0) \u2014 throat-clear/breath burst"
+  },
+  {
+    "start_sec": 2440.7,
+    "end_sec": 2441.78,
+    "confidence": "high",
+    "type": "artifact",
+    "reason": "Applied the MODIFY proposed in round 1 review: word-timestamps show 'real' ends at 2440.700 and 'strategies' spans 2440.700-2441.780. Extended boundaries to avoid clipping 'real' and to fully remove 'strategies'. Final splice: '...we don't have any real available to us here'."
+  },
+  {
+    "start_sec": 2700.12,
+    "end_sec": 2702.4,
+    "confidence": "high",
+    "type": "repetition",
+    "reason": "Outro phrase 'anyway that's gonna do it for this one' spoken twice back-to-back. Word timestamps confirm: first instance 'anyway'\u2192'one' = 2700.12-2702.40, second (clean) instance = 2702.40-2707.42. Cut removes the first duplicate; second instance flows naturally into seg 329 ('i just had to do this one...')."
+  },
+  {
+    "start_sec": 2713.4,
+    "end_sec": 2717.9,
+    "confidence": "high",
+    "type": "false_start",
+    "reason": "Extended to the chunk-9 boundary (2717.90 instead of 2716.92). The dedupe winner from round 1 (chunk-10's tighter range) left duplicated 'i will be coming back' \u2014 chunk-9's longer range removes the full false-start 'with a johto version but i will be coming back' so only the clean restart 'with a gen 2 version of brock' remains."
+  },
+  {
+    "start_sec": 2722.86,
+    "end_sec": 2725.64,
+    "confidence": "medium",
+    "type": "false_start",
+    "reason": "Applied the MODIFY proposed in chunk-10 review: start 2722.73 was mid-word inside 'but' (span 2722.18-2722.86); end 2725.67 was 30ms into 'with' (starts 2725.64). Corrected to exact word boundaries. Merged effect removes 'with his greater but', retaining 'but with his much improved team'."
+  },
+  {
+    "start_sec": 2824.66,
+    "end_sec": 2825.08,
+    "confidence": "high",
+    "type": "repetition",
+    "reason": "Verbatim repeat of 'interesting' across segment boundary. Seg 346 ends 'could be kind of interesting' (last word ends 2824.66), seg 347 opens 'interesting' (2824.66-2825.08). The duplicate opening word is a 0.42s runt \u2014 cut it to keep clean flow: '...kind of interesting we may have to come...'"
+  }
+]

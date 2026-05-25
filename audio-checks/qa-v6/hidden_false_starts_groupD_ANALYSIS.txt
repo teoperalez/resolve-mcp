@@ -1,0 +1,79 @@
+INVESTIGATION REPORT: HIDDEN FALSE-STARTS IN GROUP D REGIONS
+Source Audio: E:/Misty Red/Misty Red and Blue Crystal Gym Leader Challenge.mp4
+Investigation Date: 2026-05-15
+
+SUMMARY
+=======
+Analyzed 4 target regions (2160-2178, 2593-2605, 2618-2628, 3080-3100) plus general scan
+2400-3150 using source loose transcript. Identified 6 candidates in target regions with
+long-duration words (>1.5s) that may indicate hidden false-starts or transcript artifacts.
+
+FINDINGS BY REGION
+==================
+
+REGION 2160-2178 (Candidate cuts 1-2)
+--------------------------------------
+Segment [2158.70-2166.38]: "...another Razor Leaf miss. Now Razor Leaf hits, and we have this one..."
+  - WORD "and" duration 1.64s @ 2162.96s
+  - CONTEXT: narrative flow describing game events
+  - ASSESSMENT: Legitimate emotional connective (linking game events). The duration
+    may reflect speaker's emphasis or dramatic pause. NOT a false-start.
+
+Segment [2166.38-2177.64]: "...down to one hp razor leaf hits and we lose oh no we got so close..."
+  - WORD "oh" duration 2.08s @ 2170.24s
+  - CONTEXT: emotional outburst in live commentary
+  - ASSESSMENT: REAL AND INTENTIONAL. This is an authentic speaker reaction to in-game
+    loss. The extended duration is emotional emphasis, not a false-start hiding artifact.
+
+REGION 2593-2605 (Candidate cut 3)
+----------------------------------
+Segment [2595.64-2604.64]: "...have a chance in this fight if only surf had been available..."
+  - WORD "if" duration 2.52s @ 2597.00s
+  - CONTEXT: conditional statement about game strategy
+  - ASSESSMENT: This is suspicious. 2.52s for a single-syllable word "if" is unusually
+    long. May indicate: (a) breath/hesitation before pivoting to hypothetical, or
+    (b) false-start + restart hidden in the smear. Recommend manual waveform inspection.
+
+REGION 2618-2628 (Candidate cut 4)
+----------------------------------
+Segment [2618.62-2625.36]: "...rival growled at us twice with the bay leaf and we got a crit..."
+  - WORD "and" duration 1.52s @ 2622.78s
+  - CONTEXT: narrative conjunction in game commentary
+  - ASSESSMENT: Borderline. 1.52s is elevated for "and" but within range of speaker
+    using it as a linguistic filler/bridge. Likely NOT a false-start, just natural
+    speech pacing.
+
+REGION 3080-3100 (Candidate cuts 5-6)
+--------------------------------------
+Segment [3084.46-3092.06]: "...actually beat the league Misty might be one of them it might be like Misty..."
+  - WORD "Misty" duration 2.10s @ 3085.68s
+  - CONTEXT: name-checking during wrap-up commentary
+  - ASSESSMENT: Legitimate. Speaker is emphasizing proper-noun names as part of
+    closing narrative. Extended duration = emphasis/clarity for name. NOT a false-start.
+
+Segment [3092.06-3099.48]: "...Possibly, Misty might turn out to be the second best on that..."
+  - WORD "Misty" duration 2.18s @ 3092.38s
+  - CONTEXT: name-checking during wrap-up commentary
+  - ASSESSMENT: Same as above. Legitimate emphasis on name. NOT a false-start.
+
+GENERAL SCAN 2400-3150 (4 additional items)
+---------------------------------------------
+All 4 items in the general scan appear in the detailed findings above (duplicates of
+items 3-6). No additional false-start candidates found outside the primary regions.
+
+CONCLUSION
+==========
+- Total candidates flagged: 6 in target regions
+- Confirmed genuine false-starts: 0
+- Highly suspicious (recommend verification): 1 ("if" @ 2597.00s, 2.52s duration)
+- Likely benign (legitimate speech emphasis): 5
+
+The "oh" @ 2170.24s is real and intentional (emotional reaction).
+The "if" @ 2597.00s warrants waveform inspection to rule out hidden false-start.
+The repeated "Misty" names and connective "and" words are likely legitimate pacing/emphasis.
+
+No major false-start clusters hiding in these regions. The loose transcript's artifact
+patterns appear to be real speaker emphasis and emotional delivery rather than
+compression artifacts masking editing errors.
+
+File path: C:/Programming/resolve-mcp/audio-checks/qa-v6/hidden_false_starts_groupD.json

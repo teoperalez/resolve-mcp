@@ -1,0 +1,44 @@
+{
+  "chunk_index": 0,
+  "v6_range": [
+    0.0,
+    307.8
+  ],
+  "findings": [
+    {
+      "v6_time_start": 20.5,
+      "v6_time_end": 104.7,
+      "category": "homophone",
+      "default_text": "star me / star you",
+      "loose_text": "staryu / starmie (proper)",
+      "corrected_text": "Starmie and Staryu",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "Loose uses \"staryu\" and \"starmie\" correctly; default uses homophone variants throughout section"
+    },
+    {
+      "v6_time_start": 48.08,
+      "v6_time_end": 54.02,
+      "category": "pokemon_name",
+      "default_text": "Bayleaf and Razorleaf",
+      "loose_text": "bay leaf and razor leaf",
+      "corrected_text": "Bayleaf and Razorleaf",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "medium",
+      "evidence": "Loose has spacing; default has proper compound names"
+    },
+    {
+      "v6_time_start": 25.92,
+      "v6_time_end": 115.44,
+      "category": "other",
+      "default_text": "smart AI",
+      "loose_text": "smart ai",
+      "corrected_text": "smart AI",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "low",
+      "evidence": "Capitalization variance; default capitalizes acronym correctly"
+    }
+  ],
+  "overall_quality": "clean",
+  "notes_for_main_thread": "v7 chunk 00 is clean. Segmentation differences between default and loose are expected (Whisper splits at different boundaries). No duplicates detected. Pokemon names: Starmie/Staryu render as homophones (star me/star you) in default, correct in loose. No hallucinations or splice artifacts found."
+}

@@ -1,0 +1,705 @@
+Final Render Transcript
+
+Source video: `E:\Brock Red\Brock Red Blue versus Crystl (cuts_ all) (edit)_FINAL_4K.mp4`
+
+Transcription model: `large-v3-turbo` on `cuda/float16`
+
+Note: This is an automatic transcript of the rendered video, lightly formatted with timestamps. Pokemon names may contain Whisper spelling errors.
+
+[00:04-00:10] This is Brock. Rock likes rocks. Rocks, theoretically, should be really good in the early game of
+
+[00:10-00:16] Pokemon Crystal, so it caused me to do a little bit of a challenge. I want to see how good the
+
+[00:16-00:22] original Gen 1 Gym Leader would have been if he had been able to use his Rock-type Pokemon in
+
+[00:22-00:28] Gen 2. Could he beat the first Gym? Could he beat maybe even the second Gym? Could he even get an
+
+[00:28-00:34] advantage on the third gym. I just want to find out how far a Gen 1 Brock could actually get in
+
+[00:34-00:39] this game. Now Brock is very interesting because when he comes over here to meet Professor Elm,
+
+[00:39-00:44] he's going to help conduct a little bit of research on this kind of cross-gen challenge,
+
+[00:44-00:49] which means that he's going to get a very special setup from Professor Elm. You see,
+
+[00:49-00:54] Professor Elm has been playing Pokemon Red and Blue quite a bit, and he decided to put an Onix
+
+[00:54-00:58] inside of this ball, but when we pick up this Onix, we're actually also going to get a Geodude,
+
+[00:59-01:03] because why wouldn't we get a Geodude? It just makes perfect sense. And just like that,
+
+[01:04-01:12] we have Brock's exact team, a level 14 Onix and a level 12 Geodude with the exact same moves and
+
+[01:12-01:18] stats that they would have in Pokemon Red and Blue. And our goal is simple, to find out how far
+
+[01:18-01:25] Brock could actually get in Pokemon Crystal, no experience, just his two Pokemon using the exact
+
+[01:25-01:30] moves that they would normally have. Now, one of the things that makes Brock very special is that
+
+[01:30-01:37] he's obsessed with full heals, which means he can use five full heals per Pokemon in every single
+
+[01:37-01:41] battle. Now, just like my other gym leader challenges here in Gen 2, I'm going to be
+
+[01:41-01:45] running these Pokemon with no experience, and we're simply going to find out how far they can
+
+[01:45-01:50] actually get in the game. We did Lorelai last time and found that she could basically beat
+
+[01:50-01:57] everything until she got really late into Kanto. Of course, observing some basic aspects of her AI,
+
+[01:57-02:03] Brock simply attacks randomly. So in theory, we're going to have to randomize between our moves a
+
+[02:03-02:08] little bit. We might have to use defense girl even when it's not really effective to use defense girl
+
+[02:08-02:13] spam bite in situations where we wouldn't really want to. But I think all of that is perfectly
+
+[02:13-02:18] fine. We're just going to test this and see how far Brock could go. Now, Brock is a Gen 1 Gym
+
+[02:18-02:23] Leader, which means he has no idea how these berries work, so we're simply going to take the
+
+[02:23-02:28] berry and throw it on the ground. Same for this potion. Brock doesn't use potions, so that gets
+
+[02:28-02:34] thrown on the ground as well. What Brock does like to use, though, is full heals. Gen 1 Brock would
+
+[02:34-02:40] have five full heals per Pokemon in every single battle, so it just makes sense to give him an
+
+[02:40-02:44] infinite number of full heals. I've just got it locked in and game hooked so I can just keep
+
+[02:44-02:49] using them over and over and over again, up to five times per battle, and he'll just use it
+
+[02:49-02:55] immediately anytime he takes any sort of status. Outside of that though, Brock is a pretty
+
+[02:55-03:00] straightforward guy. He just likes to use his rock Pokemon in attack, and he's not smart enough to
+
+[03:00-03:05] ever switch Pokemon out or do anything like that. So all he's going to do is lead off with Geodude
+
+[03:05-03:11] a hundred percent of the time, and then when Geodude gets knocked out, he'll then swap to his
+
+[03:11-03:15] Onix. Now, because we are a bit overleveled here, I don't expect to have any trouble with Rival
+
+[03:15-03:22] number one, but let's just see how this fight actually goes. So Rival one, of course, has the
+
+[03:22-03:27] Chikorita, arguably the hardest rival for us to actually get through, but we're just going to go
+
+[03:27-03:32] ahead and use Tackle on this one, and we can see we do massive damage. Theoretically, we would mix
+
+[03:32-03:37] with tackle and defense girl so i'll use a defense girl just randomly because i can we even miss a
+
+[03:37-03:43] tackle good job brocky boy but once we manage to get a few tackles off we are going to win this
+
+[03:43-03:49] fight and it's not like the chikorita has any real shot of defeating our geo dude so we easily
+
+[03:49-03:54] defeat rival number one and i basically predict we're going to do pretty well in this until at
+
+[03:54-04:00] least bugsy maybe fury cutter builds up so much that we just get completely wrecked there because
+
+[04:00-04:07] Brock in Gen 1 doesn't have any Brock-type moves, which is something that I accuse Game Freak of,
+
+[04:07-04:11] so we're just gonna make our rival Game Freak for the fact that they gave, like, no Rock-type moves
+
+[04:11-04:19] in Gen 1, and even when they did, they made them, like, trash moves, like the 65% accurate Rock
+
+[04:19-04:23] Throw. Though it would have been nice if Brock could have at least gotten access to that, rather
+
+[04:23-04:29] than being stuck with normal-type moves on his two Rock-type Pokemon. Now, very quickly, I am going to
+
+[04:29-04:33] knock off that reset that was showing on the overlay here just because we didn't technically
+
+[04:33-04:39] reset here i just reset once because there was a little setup issue that i had to handle but now
+
+[04:39-04:43] we're simply ready to move on in the game and honestly i think we can just pick up a centurate
+
+[04:43-04:48] here it won't be used in battle but it will be a pokemon that we simply use to help us progress
+
+[04:48-04:54] assuming that we can actually beat bugsy so of course we'll just chuck a single pokeball to get
+
+[04:54-05:00] that Sentret here, and that will be our only HM Pokemon, at least for now, unless we get way
+
+[05:00-05:06] further than I expect. I simply predict that, in fact, I simply predict that at best we're going
+
+[05:06-05:11] to make our way to Morty, and then we simply won't be able to progress at all because we won't be
+
+[05:11-05:15] able to damage his Pokemon, but I think we can get through everything up until at least Whitney
+
+[05:15-05:20] with this. We'll just have to see, but I think honestly the real challenge in this one is going
+
+[05:20-05:26] to be rival number two that bay leaf is going to be awfully powerful and we can see that even when
+
+[05:26-05:31] we make the best decisions we're basically just stuck with tackle so we're probably not going to
+
+[05:31-05:37] get that far in the game still at least with no issues brock does make his way to violet city and
+
+[05:37-05:42] if he and if he manages to beat the violet gym leader he will prove once and for all that brock
+
+[05:42-05:47] is better than falconer which seems likely to me at this point but we're gonna have to see if it
+
+[05:47-05:51] actually works out that way. First things first, we got to take on Honest Abe. He's going to lead
+
+[05:51-05:58] off with his Spearow at level nine, but we have a level 12 Geodude. I can go tackle here. His
+
+[05:58-06:04] critical hit peck did two damage and our tackle did 10 damage here. So it's pretty clear that
+
+[06:04-06:09] we're going to win this one just to be as Brock-like as possible. I am going to use some
+
+[06:09-06:14] defense curls in the middle of this, but we can see it's a simple three hit KO and you win that
+
+[06:14-06:19] fight. I don't expect God Rod to give us any troubles at all here, so I think we're moving
+
+[06:19-06:25] straight on to Faulkner. Faulkner, however, is where I actually expect this one to start to
+
+[06:25-06:31] become hard. Faulkner knows the move Mud Slap, which lowers our accuracy. So while I don't think
+
+[06:31-06:35] we're going to take massive amounts of damage from the move, if our accuracy gets low enough,
+
+[06:35-06:41] we might just not be able to hit and simply lose at that point. So let's test this and see how it
+
+[06:41-06:47] actually goes. So Faulkner attempt number one, he leads off with his level seven Pidgey. I have a
+
+[06:47-06:53] level 12 Geodude, but he mudslaps me doing three damage. My tackle does pretty good here, nine
+
+[06:53-06:59] damage. So if I can land three hits, I will knock this Pokemon out. We get a second hit there. I'm
+
+[06:59-07:05] going to defense girl here for a minute and then try to tackle again. And we do actually knock out
+
+[07:05-07:10] the first Pidgey with about half health remaining on our Geodude. That brings out the Pidgeotto.
+
+[07:10-07:15] I'm simply going to defense curl a couple times here because I can and because I think that's
+
+[07:15-07:20] pretty accurate to what Brock would do and now that he has no accuracy he can sit here and try
+
+[07:20-07:26] to use tackle unfortunately never being able to hit the Pidgeotto so we have to send out our level
+
+[07:26-07:32] 14 onyx at this point which I think would just randomize between which would simply randomize
+
+[07:32-07:37] between all of its moves so I think we go for a screech first just in case we can manage a tackle
+
+[07:37-07:43] The tackle does decent damage, but now I think we go by because if he just sits here and uses the
+
+[07:43-07:49] mud slaps on me, maybe I can manage to return the damage. That did not work, but then we do land
+
+[07:49-07:54] another screech. We miss a tackle, and now it's back to bide. I'm just basically going through
+
+[07:54-08:00] all of my moves one by one just to see what actually lands. It apparently screeches landing
+
+[08:00-08:06] every time. We do hit a tackle there, and now we just need to return some damage from bide,
+
+[08:06-08:07] and maybe we're actually going to win.
+
+[08:08-08:10] Unfortunately, we once again miss
+
+[08:10-08:12] and we really need to land something
+
+[08:12-08:13] if we're going to get through here.
+
+[08:14-08:16] The Pidgeotto is tackling against me
+
+[08:16-08:19] because it no longer has any damaging PP
+
+[08:19-08:20] and stronger moves,
+
+[08:20-08:22] but we simply can't hit anything
+
+[08:22-08:23] until we finally get a tackle,
+
+[08:23-08:25] but we're all the way down to 4 HP
+
+[08:25-08:28] as we finally beat Falconer.
+
+[08:28-08:29] That was nuts.
+
+[08:31-08:34] Oh man, Falconer just absolutely wanted
+
+[08:34-08:42] to have a chance to beat us there with his Pidgey and Pidgeotto. And that is pretty embarrassing,
+
+[08:42-08:49] honestly, for a rock type gym leader. Like, consider that neither Geodude nor Onix were
+
+[08:49-08:55] able to beat Faulkner on minimum battles in this generation. Both of these Pokemon got completely
+
+[08:55-09:00] wrecked. And it turns out that even coming in at these higher levels, yes, if I had just spammed
+
+[09:00-09:04] tackle the entire time, I probably would have won a lot easier. But at the end of the day,
+
+[09:04-09:08] it's still not pretty to actually get through that. Still with that done, we can now move on
+
+[09:08-09:13] in the game. We're going to make our way over towards Bugsy. If we manage to beat Bugsy,
+
+[09:13-09:18] that will be a small victory for Brock because that will mean he can beat two gyms in spite of
+
+[09:18-09:24] the fact that he's the first gym leader in this generation. There's no XP, so I'm going to fight
+
+[09:24-09:29] random traders if they do happen to encounter me, and we're just going to have to see how we
+
+[09:29-09:34] actually go in this section. But just note that the optional battles don't matter because this
+
+[09:34-09:40] ROM has been made to give no XP and no stat XP so we're exactly like Brock would have been and
+
+[09:40-09:46] we'll never actually be able to level up or increase our power in any sort of way. But now
+
+[09:46-09:52] Kurt is going to run down into the Slowpoke well because he wants to put us to the test and see how
+
+[09:52-09:57] we do against some poison types where we might actually use all of our full heals. So let's just
+
+[09:57-10:02] see how this actually goes. Now it turns out that we get to Jamesy Proton without really any issues
+
+[10:02-10:07] so it's time to just see if we can manage to get through this, but he's basically the first trainer
+
+[10:07-10:12] that's going to use something like Smaug that might actually poison me and give me a reason to
+
+[10:12-10:18] use that full heal. Let's find out. So of course, Jamesy Proton leads off with his coughing. He goes
+
+[10:18-10:23] tackle doing like nothing, and I tackle and also do very little. I'm going to give a defense girl
+
+[10:23-10:29] here as he misses a Smaug. Now he hits the Smaug, and we get poisoned, and we know what that means.
+
+[10:29-10:35] it is time to use the full heal in order to make sure that we're no longer poisoned in this one.
+
+[10:35-10:40] After that, we can basically just do whatever. He's only doing like one damage per hit to me.
+
+[10:40-10:46] So even if I swap back and forth between defense girl and tackle, I'm pretty sure I can win this
+
+[10:46-10:52] fight. Even the critical hits really don't do that much. So it turns out that yeah, this coughing is
+
+[10:52-10:58] really kind of useless against the Geodude. And just like that, Geodude beats Jamesy Proton on
+
+[10:58-11:04] the first attempt still with 11 HP remaining and now I think it's time to make our way in Bugsy's
+
+[11:04-11:10] gym where maybe being the rock type is the perfect solution even though we have no rock type moves
+
+[11:10-11:15] but it's really going to come down to the Scyther I think. The problem is likely that we'll get to
+
+[11:15-11:21] Scyther with the Geodude but then the Scyther will be able to just build up Fury Cutter and we won't
+
+[11:21-11:26] have enough HP and we won't be able to survive when we send out the Onix. That's my prediction
+
+[11:26-11:29] but let's just see if that actually turns out to be the case.
+
+[11:30-11:33] So without further ado, we have made it to Bugsy,
+
+[11:33-11:36] and I'm very interested to see if I can find a way through this.
+
+[11:36-11:39] I'm going to start off by kind of playing like Brock,
+
+[11:39-11:41] switching around between moves,
+
+[11:41-11:43] but if that doesn't seem to be working,
+
+[11:43-11:45] then I will try to play as a smart Brock
+
+[11:45-11:49] using the best moves that I think I have available at any time.
+
+[11:50-11:52] Let's just see how this actually works out.
+
+[11:52-11:54] So first attempt against Brocky Boy here,
+
+[11:54-12:00] I am going to attempt to just kind of play like him by just swapping between Tackle and Defense
+
+[12:00-12:05] Girl. Obviously, Tackle isn't going to do that much after the opponent starts using Harden a
+
+[12:05-12:10] bunch, but we're going to take like no damage from the Tackles from the Metapod. So I think
+
+[12:10-12:14] that this is going to be perfectly fine to get through this first Pokemon, though we are
+
+[12:14-12:20] definitely taking unnecessary damage in a lot of spots because of the fact that we're just using
+
+[12:20-12:25] Defense Girl, even though we don't really have any reason to. But you know, I mean, that's kind
+
+[12:25-12:30] of typical Brock stuff from Gen 1. We also get a couple of tackle misses on this Metapod, which is
+
+[12:30-12:36] kind of bad. So we're actually doing pretty bad against this first Pokemon. We are two levels
+
+[12:36-12:42] lower than the Metapod, but you'd still expect to easily win with a Geodude here. We do manage to
+
+[12:42-12:47] get through. That brings out the Kakuna. It goes for the Poison Sting, also dealing one damage.
+
+[12:47-12:52] and we're just gonna have to see how this goes as we just keep swapping back and forth between
+
+[12:52-12:58] defense girl and tackle it is dealing some kind of reasonable damage to us and we get poisoned oh
+
+[12:58-13:02] no we're gonna have to full heal right here but that just simply means we get knocked out by the
+
+[13:02-13:08] poison sting the next turn so onyx is coming out and now it's time for onyx to see if he can do
+
+[13:08-13:13] anything here we're gonna screech first now we will tackle that deals pretty decent damage and
+
+[13:13-13:18] now it's time for the Bide. We are being hit by the Poison Sting, so we are going to return damage
+
+[13:18-13:24] here. Not very much, and now we're going to have to go for that full heal in order to make it so
+
+[13:24-13:29] that we can actually survive. We get poisoned again, so I guess another full heal is in order.
+
+[13:29-13:35] And now back to our tackle to actually knock that Pokemon out. That brings out the Scyther. I'm
+
+[13:35-13:41] going for Bide here. It's going Fury Cutter, and I simply get knocked out. It's pretty clear that
+
+[13:41-13:46] playing as Brock is probably not going to work out here. So instead, I'm going to become smart
+
+[13:46-13:52] Brock using the best choices that I think I can at every given moment. And let's just see if Brock
+
+[13:52-13:56] can get through that way. So smart Brock attempt number one. I don't think there's any reason to
+
+[13:56-14:01] use defense girl here. I think you would just go all in on tackle and try to knock out this
+
+[14:01-14:07] metapod as quickly as you possibly can. It is an incredibly tedious fight because of the fact that
+
+[14:07-14:12] tackle isn't doing that much to the metapod after it goes for harden but we are at least
+
+[14:12-14:16] dealing more damage than the metapod is and we get through with about two-thirds of our health
+
+[14:16-14:22] remaining versus last time where we were down to nine hp that brings out the scyther this time
+
+[14:22-14:26] interestingly enough it goes fury cutter i'm going tackle it fury cutters again but i'm just
+
+[14:26-14:32] gonna stick with the tackles here but this could be the problem maybe we needed the defense curls
+
+[14:32-14:34] to stop him from sending out Scyther next,
+
+[14:35-14:37] because now that our Onix comes out,
+
+[14:37-14:40] he's already built up the Fury Cutter enough to two-shot us,
+
+[14:40-14:42] so we simply get wrecked.
+
+[14:42-14:45] So maybe there is an argument for going for Defense Curl.
+
+[14:45-14:47] Let's just test this and see.
+
+[14:47-14:49] So in that case, what I'm going to do is
+
+[14:49-14:53] I'm going to tackle to get the Metapod on fairly low health first,
+
+[14:53-14:56] and then I'm only going to use the Defense Curl
+
+[14:56-14:59] as many times as is actually useful,
+
+[14:59-15:01] and just have that Metapod in a range
+
+[15:01-15:06] where I can already knock it out so here we'll go for a bunch of defense girls maybe stopping him
+
+[15:06-15:12] from sending out the Scyther next. This is kind of interesting to see how this actually works out.
+
+[15:12-15:17] Here now we can tackle and knock out the Metapod and that does bring out the Kakuna so it does
+
+[15:17-15:22] seem to depend on the number of defense girls we have whether he sends out Scyther or Kakuna
+
+[15:22-15:28] second. Here however we will simply go tackle the entire way. Of course if we get poisoned we will
+
+[15:28-15:34] use a full heal because that just makes sense we get poisoned again this time no poison so we can
+
+[15:34-15:40] go back to tackling only to get poisoned again clearly Kakuna he wants his revenge on this
+
+[15:40-15:46] Geodude for all of the pain it caused on its family in gen 1 and we get knocked out yet again
+
+[15:46-15:51] by the Kakuna still I think that's perfectly fine I'm just going to tackle this Pokemon down
+
+[15:51-15:57] with the Onix we get poisoned we're going to have to heal the poison but now we can knock that
+
+[15:57-16:02] Pokemon out. That brings out the Scyther, and now my game plan is simple. I'm going to use
+
+[16:02-16:07] Bide here, hoping the Scyther builds up the Fury Cutter enough that I can knock it out with the
+
+[16:07-16:14] return damage. That is the game plan. It's building up the Fury Cutter, but unfortunately, we took too
+
+[16:14-16:19] many turns, and we weren't able to knock that Pokemon out. I don't know if Bide has different
+
+[16:19-16:24] numbers of turns in Gen 2 like it did in Gen 1, so I'm going to have to test this a little bit more,
+
+[16:24-16:30] But this could be the situation where it turns out that Brock simply cannot progress in the game.
+
+[16:31-16:37] So this time I'm going to test just doing three setups of Defense Curl on the first Geodude.
+
+[16:37-16:40] Just to see if that gives me a bit of an advantage here.
+
+[16:40-16:44] Maybe we get through on higher health, but he still goes with Kakuna next.
+
+[16:44-16:45] Sure enough, he does.
+
+[16:45-16:50] And then hopefully we can get through the Kakuna without getting poisoned as many times here.
+
+[16:50-16:55] We get poisoned this time, but we can now go back to our tackles.
+
+[16:55-16:58] And we are going to take Kuda out this time.
+
+[16:58-16:59] That brings out the Scyther.
+
+[16:59-17:01] It goes Fury Cutter.
+
+[17:01-17:01] I go tackle.
+
+[17:02-17:03] It misses Fury Cutter.
+
+[17:03-17:04] Very nice.
+
+[17:04-17:07] It misses Fury Cutter again, only for me to miss a tackle.
+
+[17:07-17:10] And now we're just basically trading off blows.
+
+[17:10-17:15] That brings out the Onix, and it gets one shot with a critical hit Fury Cutter.
+
+[17:15-17:18] So that fight does not seem to work.
+
+[17:18-17:21] Brock does not seem to be able to get through Bugsy.
+
+[17:22-17:25] Bugsy seems to have his number with the Fury Cutter strats.
+
+[17:25-17:29] I'm going to try this one last time because I want to check one last,
+
+[17:29-17:34] which is what if Brock was smart enough to send Pokemon out in different orders?
+
+[17:34-17:39] What if, for example, we sent out the Onix first and then sent out the Geodude?
+
+[17:39-17:42] Maybe we can get an advantage then? Let's find out.
+
+[17:42-17:48] So here we can go screech at the beginning of the battle to lower the defense of our opponents by two stages,
+
+[17:48-17:54] and with the Screeches, we may be able to get through the first two Pokemon with a lot more
+
+[17:54-17:59] health, a lot more efficiently. Sure enough, that does work. That brings out the Scyther next.
+
+[18:00-18:05] He goes Fury Cutter. I'm going Bide. He gets a critical hit Fury Cutter, and I'm not sure if we
+
+[18:05-18:10] would have survived without the critical hit, so I'm going to try this one again. So this time
+
+[18:10-18:15] instead, I'm going to use Screech twice on the Scyther and then try to tackle it. Unfortunately,
+
+[18:15-18:21] we can't land any Tackles there. And then it's simply Fury Cutters down the Geodude. So we would
+
+[18:21-18:27] need better luck than that. He does have a 5% chance to miss with Fury Cutter. That's probably
+
+[18:27-18:32] what we're banking on here. So let's just see what Tackle does after a single Screech. It does
+
+[18:32-18:39] 6 damage to the Scyther because of course the attack stat of Onix is absolutely pitiful. And
+
+[18:39-18:45] that basically means we're getting wrecked there. So I think we need a Fury Cutter miss with Bide.
+
+[18:45-18:47] in order to actually get this to work.
+
+[18:47-18:49] So that is the new game plan.
+
+[18:49-18:53] Fury Cutter Miss with Bide in order to progress in this one.
+
+[18:53-18:56] This time, he actually sends out the Kakuna second.
+
+[18:56-18:59] So I'm going to go for a bunch of screeches here.
+
+[18:59-19:01] Poisoned, which is pretty bad.
+
+[19:01-19:03] We're going to have full heal off of that.
+
+[19:03-19:05] And then we can tackle the Kakuna down.
+
+[19:05-19:06] We've made it back to Scyther.
+
+[19:06-19:08] We have to go Bide here.
+
+[19:08-19:12] He's building up Fury Cutter, and he's going to simply knock out that Onix.
+
+[19:13-19:14] That brings out the Geodude.
+
+[19:14-19:20] and once again, it gets completely wrecked. And I think this goes really far towards showing just
+
+[19:20-19:27] how strong Bugsy is. I actually get the Fury Cutter miss, and I set up six stages of defense
+
+[19:27-19:33] drops. So Tackle did significantly more damage here, but it still looks like it's at least a
+
+[19:33-19:38] four hit KO with this Onix. We are getting it down to about half health as Fury Cutter knocks
+
+[19:38-19:43] me out though. Let's bring out the Geodude. We take the Fury Cutter, our Tackle isn't enough,
+
+[19:43-19:46] A critical hit tackle would have knocked it out, though.
+
+[19:46-19:49] This is really, really, really close.
+
+[19:49-19:55] But with that said, I think this also really goes to show just how bad Onix is as a Pokemon.
+
+[19:55-19:59] In spite of the fact that it seems really tough on the first gym leader in Gen 1,
+
+[20:00-20:02] it's just because you're dealing with normal-type moves.
+
+[20:02-20:06] The second that you have anything that's not normal-type,
+
+[20:06-20:09] Onix becomes a pretty trash Pokemon pretty quickly,
+
+[20:09-20:15] and you end up in these situations where you can't actually beat things in spite of the fact
+
+[20:15-20:20] that you supposedly have this massive defense stat. Honestly if they just gave it better HP
+
+[20:20-20:25] this Pokemon would be so amazing though. So we're just gonna have to hope and pray that we can
+
+[20:25-20:31] eventually find a way through Bugsy here. Here would we unleash our energy against Bugsy using
+
+[20:31-20:37] Bide. We took two hits after setting up the Bide. We can see he still survives with the Scyther on
+
+[20:37-20:43] 8 HP. So we get knocked out there. We're going to have to hope that he misses on the Geodude so that
+
+[20:43-20:49] we can knock him out. He does not, so we lose. So it turns out that even the Bide damage isn't
+
+[20:49-20:54] enough there to actually get the victory. Still, it does appear to be about the best that we've got
+
+[20:54-21:00] if we can actually manage to get the Bide damage on that Scyther. So I think that is what we have
+
+[21:00-21:05] to go for here. And then we're basically just banking on him actually getting a miss against
+
+[21:05-21:12] us at some point giving us the chance to build up and return the damage here we get the fury
+
+[21:12-21:18] cutter miss from scyther after we hit the bite on it and we still don't knock it out it takes one
+
+[21:18-21:24] more hit still we managed to get through to the final kakuna this time and now i think we've
+
+[21:24-21:29] actually got a victory because we have the full heals we'll have five full heals for this geo
+
+[21:29-21:36] dude so we just need to avoid tons and tons of poison damage and apparently missing tackle every
+
+[21:36-21:41] single time are you kidding me we're already slower than the Kakuna because it used a string
+
+[21:41-21:47] shot on me we're also already just naturally slower than Kakuna so we can't avoid taking
+
+[21:47-21:53] poison damage on the turn that it poisons us we might actually lose to this Kakuna on that basis
+
+[21:53-21:59] on top of that we're running out of full heals to use so we're down to one HP and I'm pretty
+
+[21:59-22:10] sure we lose right here because the Kakuta moves first. Oh no, Brock, you were defeated by a
+
+[22:10-22:17] cocoon, even on your very best. Oh, this is brutal. It turns out that I think we have to call it right
+
+[22:17-22:25] there. Brocky boy does not beat Bugsy. Bugsy is just way too much for Brock. Yes, there is a range
+
+[22:25-22:29] where he misses with the Scyther against the Onix,
+
+[22:29-22:31] but that's just going to take way more resetting
+
+[22:31-22:32] than I've already done here.
+
+[22:32-22:35] So I think we just have to give up on that one.
+
+[22:35-22:37] And the real reason that I'm giving up
+
+[22:37-22:39] is because there's a pretty clear upcoming fight
+
+[22:39-22:41] that we're simply going to lose.
+
+[22:41-22:42] Rival number two.
+
+[22:43-22:45] You see, Rival two leads off with a Gastly.
+
+[22:45-22:48] That means that the Geodude couldn't even damage this Pokemon.
+
+[22:49-22:50] Only the Onix can,
+
+[22:50-22:53] and the Onix can only damage the Gastly with Bai.
+
+[22:53-23:00] Of course, if we get put to sleep, we're going to have to use a full heal in order to wake up, and then it goes spite against me.
+
+[23:00-23:06] Now we get licked and paralyzed, and then we're fully paralyzed, so now we have to use another full heal.
+
+[23:07-23:15] And now we have almost no PP and bide, so we're basically losing this fight because of the fact that we can't even damage the first Pokemon.
+
+[23:15-23:22] on maybe we can reach the point where we get to struggle and manage to win but that's basically
+
+[23:22-23:29] all that's available to us and we don't have any strategies available to us here lick is doing two
+
+[23:29-23:35] damage per hit so we're basically just getting wrecked here now the only thing to check is if
+
+[23:35-23:41] maybe just maybe the geodude can actually manage to get that ghastly down to doing one damage per
+
+[23:41-23:47] hit with the defense girl let's see if that's possible or not so i'm gonna go defense girl of
+
+[23:47-23:52] course if i get put to sleep i have to go for the full heal now we're getting licked but we'll go
+
+[23:52-23:58] for the defense girl there we'll now full heal and now we're just spamming defense girl but we're
+
+[23:58-24:03] still taking two damage per hit it misses some hypnosis's against me which is perfectly fine
+
+[24:03-24:08] remember we can only use five full heals so we only have one more left on this pokemon we get
+
+[24:08-24:13] paralyzed so that's our last full heal for the geodude and now if we get put to sleep or if we
+
+[24:13-24:18] get paralyzed there's just simply nothing that we can do at that point and even when we set up
+
+[24:18-24:23] everything we're still taking two damage per hit from the licks so it's pretty clear that this
+
+[24:23-24:29] ghastly is going to knock out the geodude well before we could ever get to using struggle that's
+
+[24:29-24:35] fine we'll now come out with the onyx and i'm just going to spam random moves with the onyx
+
+[24:35-24:40] so that I can hopefully use full heals against this Pokemon and eventually it should run out
+
+[24:40-24:46] of PP and Lick and then maybe we can at least struggle down the first Ghastly. Now my overlay
+
+[24:46-24:52] is made for solo challenges so it kind of breaks when you swap Pokemon like this but we are using
+
+[24:52-24:58] up our full heals here and I'm not sure how much Lick PP remains on this Pokemon. Here we're going
+
+[24:58-25:03] to use our last full heal that's available to us in this. We get paralyzed and it looks like we
+
+[25:03-25:10] might be just barely able to survive all of the licks from the ghastly but even then now we're
+
+[25:10-25:16] just stuck with this situation where we have to use up all of our pp to get to struggle and we
+
+[25:16-25:21] still have all this tackle pp and now neither of us can really do anything but ghastly gets to
+
+[25:21-25:28] struggle and just like that we get knocked out so it's not even the bay leaf on rival 2 that ends us
+
+[25:28-25:34] It is the ghastly that ends us, because we have no way to deal any sort of damage there,
+
+[25:34-25:40] and just like that, Gen 1 Brock turns out to be completely impossible to get through Bugsy,
+
+[25:40-25:43] turns out to be completely impossible to get through Rival 2,
+
+[25:44-25:49] and getting through Bugsy would require a level of luck that is just so far beyond god tier.
+
+[25:50-25:55] At that point, you would need a perfectly timed miss from the Fury Cutter,
+
+[25:55-26:01] and even then just because you get a Geodude out doesn't mean that you actually managed to defeat
+
+[26:01-26:07] the final Kakuna of all things because poison is a thing and it's gonna poison you one out of five
+
+[26:07-26:15] times and uh yeah so it just turns out that Brock really not that great in gen 2 he does beat the
+
+[26:15-26:21] first gym so he at least is like on par with the first gym leader but I don't know it turns out
+
+[26:21-26:27] that the second gym leader the bug gym is too hard for brocky boy to actually get the job done
+
+[26:27-26:31] anyway that's gonna do it for this one anyway that's gonna do it for this one i just had to
+
+[26:31-26:37] do this one as if silly and fun one kind of a shorter video but i will be coming back with a
+
+[26:37-26:43] johto version but i will be coming back with a gen 2 version of brock we're gonna give him a chance
+
+[26:43-26:48] to get a little get back but with his much improved theme from gen 2 he'll have five
+
+[26:48-26:52] Pokemon, of course, he'll be using rollout strats with the Graveler. He'll have some
+
+[26:52-26:58] earthquake strats. He'll have the fossil Pokemon so he can go surf and actually get some advantages
+
+[26:58-27:03] that way. I think he's going to get a lot further, but I'm not sure if he can actually make it
+
+[27:03-27:09] through the league. In fact, he might hit a wall before the league on somebody like Jasmine or
+
+[27:09-27:15] somebody like Claire. It's certainly possible. I honestly do not know. So we're just going to
+
+[27:15-27:21] have to test it and find out, but we'll do that in a separate video to see if Brock can actually
+
+[27:21-27:27] be better when he uses his Gen 2 team, but Gen 1 Brock turns out that he only gets to Azalea Town,
+
+[27:28-27:32] and then he can't progress any further. Still, tell me what other trainers you'd like to see.
+
+[27:33-27:39] I have a Bruno already made up for a run similar to this. We'll have to do both the Crystal version
+
+[27:39-27:44] Bruno and the original Pokemon Red and Blue Bruno. There is an argument for doing a Pokemon
+
+[27:44-27:49] yellow version of Bruno as well. I don't think yellow version Brock makes any sense. Like he
+
+[27:49-27:56] only has Bind added to his moveset on the Onix and he forgets the move Defense Girl on the Geodude.
+
+[27:56-28:01] It's not like Bind's going to make that big of a difference here and he's two levels lower with
+
+[28:01-28:05] both of his Pokemon. So if we couldn't get through Bugsy with this, we're definitely not getting
+
+[28:05-28:11] through with that. A Gen 3 Brock, however, with the Rock Tomb could be kind of interesting. We may
+
+[28:11-28:16] have to come and try that one instead, because Rock Tomb would be pretty easy, I think, to
+
+[28:16-28:22] implement in Gen 2 as a backported move, so tell me if you're interested in that as well, but that
+
+[28:22-28:25] does it for this one. I will see you guys in the next one. Later.
+
+[28:42-28:44] Outro Music

@@ -1,0 +1,42 @@
+{
+  "chunk_index": 8,
+  "src_range": [2160.00, 2460.00],
+  "segments_reviewed": [264, 296],
+  "new_cuts": [
+    {
+      "start": 2273.38,
+      "end": 2274.78,
+      "duration": 1.40,
+      "confidence": "high",
+      "category": "empty_runt",
+      "type": "stream_chat_acknowledgment",
+      "segments": [270],
+      "text": "Thanks for watching!",
+      "rationale": "1.4s isolated stream-chat acknowledgment with zero narrative content, falling squarely in the 0.5-1.5s CUT range. Surrounded by 47.8s of silence before (gameplay) and seg 271 begins immediately after at 2274.80 — the cut lands cleanly in surrounding silence, no word-boundary risk."
+    }
+  ],
+  "existing_cuts_review": [
+    {
+      "existing_cut": "2325.30-2325.78",
+      "verdict": "APPROVE",
+      "modification": null,
+      "rationale": "0.48s artifact mid-segment 278 ('poisons us so we might actually lose to this kakuna on that basis'). Word-level timestamps not provided for seg 278, but the segment spans 2320.22-2329.22 and the cut window is interior — consistent with a throat-clear or breath burst landing in a gap between clauses. No numbered references in seg 278. APPROVE as flagged."
+    },
+    {
+      "existing_cut": "2440.50-2441.15",
+      "verdict": "MODIFY",
+      "modification": {
+        "start": 2440.70,
+        "end": 2441.78,
+        "rationale_for_change": "Word-level timestamps show 'real' ends at 2440.700 and 'strategies' spans 2440.700-2441.780. The original cut at 2440.50 starts 200ms BEFORE 'real' ends, clipping into that word. The original cut at 2441.15 ends 630ms BEFORE 'strategies' ends, leaving a trailing fragment of 'strategies' audible. The intended splice is 'don't have any real [cut] available to us here' — to achieve clean word boundaries the cut must be pushed to start no earlier than 2440.70 (after 'real') and extend to at least 2441.78 (after 'strategies' fully ends). Suggested: 2440.70-2441.78."
+      },
+      "rationale": "The cut intent is valid — 'strategies' is a redundant filler word given 'available to us' already appeared in seg 293. However both cut edges land mid-word per the provided timestamps. Extending to [2440.70, 2441.78] produces a clean splice: '...we don't have any real available to us here' — grammatically tight and the word boundaries are honored. No atomic numbered references involved."
+    }
+  ],
+  "cross_boundary_notes": [
+    "Seg 269 [2222.76-2225.56] 'Thank you.' is 2.8s — exceeds the >2.0s KEEP threshold so not flagged as a cut. However it is a stream-chat acknowledgment with zero narrative value; if the editor wants tighter pacing this is a candidate borderline keep. Flagging for awareness only.",
+    "Seg 286 [2384.56-2391.76] contains 'Rival number two' AND 'rival two leads' — two atomic numbered references in quick succession. No existing cuts are near this segment. Future cuts in adjacent chunks must not split either reference.",
+    "Seg 291 [2419.50-2425.36] ends mid-sentence ('...because of the fact that we') continuing into seg 292 ('can't even damage the first Pokemon') — normal cross-segment continuation, no cut risk."
+  ],
+  "subagent_notes": "Existing cut 2440.50-2441.15 needs boundary correction before apply — both edges are mid-word per word-level timestamps. The new cut on seg 270 ('Thanks for watching!') is clean: it is fully enclosed in surrounding silence (47.8s gap before, ~20ms gap after). Seg 269 'Thank you.' at 2.8s is left as KEEP per rules but noted as a borderline social-interrupt if pacing tightens further."
+}

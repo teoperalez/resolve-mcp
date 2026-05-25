@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "task_id": "brock-cut-qa",
+  "generated_at": "2026-05-17T00:56:00-06:00",
+  "generated_by": "claude-codex-sync-init",
+  "input_assets": [
+    {
+      "id": "cut-analysis",
+      "path": "plans/prompts/cut-analysis-4.out.md",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\plans\\prompts\\cut-analysis-4.out.md",
+      "kind": "doc",
+      "sha256": "6592b6812059faa4e139bc78aade49b10db5ae2bc2e5ab2c5b3cdaa80ef7061e",
+      "size_bytes": 3770,
+      "purpose": "Current cut list (13 entries: 11 high + 2 medium). This file IS the mutable target of the QA loop."
+    },
+    {
+      "id": "loose-transcript",
+      "path": "transcripts/4.json",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\transcripts\\4.json",
+      "kind": "data",
+      "sha256": "3dff20b4230edf073db425eb0aeb5981da39af3271879a971ee3152aaf4d4170",
+      "size_bytes": 934837,
+      "purpose": "faster-whisper large-v3 loose-source transcript (350 segs, 2840.3s). Word-level timestamps. THE single source of truth for what the streamer actually said."
+    },
+    {
+      "id": "battles",
+      "path": "transcripts/battles.json",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\transcripts\\battles.json",
+      "kind": "data",
+      "sha256": "107c8dbe0afb8b9c94b4bc7e5a4a124a68d8ccd90582418eb201185c62a1c1e7",
+      "size_bytes": 1631,
+      "purpose": "6 first-time trainer battle starts (source seconds). Cuts must not chop into a battle window."
+    },
+    {
+      "id": "battle-types",
+      "path": "transcripts/battle-types.json",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\transcripts\\battle-types.json",
+      "kind": "data",
+      "sha256": "a8dab31eba43e93d4038e6ca7c8e6495c27e56081542fa934965fcaa4b741a47",
+      "size_bytes": 1156,
+      "purpose": "Battle classifications (rival/gym/other). Reference only."
+    },
+    {
+      "id": "cuts-replay",
+      "path": "E:/Brock Red/Brock Red Blue versus Crystl_ALTERED_BATTLEGAPS_cuts_replay.json",
+      "absolute_path": "E:\\Brock Red\\Brock Red Blue versus Crystl_ALTERED_BATTLEGAPS_cuts_replay.json",
+      "kind": "data",
+      "sha256": "4554178e5a04c888390fe9631eaa627140ba9f975c772a9a0b5e6576db3b9e1f",
+      "size_bytes": 8653,
+      "purpose": "Last apply_cuts_to_fcpxml.py output. Shows delete count + total seconds removed for HIGH and ALL variants. After loop convergence, regenerating this should match Codex's prediction within ±0.5s."
+    },
+    {
+      "id": "source-video",
+      "path": "E:/Brock Red/Brock Red Blue versus Crystl.mp4",
+      "absolute_path": "E:\\Brock Red\\Brock Red Blue versus Crystl.mp4",
+      "kind": "video",
+      "sha256": "5110faed0017f04259662796eac312ba2984a0abf9ad42a3cfda9a663aee5abb",
+      "size_bytes": 3797046135,
+      "purpose": "Source 4K/60fps video. ~47 min. Codex should NOT decode this for analysis — use the loose transcript. Listed only so any disputed cut boundary can be re-verified via ffmpeg if Codex needs to."
+    }
+  ],
+  "expected_outputs": [
+    {
+      "id": "cut-analysis-corrected",
+      "path": "plans/prompts/cut-analysis-4.out.md",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\plans\\prompts\\cut-analysis-4.out.md",
+      "kind": "doc",
+      "expected_sha256": null,
+      "must_exist_after_iteration": 1,
+      "verifier": "python -c \"import json; data = json.load(open('plans/prompts/cut-analysis-4.out.md')); assert all('start_sec' in c and 'end_sec' in c and 'confidence' in c and 'type' in c for c in data), 'schema'; assert all(c['end_sec'] > c['start_sec'] for c in data), 'order'; print(f'{len(data)} cuts')\""
+    },
+    {
+      "id": "proposed-cuts",
+      "path": ".codex-sync/artifacts/iter-NN/proposed-cuts.json",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\.codex-sync\\artifacts\\iter-NN\\proposed-cuts.json",
+      "kind": "data",
+      "expected_sha256": null,
+      "must_exist_after_iteration": 1,
+      "verifier": null
+    },
+    {
+      "id": "review-notes",
+      "path": ".codex-sync/artifacts/iter-NN/qa-notes.md",
+      "absolute_path": "C:\\Programming\\resolve-mcp\\.codex-sync\\artifacts\\iter-NN\\qa-notes.md",
+      "kind": "doc",
+      "expected_sha256": null,
+      "must_exist_after_iteration": 1,
+      "verifier": null
+    }
+  ],
+  "dependencies": {
+    "node_packages": [],
+    "python_packages": ["faster-whisper (already used to produce transcripts/4.json)"],
+    "codex_plugins": [],
+    "external_binaries": ["ffmpeg (only if a borderline cut needs audio re-verification)"],
+    "internal_modules": [
+      "scripts/apply_cuts_to_fcpxml.py — applies the cut list to the FCPXML (Codex should NOT modify this script; only the JSON it reads)"
+    ]
+  },
+  "reference_materials": [
+    { "kind": "doc", "value": "C:\\Users\\teope\\.claude\\projects\\C--Programming-resolve-mcp\\memory\\reference_default_whisper_hides_false_starts.md", "purpose": "Why the loose-source transcript is the right baseline" },
+    { "kind": "doc", "value": "C:\\Users\\teope\\.claude\\projects\\C--Programming-resolve-mcp\\memory\\reference_pokemon_name_normalizer.md", "purpose": "Pokémon-name vocabulary the analyzer must not split" },
+    { "kind": "doc", "value": "C:\\Users\\teope\\.claude\\projects\\C--Programming-resolve-mcp\\memory\\reference_audio_verify_borderline_cuts.md", "purpose": "Protocol for verifying disputed boundaries via ffmpeg + large-v3 re-transcribe" },
+    { "kind": "doc", "value": "C:\\Users\\teope\\.claude\\projects\\C--Programming-resolve-mcp\\memory\\feedback_src_overlap_cut_bug.md", "purpose": "SRC_OVERLAP_PREV cuts are forbidden" },
+    { "kind": "doc", "value": "C:\\Users\\teope\\.claude\\projects\\C--Programming-resolve-mcp\\memory\\reference_critical_reading_beats_pattern_matching.md", "purpose": "Top-to-bottom critical read is irreplaceable; pattern-matching alone misses misses" },
+    { "kind": "doc", "value": "C:\\Users\\teope\\Teo Speech Style.md", "purpose": "Speaker idiom + atomic-numbered-reference rule (§9.4)" }
+  ],
+  "iteration_log": []
+}

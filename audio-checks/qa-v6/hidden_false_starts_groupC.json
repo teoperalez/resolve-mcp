@@ -1,0 +1,113 @@
+{
+  "group": "C",
+  "analysis_method": "Loose transcript smear detection + context analysis",
+  "regions_checked": [
+    "1300-1320",
+    "1345-1360",
+    "1415-1432",
+    "1485-1495",
+    "1843-1855",
+    "1935-1950",
+    "2000-2015",
+    "2080-2095"
+  ],
+  "false_starts_found": [
+    {
+      "src_start_sec": 1300,
+      "src_end_sec": 1320,
+      "region_id": "1300-1320",
+      "description": "brock 2.48s smear at 1306.40",
+      "suspect_word_approx_time": 1306.4,
+      "suspect_duration_sec": 2.48,
+      "context": "I'm going to send Starmie out first with the goal of knocking out that first Finn.",
+      "confidence": "high",
+      "evidence": "Smear duration 2.48s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (2.48s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 1345,
+      "src_end_sec": 1360,
+      "region_id": "1345-1360",
+      "description": "relatively 2.98s smear at 1350.00",
+      "suspect_word_approx_time": 1350.0,
+      "suspect_duration_sec": 2.98,
+      "context": "Here it's not going to do a lot but Bayleef goes for reflect which is perfectly fine by me",
+      "confidence": "high",
+      "evidence": "Smear duration 2.98s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (2.98s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 1415,
+      "src_end_sec": 1432,
+      "region_id": "1415-1432",
+      "description": "whitney 1.54s + but 1.70s smears at 1419-1429",
+      "suspect_word_approx_time": 1419.0,
+      "suspect_duration_sec": 1.54,
+      "context": "Oh no, we got so close there to actually getting a win,  because I'm pretty sure we would have destroyed the final Zubat had we gotten there.",
+      "confidence": "high",
+      "evidence": "Smear duration 1.54s indicates potential false-start or hesitation",
+      "interpretation": "Long smear (1.54s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 1485,
+      "src_end_sec": 1495,
+      "region_id": "1485-1495",
+      "description": "and 1.66s smear at 1490.38",
+      "suspect_word_approx_time": 1490.38,
+      "suspect_duration_sec": 1.66,
+      "context": "me want surf so badly to actually have a chance in this fight if only surf had been available",
+      "confidence": "high",
+      "evidence": "Smear duration 1.66s indicates potential false-start or hesitation",
+      "interpretation": "Long smear (1.66s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 1843,
+      "src_end_sec": 1855,
+      "region_id": "1843-1855",
+      "description": "but 1.86s smear at 1848.16",
+      "suspect_word_approx_time": 1848.16,
+      "suspect_duration_sec": 1.86,
+      "context": "",
+      "confidence": "high",
+      "evidence": "Smear duration 1.86s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (1.86s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 1935,
+      "src_end_sec": 1950,
+      "region_id": "1935-1950",
+      "description": "so 5.20s smear at 1939.60",
+      "suspect_word_approx_time": 1939.6,
+      "suspect_duration_sec": 5.2,
+      "context": "",
+      "confidence": "high",
+      "evidence": "Smear duration 5.2s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (5.2s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 2000,
+      "src_end_sec": 2015,
+      "region_id": "2000-2015",
+      "description": "because 2.06s smear at 2006.20",
+      "suspect_word_approx_time": 2006.2,
+      "suspect_duration_sec": 2.06,
+      "context": "",
+      "confidence": "high",
+      "evidence": "Smear duration 2.06s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (2.06s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    },
+    {
+      "src_start_sec": 2080,
+      "src_end_sec": 2095,
+      "region_id": "2080-2095",
+      "description": "it 1.90s + here 2.78s smears at 2082-2091",
+      "suspect_word_approx_time": 2082.0,
+      "suspect_duration_sec": 1.9,
+      "context": "",
+      "confidence": "high",
+      "evidence": "Smear duration 1.9s is well above normal word duration (0.2-0.5s)",
+      "interpretation": "Long smear (1.9s) typically hides speaker's abandoned attempt + restart or significant hesitation with false-start recovery"
+    }
+  ],
+  "summary": "Found 8 high-confidence false-start candidates in Group C. All flagged regions show suspect durations >= 1.5s, typical of smeared audio hiding abandoned phrases or false-start recoveries."
+}

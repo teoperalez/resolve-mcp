@@ -1,0 +1,44 @@
+{
+  "chunk_index": 0,
+  "v6_range": [
+    0.0,
+    308.16
+  ],
+  "findings": [
+    {
+      "v6_time_start": 197.16,
+      "v6_time_end": 202.48,
+      "category": "duplicate",
+      "default_text": "misty has legit chances to get through whitney if she can get through rival number two number two",
+      "loose_text": "misty has legit chances to get through whitney if she can get through rival number two",
+      "corrected_text": "misty has legit chances to get through whitney if she can get through rival number two",
+      "recommended_action": "cut_needed",
+      "confidence": "high",
+      "evidence": "Waveform at 201.0s shows similarity peak 0.95+ lag 0.7s indicating audio duplicate. \"number two\" repeated twice in DEFAULT, only once in LOOSE."
+    },
+    {
+      "v6_time_start": 213.48,
+      "v6_time_end": 219.3,
+      "category": "pokemon_name",
+      "default_text": "off with star you star me has to come out second at least again until we hit a complete wall and",
+      "loose_text": "off with staryu starmie has to come out second at least again until we hit a complete wall and",
+      "corrected_text": "off with staryu starmie has to come out second at least again until we hit a complete wall and",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "LOOSE correctly parses two Pokemon names: \"staryu\" and \"starmie\". DEFAULT has phonetic mishear \"star you star me\"."
+    },
+    {
+      "v6_time_start": 208.1,
+      "v6_time_end": 213.5,
+      "category": "pokemon_name",
+      "default_text": "off with his chikorita that's level five we lead off with our star you because misty always leads",
+      "loose_text": "off with his chikorita that's level five we lead off with our staryu because misty always leads",
+      "corrected_text": "off with his chikorita that's level five we lead off with our staryu because misty always leads",
+      "recommended_action": "transcript_only_fix",
+      "confidence": "high",
+      "evidence": "LOOSE correctly has \"staryu\". DEFAULT has phonetic error \"star you\" (sounds like Staryu when spoken)."
+    }
+  ],
+  "overall_quality": "minor_issues",
+  "notes_for_main_thread": "Chunk has 3 confirmed errors: (1) \"number two\" duplication at 197-202s needing cut; (2-3) \"star you/me\" should be \"staryu/starmie\" (2 Pokemon name instances). Word count mismatch (DEFAULT=1054, LOOSE=1052) suggests default merges transcription segments but content integrity is ~99% with these fixes."
+}

@@ -1,0 +1,60 @@
+{
+  "chunk_index": 1,
+  "src_range": [270.00, 570.00],
+  "segments_reviewed": [31, 76],
+  "new_cuts": [
+    {
+      "start_sec": 348.60,
+      "end_sec": 349.80,
+      "confidence": "high",
+      "type": "false_start",
+      "reason": "Word stutter 'ahead ahead' at seg 43/44 boundary. Seg 43 ends '...go ahead' and seg 44 opens with 'ahead and use tackle' — 'ahead' is repeated back-to-back. The clean read is 'go ahead and use tackle'; the leading duplicate 'ahead' in seg 44 is an abandoned fragment. Cut starts at tail of seg 43 (just before the stutter 'ahead') and ends after the duplicate word before 'and use tackle'. Approximate boundary: seg 43 ends at 349.36 and seg 44 'ahead' occupies the first ~0.4s of that segment.",
+      "preserves": "'...but we're just gonna go ahead and use tackle on this one...'"
+    },
+    {
+      "start_sec": 469.00,
+      "end_sec": 472.12,
+      "confidence": "high",
+      "type": "false_start",
+      "reason": "Streamer begins a prediction at the very end of seg 61: '...i simply predict that', then immediately restarts in seg 62 with 'in fact i simply predict that at best...' — the entire phrase 'i simply predict that' is repeated verbatim, with 'in fact' as the self-correction opener. The first instance (end of seg 61) is an abandoned thread. Seg 61 runs 462.04-470.12; 'i simply predict that' occupies the final ~1s of that segment (approx 469.0-470.12). Seg 62 opens 470.12 with 'in fact i simply predict that at best'. Cut end = just before 'in fact' (seg 62 start at 470.12).",
+      "preserves": "'...unless we get way further than i expect. In fact i simply predict that at best we're going to make our way to morty...'"
+    },
+    {
+      "start_sec": 487.20,
+      "end_sec": 488.12,
+      "confidence": "high",
+      "type": "false_start",
+      "reason": "Trailing 'i think' at end of seg 64 is a false start for the sentence completed cleanly in seg 65. Seg 64 ends '...we'll just have to see but i think' and seg 65 opens 'I think honestly the real challenge in this one is going to be rival number two.' The first 'i think' (end of seg 64, approx last ~0.9s at 487.2-488.12) is an abandoned sentence start; the complete thought begins in seg 65 at 488.12.",
+      "preserves": "'...we'll just have to see. I think honestly the real challenge in this one is going to be rival number two.'"
+    },
+    {
+      "start_sec": 504.44,
+      "end_sec": 505.20,
+      "confidence": "medium",
+      "type": "false_start",
+      "reason": "Word stutter 'going going' at seg 67/68 boundary. Seg 67 ends '...so we're probably not going' and seg 68 opens 'going to get that far in the game'. 'going' is repeated back-to-back across the cut point. Seg 67 runs 499.80-504.44; seg 68 runs 504.44-521.30. The leading 'going' of seg 68 (approx 504.44-505.2) is the duplicate. Medium confidence because no word-level timestamps are available for this region to precisely bound the duplicate.",
+      "preserves": "'...so we're probably not going to get that far in the game...'"
+    },
+    {
+      "start_sec": 521.30,
+      "end_sec": 524.50,
+      "confidence": "high",
+      "type": "false_start",
+      "reason": "Self-correction stutter 'if he and if he' within seg 69. Seg 69 text: 'city and if he and if he manages to beat the violet gym leader he will prove once and for all'. The streamer said 'and if he' (abandoned) then restarted 'and if he manages to beat'. Seg 69 runs 521.30-526.78. The false start 'city and if he' occupies approximately the first 3.2s of seg 69 (521.30-524.50), before the clean restart 'and if he manages to beat'. The word 'city' at the very start is the clean landing from the previous sentence; the false start begins with the first 'and if he'.",
+      "preserves": "'Brock makes his way to Violet City and if he manages to beat the violet gym leader he will prove once and for all...'"
+    }
+  ],
+  "existing_cuts_review": [
+    {
+      "existing_cut": "556.00-556.28",
+      "verdict": "KEEP",
+      "modification": null,
+      "rationale": "Atomic-reference check passes: no noun+number phrase straddles either boundary. 'win this one' ends at ~555.280 and 'just to be as brock-like as possible' picks up cleanly. Word timestamps show 'but' running 555.280-556.120 and 'just' starting 556.120 — the cut at 556.00-556.28 falls within the 'but' word and the inter-word gap before 'just'. This suggests the cut targets a breath or glottal break embedded inside an elongated 'but'. The cut is only 0.28s and the labeled description ('breath between those phrases') is consistent with a held/broken 'but'. Flag for audio verification: if 'but' sounds clipped on output, extend cut start to 555.28 (remove the whole 'but') or shrink to 556.12 (preserve the whole 'but'). No atomic-reference violation either way."
+    }
+  ],
+  "cross_boundary_notes": [
+    "Seg 31 begins at 266.96, overlapping into the prior chunk window. The phrase 'could go now brock is a gen 1 gym leader' is clean — no stutter or false start at the 270.00s boundary itself.",
+    "Seg 76 extends to 572.80, overlapping into chunk 02. The phrase 'i don't expect god rod to give us any troubles at all here so i think we're moving straight on to' trails past 570.00s cleanly — no cut candidate straddles the boundary."
+  ],
+  "subagent_notes": "No word-level timestamps available for segs 42-71 (only segs 31-36 and 72-76 have word data). Approximate cut boundaries for segs 42-71 candidates (ahead/ahead, i-simply-predict-that, trailing-i-think, going/going, if-he-and-if-he) are derived from segment-level timing and phrase position within segment text. Recommend audio-verification pass on all five new cuts before baking, especially the going/going (504.44-505.20) and if-he (521.30-524.50) boundaries which rely on prose position estimates."
+}

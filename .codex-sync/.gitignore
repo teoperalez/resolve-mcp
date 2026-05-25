@@ -1,0 +1,6 @@
+artifacts/
+status.json
+codex-stream.log
+codex-watcher-heartbeat.json
+codex-watcher-error.log
+*.tmp
