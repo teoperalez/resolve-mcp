@@ -34,6 +34,12 @@ transcriptions.json
 transcripts/
 plans/
 
+# Data sidecar repo — clone of github.com/teoperalez/resolve-mcp-data
+# Contains snapshot of transcripts/ + plans/prompts/ so other machines
+# can pull without re-transcribing. See README "Where transcripts and
+# narrative plans live" section.
+_data/
+
 # Asset manifest lives globally at ~/.resolve-mcp/manifest.json (not in repo)
 # Catalog (assets/catalog.json) IS committed — only ignore machine-local overrides
 assets/manifest.json
