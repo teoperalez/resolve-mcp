@@ -129,6 +129,7 @@ def collect_clips(tl) -> list[dict]:
                     'relRecord':    item.GetStart() - tl_start,
                     'trackIndex':   idx,
                     'mediaType':    media_type,
+                    'clipColor':    item.GetClipColor() or '',
                 })
     return clips
 
@@ -308,6 +309,17 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
     orig_name    = orig_tl.GetName()
     max_vid_idx  = orig_tl.GetTrackCount('video')
     max_aud_idx  = orig_tl.GetTrackCount('audio')
+    orig_markers = [
+        {
+            'frame': int(frame),
+            'color': marker.get('color', 'Blue'),
+            'name': marker.get('name', ''),
+            'note': marker.get('note', ''),
+            'duration': marker.get('duration', 1),
+            'customData': marker.get('customData', ''),
+        }
+        for frame, marker in sorted((orig_tl.GetMarkers() or {}).items())
+    ]
 
     # ── Find "assets" bin ────────────────────────────────────────────────────
     root       = pool.GetRootFolder()
@@ -411,6 +423,7 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
     outro_rel = (orig_end - orig_start) + intro_tl_frames
     if existing:
         shifted = []
+        shifted_colors = []
         for c in existing:
             shifted.append({
                 'mediaPoolItem': c['mediaPoolItem'],
@@ -420,8 +433,15 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
                 'trackIndex':   c['trackIndex'],
                 'mediaType':    c['mediaType'],
             })
+            shifted_colors.append(c.get('clipColor', ''))
         placed = pool.AppendToTimeline(shifted) or []
         print(f'Re-placed {len(placed)}/{len(shifted)} original clips.')
+        colored = 0
+        for color, item in zip(shifted_colors, placed):
+            if color and item.SetClipColor(color):
+                colored += 1
+        if colored:
+            print(f'Reapplied clip colors: {colored}/{len([c for c in shifted_colors if c])}.')
 
     # ── Append outro video on V1 (full clip, no startFrame/endFrame) ──────────
     outro_abs = new_start + outro_rel
@@ -443,6 +463,22 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
             'mediaType':    2,
         }])
         print(f'Outro audio placed on A3 at frame {outro_abs}.')
+
+    # Ruler markers are timeline-resident and Resolve does not copy them when
+    # rebuilding a derived timeline. Preserve them by shifting everything right
+    # by the actual intro duration.
+    if orig_markers:
+        placed_markers = 0
+        for marker in orig_markers:
+            new_frame = marker['frame'] + intro_tl_frames
+            for nudge in range(0, 10):
+                ok = new_tl.AddMarker(new_frame + nudge, marker['color'],
+                                      marker['name'], marker['note'],
+                                      marker['duration'], marker['customData'])
+                if ok:
+                    placed_markers += 1
+                    break
+        print(f'Reapplied ruler markers: {placed_markers}/{len(orig_markers)}.')
 
     print(f'\nDone. New timeline: "{new_name}"  (original "{orig_name}" preserved)')
     return 0
