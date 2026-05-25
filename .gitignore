@@ -46,3 +46,13 @@ assets/manifest.json
 
 # Blackmagic API reference (not ours to distribute)
 README.txt
+
+# Raw audio working files (large; regeneratable from source MP4 + transcripts)
+*.wav
+
+# Codex-sync runtime state (mailbox is committed for reference, runtime files are not)
+.codex-sync/artifacts/
+.codex-sync/status.json
+.codex-sync/codex-stream.log
+.codex-sync/codex-watcher-heartbeat.json
+.codex-sync/codex-watcher-error.log
