@@ -207,6 +207,40 @@ Ready-to-run Python scripts for common editing operations. Each script is self-c
 > **Requirement:** DaVinci Resolve must be open with a project and timeline loaded.
 > **Python version:** The venv must use Python 3.13 (matches the `fusionscript.dll` Resolve 21 ships with). If you see a segfault on import, recreate the venv: `py -3.13 -m venv .venv && .venv\Scripts\pip install -e .`
 
+### End-to-end edit timeline workflow
+
+The canonical full edit pass is documented in `.claude/commands/edittimeline.md`.
+It is intentionally more strict than the individual helper scripts:
+
+- Every step is bracketed by `scripts/audit_step.py snapshot --step <id>` and
+  `scripts/audit_step.py audit --step <id>`.
+- Step scopes live in `scripts/audit_scopes.py`; audits fail when a step changes
+  clips, markers, track colors, or timeline state outside its declared scope.
+- Timeline-resident state must persist across every derived timeline. Ruler
+  markers, clip-level markers, and clip colors should be preserved or explicitly
+  remapped after cuts/ripple edits.
+- Gameplay V1 must have aligned A1 dialogue coverage. Intro/outro assets are
+  exempt, but any gameplay V1 clip without matching source-aligned A1 is a
+  global audit failure.
+- Battle-intro overlays must land on V2. The placement script verifies the API
+  result and writes `_data/qa-reports/battle-intros-placements.json`; the audit
+  scope also checks that the expected V2 intro clips exist.
+- A2 is reserved for intentional music/battle audio. Auto-editor linked audio
+  refs on A2-A5 are dropped by default during FCPXML cut import. Do not clear
+  A2-A5 defensively after the edit timeline is built; let the Step 6 audit fail
+  if those tracks are unexpectedly populated.
+- When restoring a missing narration segment, reconstruct it from the
+  `_ALTERED.fcpxml`/current FCPXML sections. Do not append one continuous raw
+  source span unless the FCPXML section itself is continuous, because
+  auto-editor may already have removed internal silence.
+- Section-safe cuts are preferred. A cut that fully covers an FCPXML section may
+  remove that section; a cut that lands partway through an FCPXML section should
+  be flagged for manual review instead of applied blindly.
+
+Manual-pass lessons live in `_data/manual-pass/detection_notes.md` when the data
+repo is present. That file records missed/false QA flags and should be consulted
+before tuning `verify_pipeline.py` detectors.
+
 ### `scripts/clear_audio_tracks.py`
 
 Deletes all clips from audio tracks START through END. Not a ripple delete — gaps remain.

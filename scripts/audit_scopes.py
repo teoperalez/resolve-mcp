@@ -29,13 +29,17 @@ For each pipeline step, declare:
 
 The validator (audit_step.py) compares the diff against these rules and
 raises a violation for any change that isn't explicitly allowed.
+
+Global audit gates also run for every step, independent of the per-step scope:
+    v1_has_a1_coverage  窶・every gameplay V1 clip must have aligned A1 audio
+                         coverage. Intro/outro assets are exempt.
 """
 from __future__ import annotations
 
 
 # Marker colors used cross-step (must survive into downstream steps)
 COLORS_BATTLE_END = ['Green']
-COLORS_CARO_START = ['Magenta']
+COLORS_CARO_START = ['Magenta', 'Yellow']
 COLORS_CUT_FLAGS = ['Orange', 'Yellow']
 COLORS_CUT_MARKERS = ['Red']
 COLORS_QA_FLAGS = ['Pink', 'Yellow', 'Lime', 'Teal', 'Brown', 'Purple', 'Mint']
@@ -203,6 +207,7 @@ SCOPES: dict = {
             {'kind': 'clips', 'track': ('audio', 1)},
             {'kind': 'markers', 'where': 'ruler', 'colors': COLORS_BATTLE_END},
             {'kind': 'markers', 'where': 'clip_level'},
+            {'kind': 'battle_intros_present', 'track': ('video', 2), 'min_count': 4},
         ],
     },
 

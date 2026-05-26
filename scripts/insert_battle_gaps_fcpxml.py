@@ -197,6 +197,9 @@ def insert_battle_gaps(xml: str, battles: list[dict], gap_frames: int,
             'battle':      b,
             'pull':        pull_avail,
             'orig_offset': target['offset'][0],
+            # For verifier feedback: track the shortfall.
+            'requested_gap_frames': gap_frames,
+            'gap_short_frames':    max(0, gap_frames - pull_avail),
         })
 
     # cumulative_pull_before(offset_n): sum of pulls for battles whose
@@ -302,7 +305,7 @@ def insert_battle_gaps(xml: str, battles: list[dict], gap_frames: int,
         count=1,
     )
 
-    return new_xml, markers
+    return new_xml, markers, battles_resolved
 
 
 # ── Optional Resolve import ───────────────────────────────────────────────────
@@ -323,13 +326,32 @@ def import_into_resolve(fcpxml_path: Path, markers: list[dict]) -> bool:
     project = resolve.GetProjectManager().GetCurrentProject()
     pool    = project.GetMediaPool()
     print(f'  Importing into Resolve: {fcpxml_path}')
-    result = pool.ImportTimelineFromFile(str(fcpxml_path))
+
+    # Rename FCPXML's <project> to add a (battle-gaps) suffix so Resolve
+    # creates a NEW timeline instead of silently no-op'ing on name collision.
+    import re as _re
+    xml = fcpxml_path.read_text(encoding='utf-8')
+    new_xml, n = _re.subn(
+        r'(<project\s+name=")([^"]+)(")',
+        lambda m: f'{m.group(1)}{m.group(2)} (battle-gaps){m.group(3)}'
+                  if '(battle-gaps)' not in m.group(2) else m.group(0),
+        xml, count=1)
+    if n == 1:
+        fcpxml_path.write_text(new_xml, encoding='utf-8')
+        print(f'  (renamed FCPXML <project> to include (battle-gaps) suffix)')
+
+    # Explicit timelineName option — without this, ImportTimelineFromFile
+    # silently no-ops when the FCPXML project name collides with an existing
+    # timeline (Resolve scripting quirk).
+    base = fcpxml_path.stem
+    explicit_name = f'{base.split("_ALTERED")[0]} (battle-gaps)' if '_ALTERED' in base else f'{base} (battle-gaps)'
+    result = pool.ImportTimelineFromFile(str(fcpxml_path),
+                                          {'timelineName': explicit_name})
     if not result:
         print(f'  ImportTimelineFromFile returned {result!r} — '
-              f'this usually means a timeline with the same project name '
-              f'already exists. Rename the existing timeline and re-run.')
+              f'check Resolve project state for duplicates.')
         return False
-    print(f'  ImportTimelineFromFile returned: {result!r}')
+    print(f'  ImportTimelineFromFile returned: {result!r}  (timelineName={explicit_name!r})')
 
     # Find the newly-imported timeline. ImportTimelineFromFile's return is a
     # PyRemoteObject that doesn't directly expose GetName, so we scan project
@@ -406,7 +428,7 @@ def main() -> int:
     print(f'Battles: {len(battles)}')
     xml = in_path.read_text(encoding='utf-8')
 
-    new_xml, markers = insert_battle_gaps(xml, battles, args.gap_frames)
+    new_xml, markers, battles_resolved = insert_battle_gaps(xml, battles, args.gap_frames)
 
     print(f'\nBattle markers placed: {len(markers)}')
     for m in markers:
@@ -416,6 +438,29 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(new_xml, encoding='utf-8')
     print(f'\nWrote: {out_path}  ({out_path.stat().st_size // 1024} KB)')
+
+    # Emit a gap-warnings sidecar so verify_pipeline.py can lime-flag battles
+    # whose pre-roll fell short. Each entry: trainer_name, requested vs actual
+    # pre-roll frames, source-time of battle.
+    warnings_short = [r for r in battles_resolved if r.get('gap_short_frames', 0) > 0]
+    warnings_path = out_path.with_name(out_path.stem + '_gap_warnings.json')
+    warnings_path.write_text(json.dumps({
+        'requested_gap_frames': args.gap_frames,
+        'battles_with_shortfall': [
+            {
+                'trainer_name':         r['battle']['trainer_name'],
+                'source_sec':           r['battle']['timestamp_sec'],
+                'requested_frames':     r['requested_gap_frames'],
+                'actual_pull_frames':   r['pull'],
+                'shortfall_frames':     r['gap_short_frames'],
+            } for r in warnings_short
+        ],
+    }, indent=2, ensure_ascii=False), encoding='utf-8')
+    if warnings_short:
+        print(f'WARN: {len(warnings_short)} battle(s) got less than full pre-roll '
+              f'(see {warnings_path.name})')
+    else:
+        print(f'All {len(battles_resolved)} battles got full {args.gap_frames}-frame pre-roll')
 
     # Write a sidecar JSON of markers so the API can re-apply them after import
     # (Resolve drops <marker> entries from FCPXML imports — see IRLPC's

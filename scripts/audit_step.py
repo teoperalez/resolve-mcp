@@ -178,7 +178,7 @@ def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[di
                 if colors is not None:
                     return c in colors
                 if except_colors is not None:
-                    return c in except_colors
+                    return c not in except_colors
                 return True  # all markers must be preserved
 
             if where in (None, 'ruler'):
@@ -217,6 +217,10 @@ def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[di
             # Validated separately
             pass
 
+        elif kind == 'battle_intros_present':
+            # Validated separately
+            pass
+
     return violations
 
 
@@ -239,6 +243,85 @@ def _check_no_a2_overlaps(post: dict, fps: float) -> list[dict]:
                 'item': {'a': a.get('name'), 'b': b.get('name'),
                          'overlap_frames': a_end - b_start},
             })
+    return violations
+
+
+def _check_battle_intros_present(post: dict, rule: dict) -> list[dict]:
+    track = rule.get('track', ('video', 2))
+    kind, idx = track[0], str(track[1])
+    min_count = int(rule.get('min_count', 1))
+    clips = post.get('tracks', {}).get(kind, {}).get(idx, {}).get('clips', [])
+    intros = [c for c in clips if (c.get('name') or '').endswith('-battle-intro.mov')]
+    if len(intros) >= min_count:
+        return []
+    return [{
+        'rule': rule,
+        'reason': f'expected at least {min_count} battle-intro clip(s) on '
+                  f'{kind.upper()}{idx}, found {len(intros)}',
+        'item': {'found': [c.get('name') for c in intros]},
+    }]
+
+
+def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
+    """Flag gameplay V1 clips with no corresponding aligned A1 audio.
+
+    This catches Resolve scripting mistakes where appending/replacing a video
+    clip silently drops its linked dialogue audio. The check requires at least
+    one timeline/source-aligned A1 overlap for each V1 gameplay clip. It does
+    not require exact clip boundaries, so layouts like the carousel's extended
+    V1 bed can coexist with the original A1 edit underneath it.
+    """
+    tracks = post.get('tracks', {})
+    v1 = tracks.get('video', {}).get('1', {}).get('clips', [])
+    a1 = tracks.get('audio', {}).get('1', {}).get('clips', [])
+    violations = []
+
+    def exempt(c: dict) -> bool:
+        name = (c.get('name') or '').lower()
+        return 'intro' in name or 'outro' in name
+
+    for vc in v1:
+        if exempt(vc):
+            continue
+        v_name = vc.get('name') or ''
+        v_src = vc.get('source_path') or ''
+        v_start = int(vc.get('start_abs', 0))
+        v_end = int(vc.get('end_abs', 0))
+        v_src_left = int(vc.get('src_left', 0))
+
+        has_match = False
+        for ac in a1:
+            if (ac.get('name') or '') != v_name:
+                continue
+            if (ac.get('source_path') or '') != v_src:
+                continue
+            a_start = int(ac.get('start_abs', 0))
+            a_end = int(ac.get('end_abs', 0))
+            ov_start = max(v_start, a_start)
+            ov_end = min(v_end, a_end)
+            if ov_start >= ov_end:
+                continue
+            a_src_at_overlap = int(ac.get('src_left', 0)) + (ov_start - a_start)
+            v_src_at_overlap = v_src_left + (ov_start - v_start)
+            if a_src_at_overlap == v_src_at_overlap:
+                has_match = True
+                break
+
+        if not has_match:
+            violations.append({
+                'rule': {'kind': 'v1_has_a1_coverage'},
+                'kind': 'v1_has_a1_coverage',
+                'reason': 'V1 gameplay clip has no corresponding aligned A1 audio coverage',
+                'item': {
+                    'name': v_name,
+                    'start_abs': v_start,
+                    'end_abs': v_end,
+                    'src_left': v_src_left,
+                    'src_dur': int(vc.get('src_dur', 0)),
+                    'clip_color': vc.get('clip_color', ''),
+                },
+            })
+
     return violations
 
 
@@ -515,7 +598,15 @@ def cmd_audit(args) -> int:
         for rule in scope.get('must_preserve', []):
             if rule.get('kind') == 'no_a2_overlaps':
                 violations.extend(_check_no_a2_overlaps(post, fps))
+            elif rule.get('kind') == 'battle_intros_present':
+                violations.extend(_check_battle_intros_present(post, rule))
 
+    # Global integrity gate: every gameplay V1 clip should have aligned A1
+    # dialogue coverage. Keep this independent of step scopes because any
+    # append/replace operation can accidentally drop linked audio.
+    violations.extend(_check_v1_has_a1_coverage(post))
+
+    if not scope.get('creates_new_timeline'):
         # Mark any "must_preserve" violations whose lost item carries the
         # signature of a prior pipeline step's output as REGRESSIONS.
         for v in violations:

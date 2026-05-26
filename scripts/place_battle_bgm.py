@@ -146,6 +146,18 @@ def main() -> int:
                          'play in order at the start of the post-last-battle segment. '
                          'After the sequence is exhausted, the remainder is filled '
                          'with chained random energetic tracks. Pass "" to disable.')
+    ap.add_argument('--respect-existing-a2', dest='respect_existing_a2',
+                    action='store_true', default=True,
+                    help='(default) Derive battle ranges from existing A2 clip '
+                         'boundaries — assumes place_battle_audio.py has already '
+                         'placed battle theme loops on A2. BGM fills only the '
+                         'gaps. Use this under the new pipeline order (12d before 12e).')
+    ap.add_argument('--no-respect-existing-a2', dest='respect_existing_a2',
+                    action='store_false',
+                    help='Use the legacy logic: derive battle ranges from '
+                         'transcripts/battles.json + Green ruler markers. '
+                         'Use this for standalone invocations when A2 only has '
+                         'the DSL clip.')
     args = ap.parse_args()
     final_seq = [s.strip() for s in args.final_sequence.split(',') if s.strip()]
 
@@ -242,71 +254,129 @@ def main() -> int:
         print(f'ERROR: A{args.track_index} is empty. Run place_bgm.py first.',
               file=sys.stderr)
         return 1
-    dsl_end_abs = a2[-1].GetStart() + a2[-1].GetDuration()
-    print(f'A{args.track_index} current end (DSL end): abs={dsl_end_abs}  '
-          f'rel={(dsl_end_abs - tl_start)/fps:.2f}s')
 
-    if dsl_end_abs >= outro_tl_start:
-        print('A2 already extends to or past outro — nothing to do.')
-        return 0
+    # DSL anchor: the FIRST clip on A2 is the opening BGM (Dual Screen
+    # Lovelife). When A2 has just one clip, this is also the last clip —
+    # the legacy `a2[-1]` semantics. When A2 already has battle audio +
+    # other content from a prior pipeline pass, we still want dsl_end_abs
+    # to point to the end of the opening BGM (so gap-filling starts there),
+    # NOT to the end of the last A2 clip (which would falsely report "A2
+    # already extends to outro" when really we just need to refresh the
+    # middle BGM).
+    if args.respect_existing_a2 and len(a2) > 1:
+        dsl_end_abs = a2[0].GetStart() + a2[0].GetDuration()
+        print(f'A{args.track_index} DSL anchor (a2[0]): abs={dsl_end_abs}  '
+              f'rel={(dsl_end_abs - tl_start)/fps:.2f}s  '
+              f'(--respect-existing-a2)')
+    else:
+        dsl_end_abs = a2[-1].GetStart() + a2[-1].GetDuration()
+        print(f'A{args.track_index} current end (DSL end): abs={dsl_end_abs}  '
+              f'rel={(dsl_end_abs - tl_start)/fps:.2f}s')
+
+        if dsl_end_abs >= outro_tl_start:
+            print('A2 already extends to or past outro — nothing to do.')
+            return 0
 
     # Gameplay V1 = exclude intro (v1[0]) and outro (v1[-1])
     v1_map = build_v1_source_map(v1[1:-1], fps)
 
-    # ── Read battles.json ──────────────────────────────────────────────────
-    if not BATTLES_JSON.exists():
-        print(f'ERROR: {BATTLES_JSON} not found.', file=sys.stderr)
-        return 1
-    battles = json.loads(BATTLES_JSON.read_text(encoding='utf-8'))
-    print(f'Battles loaded: {len(battles)}')
+    # ── Decide segment-derivation source ───────────────────────────────────
+    #
+    # Under the new pipeline order (Step 12d places battle audio on A2 BEFORE
+    # this script runs as Step 12e), --respect-existing-a2 is on by default
+    # and we read battle ranges straight off A2: any frame range NOT covered
+    # by an existing A2 clip (between DSL end and outro start) is a BGM gap.
+    #
+    # When invoked standalone with --no-respect-existing-a2 we fall back to
+    # the legacy logic: derive battle ranges from transcripts/battles.json +
+    # Green ruler markers.
 
-    # ── Green markers (battle ends) ────────────────────────────────────────
-    markers = tl.GetMarkers() or {}
-    greens  = sorted(((f, m.get('name', '')) for f, m in markers.items()
-                      if m.get('color') == 'Green'))
-    print(f'Green markers: {len(greens)}')
+    use_a2 = args.respect_existing_a2 and len(a2) > 1
+    if args.respect_existing_a2 and not use_a2:
+        print('NOTE: --respect-existing-a2 requested but A2 only has the DSL '
+              'clip; falling back to battles.json + Green markers')
 
-    # ── Build battle pairs: (start_abs, end_abs, name) ─────────────────────
-    used_greens = set()
-    pairs = []
-    for b in battles:
-        start_abs = source_sec_to_tl_abs(b['timestamp_sec'], fps, v1_map)
-        if start_abs is None:
-            print(f'  WARN: could not map start {b["timestamp_sec"]:.1f}s '
-                  f'({b["trainer_name"]!r})')
-            continue
-        # match green marker by trainer name (case-insensitive substring)
-        end_abs   = None
-        end_rel   = None
-        for f, name in greens:
-            if f in used_greens:
+    pairs = []  # (start_abs, end_abs, label) — used for logging only
+    segments = []  # (start_abs, end_abs) — what to fill with BGM
+
+    if use_a2:
+        print('\nDeriving battle ranges from existing A2 clips (post-DSL).')
+        # Sort A2 clips that lie at or after the DSL end. The DSL clip itself
+        # ends at dsl_end_abs, so anything starting >= dsl_end_abs counts.
+        later_a2 = sorted([c for c in a2 if c.GetStart() >= dsl_end_abs],
+                          key=lambda c: c.GetStart())
+        print(f'  Post-DSL A2 clips found: {len(later_a2)}')
+        # Group adjacent clips (gap < 1 frame) as a single battle range.
+        if later_a2:
+            grp_start = later_a2[0].GetStart()
+            grp_end   = grp_start + later_a2[0].GetDuration()
+            grp_name  = later_a2[0].GetName() or ''
+            for c in later_a2[1:]:
+                cs = c.GetStart()
+                ce = cs + c.GetDuration()
+                if cs <= grp_end + 1:
+                    grp_end = max(grp_end, ce)
+                else:
+                    pairs.append((grp_start, grp_end, grp_name))
+                    grp_start, grp_end, grp_name = cs, ce, (c.GetName() or '')
+            pairs.append((grp_start, grp_end, grp_name))
+
+        # Segments = gaps between [dsl_end, outro_start) not covered by any pair
+        cur = dsl_end_abs
+        for s, e, _n in pairs:
+            if s > cur:
+                segments.append((cur, s))
+            if e > cur:
+                cur = e
+        if cur < outro_tl_start:
+            segments.append((cur, outro_tl_start))
+    else:
+        # ── Legacy logic: derive from battles.json + Green ruler markers ───
+        if not BATTLES_JSON.exists():
+            print(f'ERROR: {BATTLES_JSON} not found.', file=sys.stderr)
+            return 1
+        battles = json.loads(BATTLES_JSON.read_text(encoding='utf-8'))
+        print(f'Battles loaded: {len(battles)}')
+
+        markers = tl.GetMarkers() or {}
+        greens  = sorted(((f, m.get('name', '')) for f, m in markers.items()
+                          if m.get('color') == 'Green'))
+        print(f'Green markers: {len(greens)}')
+
+        used_greens = set()
+        for b in battles:
+            start_abs = source_sec_to_tl_abs(b['timestamp_sec'], fps, v1_map)
+            if start_abs is None:
+                print(f'  WARN: could not map start {b["timestamp_sec"]:.1f}s '
+                      f'({b["trainer_name"]!r})')
                 continue
-            if b['trainer_name'].lower() in (name or '').lower():
-                end_rel = f
-                end_abs = tl_start + f
-                used_greens.add(f)
-                break
-        if end_abs is None:
-            print(f'  WARN: no green marker for {b["trainer_name"]!r}')
-            continue
-        pairs.append((start_abs, end_abs, b['trainer_name']))
+            end_abs   = None
+            for f, name in greens:
+                if f in used_greens:
+                    continue
+                if b['trainer_name'].lower() in (name or '').lower():
+                    end_abs = tl_start + f
+                    used_greens.add(f)
+                    break
+            if end_abs is None:
+                print(f'  WARN: no green marker for {b["trainer_name"]!r}')
+                continue
+            pairs.append((start_abs, end_abs, b['trainer_name']))
+
+        cur = dsl_end_abs
+        for start_abs, end_abs, _n in pairs:
+            if start_abs > cur:
+                segments.append((cur, start_abs))
+            if end_abs > cur:
+                cur = end_abs
+        if cur < outro_tl_start:
+            segments.append((cur, outro_tl_start))
 
     pairs.sort()
     print(f'\nBattle pairs (abs frames):')
     for s, e, n in pairs:
-        print(f'  {n:14s}  [{s:8d} → {e:8d}]   '
+        print(f'  {n[:24]:24s}  [{s:8d} → {e:8d}]   '
               f'rel [{(s-tl_start)/fps:7.1f}s → {(e-tl_start)/fps:7.1f}s]')
-
-    # ── Build BGM segments (non-battle gameplay regions on A2) ─────────────
-    segments = []
-    cur = dsl_end_abs
-    for start_abs, end_abs, _n in pairs:
-        if start_abs > cur:
-            segments.append((cur, start_abs))
-        if end_abs > cur:
-            cur = end_abs
-    if cur < outro_tl_start:
-        segments.append((cur, outro_tl_start))
 
     print(f'\nBGM segments to fill: {len(segments)}')
     for s, e in segments:

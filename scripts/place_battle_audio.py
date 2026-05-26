@@ -262,7 +262,10 @@ def main() -> int:
             print(f"  battle {i} ({b['trainer_name']}): could not map start")
             continue
 
-        # Find matching green marker by trainer name
+        # Find battle end via fallback chain (so battle never silently loses audio):
+        # 1. Green marker matching trainer name (preferred — precise)
+        # 2. Next battle's start - 5s (if there is a next battle)
+        # 3. Timeline end (last battle case)
         end_abs = None
         for f, name in greens:
             if f in used:
@@ -271,9 +274,21 @@ def main() -> int:
                 end_abs = tl_start + f
                 used.add(f)
                 break
+        end_source = 'green-marker'
         if end_abs is None:
-            print(f"  battle {i} ({b['trainer_name']}): no green end marker")
-            continue
+            # Fallback 2: next battle's start - 5s
+            if i + 1 < len(battles):
+                next_b = battles[i + 1]
+                next_start = source_sec_to_tl_abs(next_b['timestamp_sec'], fps, v1_map)
+                if next_start is not None:
+                    end_abs = next_start - int(round(5 * fps))
+                    end_source = f'fallback (next battle {next_b["trainer_name"]!r} -5s)'
+            # Fallback 3: timeline end
+            if end_abs is None:
+                end_abs = tl.GetEndFrame()
+                end_source = 'fallback (timeline end)'
+            print(f"  battle {i} ({b['trainer_name']!r}): no green marker → "
+                  f"using {end_source}, end={end_abs}")
 
         battle_specs = loop_placements(track_mpi, track_dur,
                                        start_abs, end_abs,

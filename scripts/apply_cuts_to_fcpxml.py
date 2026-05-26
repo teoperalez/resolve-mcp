@@ -156,6 +156,52 @@ def clip_overlaps_cut(src_start: int, src_end: int,
 
 # ── Core cut algorithm ────────────────────────────────────────────────────────
 
+def snap_cuts_to_silence(cuts: list[dict], source_video: str, sr: int = 48000,
+                          max_drift_sec: float = 0.3) -> list[dict]:
+    """For each cut, snap start_sec and end_sec to nearest true silence using
+    _audio_tools. Returns a new list with refined start_sec / end_sec. Cuts
+    where neither end can be snapped are returned UNCHANGED (apply_cuts will
+    use the raw LLM value).
+
+    Logs a per-cut snap-summary; written to a sidecar by the caller if desired.
+    """
+    try:
+        import _audio_tools as A
+    except ImportError:
+        print('  audio-snap unavailable (no _audio_tools module); using raw cuts')
+        return cuts
+
+    try:
+        full = A.load_full_audio_track(source_video, sr=sr)
+    except Exception as e:
+        print(f'  audio-snap: full-track load failed ({e}); using raw cuts')
+        return cuts
+
+    snapped = []
+    n_snapped = 0
+    for c in cuts:
+        new_c = dict(c)
+        for key in ('start_sec', 'end_sec'):
+            target = float(c[key])
+            win_start = max(0.0, target - max_drift_sec)
+            win_dur   = 2 * max_drift_sec
+            window = A.slice_window(full, sr, win_start, win_dur)
+            snap = A.snap_to_nearest_silence(
+                window, sr, target - win_start, max_drift_sec=max_drift_sec)
+            if snap is not None:
+                snapped_sec_in_win, drift = snap
+                new_val = float(win_start + snapped_sec_in_win)
+                if abs(new_val - target) > 0.001:
+                    new_c[key] = new_val
+                    new_c.setdefault('_snap', {})[key] = {
+                        'orig': target, 'snapped': new_val, 'drift_ms': round(drift * 1000, 1),
+                    }
+                    n_snapped += 1
+        snapped.append(new_c)
+    print(f'  audio-snap: {n_snapped} edge(s) snapped to silence')
+    return snapped
+
+
 def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
                keep_linked_audio: bool = False) -> tuple[str, dict]:
     """
@@ -486,6 +532,11 @@ def main() -> int:
                          'as r4/r6/r8/r10) in the output spine. By default these are '
                          'dropped so the imported timeline has only V1+A1, keeping '
                          'A2-A5 free for the BGM/battle-audio/Fairlight pipeline.')
+    ap.add_argument('--no-audio-snap', action='store_true',
+                    help='Disable the audio-aware silence snap on cut endpoints. '
+                         'Snap requires ffmpeg + librosa and loads the full source '
+                         'A1 (~8s preload). Skip for fast iteration when you have '
+                         'pre-validated cuts.')
     args = ap.parse_args()
 
     in_path = Path(args.input).resolve()
@@ -508,10 +559,29 @@ def main() -> int:
     print(f'Cuts JSON:    {cuts_path}')
 
     cuts = json.loads(cuts_path.read_text(encoding='utf-8'))
+    print(f'Total cuts: {len(cuts)} ({sum(1 for c in cuts if c.get("confidence")=="high")} high, '
+          f'{sum(1 for c in cuts if c.get("confidence")=="medium")} medium)')
+
+    # Audio-aware silence snap: re-align each cut endpoint to the nearest
+    # true silence in the source. Prevents cuts from landing mid-speech.
+    # Use --no-audio-snap to disable (e.g. for fast re-runs after manual edits).
+    if not args.no_audio_snap:
+        # Find the source video file from the FCPXML's <asset hasVideo="1">
+        xml_for_path = in_path.read_text(encoding='utf-8')
+        m = re.search(
+            r'<asset[^>]*hasVideo="1"[^>]*>\s*<media-rep[^>]*src="([^"]+)"',
+            xml_for_path)
+        if m:
+            from urllib.parse import unquote
+            src_uri = m.group(1)
+            # file:///F:/Brock%20Red/foo.mp4  →  F:/Brock Red/foo.mp4
+            src_path = unquote(src_uri.replace('file:///', '').replace('file://', ''))
+            print(f'  audio-snap: source = {src_path}')
+            cuts = snap_cuts_to_silence(cuts, src_path)
+
     high = [c for c in cuts if c.get('confidence') == 'high']
     medium = [c for c in cuts if c.get('confidence') == 'medium']
     all_cuts = high + medium
-    print(f'Total cuts: {len(cuts)} ({len(high)} high, {len(medium)} medium)')
 
     out_dir = Path(args.output_dir).resolve() if args.output_dir else in_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)

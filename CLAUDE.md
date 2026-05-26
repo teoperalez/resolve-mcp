@@ -44,6 +44,47 @@ Screenshots are sent to Anthropic for analysis — remind the user if there's se
 
 ---
 
+## Edit timeline process memory
+
+When running or modifying the full `/edittimeline` workflow, preserve these
+invariants. They were added after real project failures and should travel to
+future projects:
+
+- Use `.claude/commands/edittimeline.md` as the canonical step order. Every
+  step is wrapped with `scripts/audit_step.py snapshot --step <id>` before the
+  command and `scripts/audit_step.py audit --step <id>` after it.
+- If an audit fails, stop. Read `_data/audits/<step_id>_report.json`, explain
+  the violations/regressions, and do not continue until the timeline is fixed or
+  the user explicitly accepts the deviation.
+- Preserve timeline markers, clip-level markers, and clip colors across every
+  derived timeline. If a step cuts or ripples, remap those annotations; do not
+  silently drop them.
+- Cuts are FCPXML-section safe. Fully covered FCPXML sections may be removed.
+  Part-way cuts inside an FCPXML section should be marked Pink for manual review
+  and left uncut unless the user explicitly asks for a surgical edit.
+- Gameplay V1 clips must have aligned A1 dialogue coverage. Intro/outro assets
+  are exempt. `audit_step.py` enforces this globally via `v1_has_a1_coverage`.
+- Battle-intro clips must exist on V2. `place_battle_intros.py` verifies the API
+  placement and writes `_data/qa-reports/battle-intros-placements.json`; the
+  Step 9 audit also checks V2 intro presence.
+- A2-A5 must not receive auto-editor linked audio. `apply_cuts_to_fcpxml.py`
+  drops those refs by default, while preserving embedded gameplay audio on A1.
+  The intentional exception is project music: A2 BGM/battle audio plus intro or
+  outro music on their designated tracks.
+- Do not defensively wipe A2-A5 after the edit timeline is built. If the Step 6
+  audit says those tracks are populated, investigate the source instead of
+  deleting content blindly.
+- When restoring missing narration, rebuild the segment from the
+  `_ALTERED.fcpxml`/current FCPXML sections. Do not append a continuous raw
+  source span unless the FCPXML section is continuous; otherwise the replacement
+  can reinsert silences that auto-editor already removed.
+- User/manual colors are meaningful. Pink on V1/A1 means delete/review; Pink on
+  A2 means a mistaken or unreasonably short music clip; Yellow on A2 means trim
+  trailing silence. Consult `_data/manual-pass/detection_notes.md` when present
+  before changing QA detector behavior.
+
+---
+
 ## Indexing conventions
 
 These are 1-based throughout the API:

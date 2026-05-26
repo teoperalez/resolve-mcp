@@ -314,6 +314,9 @@ def main() -> int:
         print('\nNothing to place.')
         return 0
 
+    while tl.GetTrackCount('video') < args.track_index:
+        tl.AddTrack('video')
+
     # Idempotency: clear any prior battle-intro V2 clips before placing new
     # ones. We identify them by source-name suffix '-battle-intro.mov' which
     # is unique to the two intro bins. This way re-running with corrected
@@ -348,6 +351,48 @@ def main() -> int:
         print(f'  WARN: {len(payload) - len(placed)} placement(s) failed — likely '
               f'V{args.track_index} is occupied at one of the record positions, '
               f'or the source range was outside the media. Review with --dry-run.')
+    track_after = tl.GetItemListInTrack('video', args.track_index) or []
+    missing = []
+    for p in placements:
+        expected_end = p['record_frame'] + p['clip_dur_tl']
+        hit = None
+        for c in track_after:
+            if (c.GetName() == p['filename']
+                    and abs(c.GetStart() - p['record_frame']) <= 1
+                    and abs(c.GetEnd() - expected_end) <= 2):
+                hit = c
+                break
+        if hit is None:
+            missing.append(p)
+    if missing:
+        print(f'\nERROR: API verification failed; missing expected '
+              f'V{args.track_index} battle intro clip(s):')
+        for p in missing:
+            print(f'  - {p["filename"]} at {p["record_frame"]}'
+                  f'..{p["record_frame"] + p["clip_dur_tl"]}')
+        return 1
+
+    manifest = Path('_data') / 'qa-reports' / 'battle-intros-placements.json'
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps({
+        'timeline': tl.GetName(),
+        'track_index': args.track_index,
+        'placements': [
+            {
+                'battle_index': p['battle_index'],
+                'type': p['type'],
+                'filename': p['filename'],
+                'record_frame': p['record_frame'],
+                'end_frame': p['record_frame'] + p['clip_dur_tl'],
+                'duration_frames': p['clip_dur_tl'],
+                'reason': p['reason'],
+            }
+            for p in placements
+        ],
+    }, indent=2, ensure_ascii=False), encoding='utf-8')
+    print(f'API verification passed: {len(placements)}/{len(placements)} '
+          f'expected V{args.track_index} intro clips found.')
+    print(f'Wrote placement manifest: {manifest}')
     return 0
 
 

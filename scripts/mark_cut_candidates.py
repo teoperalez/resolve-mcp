@@ -282,11 +282,17 @@ def flatten_words(segments: list) -> list[dict]:
     return out
 
 
-def refine_cut_point(t_sec: float, words: list[dict], tol: float = 0.3) -> float:
+def refine_cut_point(t_sec: float, words: list[dict], tol: float = 0.3,
+                      *, full_audio=None, sr: int = 48000) -> float:
     """
     Find the largest word-gap within ±tol seconds of t_sec. Returns the midpoint
     of that gap, or t_sec unchanged if no candidate gap is found. The intent is
     'use Whisper as a guide, then zoom in and cut at the gap between words.'
+
+    If `full_audio` is provided (preloaded source A1 from
+    _audio_tools.load_full_audio_track), the word-gap candidate is further
+    refined to the nearest TRUE silence in the audio — catches cases where the
+    Whisper word timing was off and the "gap" is actually mid-syllable.
     """
     best_gap = -1.0
     best_center = t_sec
@@ -296,6 +302,22 @@ def refine_cut_point(t_sec: float, words: list[dict], tol: float = 0.3) -> float
         if abs(center - t_sec) <= tol and gap > best_gap:
             best_gap   = gap
             best_center = center
+
+    # Audio-aware second pass: snap to actual silence within ±tol around the
+    # word-gap pick. Falls back to the word-gap center if no silence found.
+    if full_audio is not None:
+        try:
+            import _audio_tools as A
+            win_start = max(0.0, best_center - tol)
+            win_dur   = 2 * tol
+            window = A.slice_window(full_audio, sr, win_start, win_dur)
+            snap = A.snap_to_nearest_silence(
+                window, sr, best_center - win_start, max_drift_sec=tol)
+            if snap is not None:
+                snapped_sec_in_win, _drift = snap
+                return float(win_start + snapped_sec_in_win)
+        except Exception:
+            pass
     return best_center
 
 
@@ -604,7 +626,8 @@ def poll_for_response(out_path: Path, timeout_sec: int) -> list:
 
 
 def apply_colors(segments: list, fps: float, timeline, words: list[dict],
-                 dry_run: bool) -> tuple[int, int, int]:
+                 dry_run: bool, *, full_audio=None, sr: int = 48000
+                 ) -> tuple[int, int, int]:
     """
     Apply cut flags to the live Resolve timeline.
 
@@ -699,9 +722,12 @@ def apply_colors(segments: list, fps: float, timeline, words: list[dict],
                                                                 (s_end_f - s_start_f) < (c_end - c_start))
 
             if sub_clip:
-                # Snap each cut edge to the largest word-gap nearby
-                refined_start = refine_cut_point(s_start_sec, words, tol=0.3)
-                refined_end   = refine_cut_point(s_end_sec,   words, tol=0.3)
+                # Snap each cut edge to the largest word-gap nearby; if
+                # full_audio is loaded, additionally snap to the true silence.
+                refined_start = refine_cut_point(s_start_sec, words, tol=0.3,
+                                                  full_audio=full_audio, sr=sr)
+                refined_end   = refine_cut_point(s_end_sec,   words, tol=0.3,
+                                                  full_audio=full_audio, sr=sr)
                 rs_f = int(refined_start * fps)
                 re_f = int(refined_end   * fps)
                 # Clamp to clip bounds
@@ -746,6 +772,9 @@ def main() -> int:
     ap.add_argument('--skip-relay', action='store_true',
                     help='Read existing cut-analysis-<stem>.out.md and apply colors '
                          'without re-running the relay (use after manually editing the .out.md)')
+    ap.add_argument('--no-audio-snap', action='store_true',
+                    help='Disable audio-aware silence snap for sub-clip cut edges '
+                         '(skips loading full source audio; uses word-gap snap only)')
     args = ap.parse_args()
 
     if args.transcript:
@@ -818,8 +847,32 @@ def main() -> int:
     # Flatten word-level timestamps for sub-clip cut-edge refinement
     words = flatten_words(transcript.get('segments', []))
 
+    # Pre-load the gameplay source A1 for audio-aware silence snap
+    full_audio = None
+    sr = 48000
+    if not args.no_audio_snap:
+        try:
+            v1 = sorted(timeline.GetItemListInTrack('video', 1) or [],
+                        key=lambda c: c.GetStart())
+            from collections import Counter
+            dominant_name = Counter(c.GetName() for c in v1).most_common(1)[0][0]
+            for c in v1:
+                if c.GetName() == dominant_name and c.GetMediaPoolItem():
+                    src_path = c.GetMediaPoolItem().GetClipProperty('File Path')
+                    if src_path:
+                        import _audio_tools as A
+                        print(f'Loading source audio for silence snap: {src_path}', flush=True)
+                        full_audio = A.load_full_audio_track(src_path, sr=sr)
+                        print(f'  loaded {len(full_audio)/sr:.1f}s', flush=True)
+                        break
+        except Exception as e:
+            print(f'  WARN: audio load failed ({e}); falling back to word-gap snap only',
+                  flush=True)
+            full_audio = None
+
     n_orange, n_yellow, n_markers = apply_colors(segments, fps, timeline, words,
-                                                  dry_run=args.dry_run)
+                                                  dry_run=args.dry_run,
+                                                  full_audio=full_audio, sr=sr)
     if args.dry_run:
         print(f'\nDRY RUN — no changes applied.')
     print(f'Colored: {n_orange} orange (high), {n_yellow} yellow (medium); '
