@@ -168,10 +168,12 @@ def _clip_identity(c: dict) -> tuple:
     """Stable identity key matching the same source slice across timeline
     shifts. Includes the track so a clip moved from V1 to V2 is not
     considered identical."""
+    src_left = c.get('src_left', 0)
+    src_dur = c.get('src_dur', 0)
     return (c.get('track', ''),
             c.get('source_path', ''),
-            int(c.get('src_left', 0)),
-            int(c.get('src_dur', 0)))
+            int(src_left if src_left is not None else 0),
+            int(src_dur if src_dur is not None else 0))
 
 
 def _index_clips(snap: dict) -> dict:

@@ -30,6 +30,49 @@ DEFAULT_MARKER_NAME = 'Member Carousel Start'
 DEFAULT_CROP_BOTTOM = 530.0
 
 
+def _clip_source_path(item) -> str:
+    mpi = item.GetMediaPoolItem()
+    if mpi is None:
+        return ''
+    try:
+        return (mpi.GetClipProperty('File Path') or '').lower()
+    except Exception:
+        return ''
+
+
+def cleanup_duplicate_gameplay_audio(tl, gameplay_name: str,
+                                     gameplay_source_path: str) -> int:
+    """Remove Resolve-created duplicate gameplay audio from A2+.
+
+    Resolve can materialize embedded multi-channel audio on A2-A5 when an MP4
+    MediaPoolItem is appended as a video clip, even with mediaType=1. The
+    carousel layout wants only the extended V1 picture bed; A1 remains the
+    dialogue/gameplay audio authority.
+    """
+    gameplay_source_path = (gameplay_source_path or '').lower()
+    if not gameplay_name and not gameplay_source_path:
+        return 0
+
+    to_delete = []
+    for track in range(2, int(tl.GetTrackCount('audio')) + 1):
+        for item in (tl.GetItemListInTrack('audio', track) or []):
+            same_name = gameplay_name and (item.GetName() or '') == gameplay_name
+            same_path = (
+                gameplay_source_path
+                and _clip_source_path(item) == gameplay_source_path
+            )
+            if same_name or same_path:
+                to_delete.append(item)
+
+    if not to_delete:
+        return 0
+    ok = tl.DeleteClips(to_delete)
+    if not ok:
+        print(f'WARNING: failed to delete {len(to_delete)} duplicate gameplay audio clips from A2+.')
+        return 0
+    return len(to_delete)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -86,6 +129,8 @@ def main() -> int:
 
     first_carousel       = carousel_clips[0]
     first_carousel_mpi   = first_carousel.GetMediaPoolItem()
+    gameplay_name        = first_carousel.GetName() or ''
+    gameplay_source_path = _clip_source_path(first_carousel)
     first_carousel_src   = first_carousel.GetLeftOffset()
     first_carousel_tl    = first_carousel.GetStart()
 
@@ -185,6 +230,14 @@ def main() -> int:
         print(f'  New V1 clip: tl_start={new_clip.GetStart()}  '
               f'duration={new_clip.GetDuration()} '
               f'({new_clip.GetDuration()/fps:.2f}s)')
+
+    removed = cleanup_duplicate_gameplay_audio(
+        tl,
+        gameplay_name=gameplay_name,
+        gameplay_source_path=gameplay_source_path,
+    )
+    if removed:
+        print(f'  Removed duplicate gameplay audio from A2+: {removed} clips')
 
     print('\nDone.')
     return 0

@@ -154,6 +154,49 @@ def ensure_tracks(tl, video_count: int, audio_count: int) -> None:
         tl.AddTrack('audio', 'stereo')
 
 
+def _clip_source_path(item) -> str:
+    mpi = item.GetMediaPoolItem()
+    if mpi is None:
+        return ''
+    try:
+        return (mpi.GetClipProperty('File Path') or '').lower()
+    except Exception:
+        return ''
+
+
+def cleanup_duplicate_gameplay_audio(tl, gameplay_name: str,
+                                     gameplay_source_path: str) -> int:
+    """Remove Resolve-created duplicate gameplay audio from A2+.
+
+    Appending MP4 video sections can materialize embedded multi-channel audio on
+    A2-A5 even when the source timeline only used A1. Keep A1 as the gameplay
+    audio track and remove only clips that match the source gameplay file.
+    """
+    if not gameplay_name and not gameplay_source_path:
+        return 0
+
+    to_delete = []
+    n_tracks = tl.GetTrackCount('audio')
+    for track in range(2, n_tracks + 1):
+        for item in (tl.GetItemListInTrack('audio', track) or []):
+            same_name = gameplay_name and (item.GetName() or '') == gameplay_name
+            same_path = (
+                gameplay_source_path
+                and _clip_source_path(item) == gameplay_source_path
+            )
+            if same_name or same_path:
+                to_delete.append(item)
+
+    if not to_delete:
+        return 0
+
+    ok = tl.DeleteClips(to_delete)
+    if not ok:
+        print(f'WARNING: failed to delete {len(to_delete)} duplicate gameplay audio clips from A2+.')
+        return 0
+    return len(to_delete)
+
+
 # ── retime helpers ─────────────────────────────────────────────────────────────
 
 def auto_detect_intro_speed(default_fast: int = 400) -> tuple[int, str]:
@@ -354,6 +397,9 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
 
     # ── Collect existing clips ────────────────────────────────────────────────
     existing = collect_clips(orig_tl)
+    gameplay_items = orig_tl.GetItemListInTrack('video', 1) or []
+    gameplay_name = gameplay_items[0].GetName() if gameplay_items else ''
+    gameplay_source_path = _clip_source_path(gameplay_items[0]) if gameplay_items else ''
 
     print(f'Game:         {game_def["display_name"]}')
     print(f'Intro:        {intro_mpi.GetName()} (~{intro_tl_frames_est} TL frames est.)')
@@ -463,6 +509,14 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
             'mediaType':    2,
         }])
         print(f'Outro audio placed on A3 at frame {outro_abs}.')
+
+    removed_dupes = cleanup_duplicate_gameplay_audio(
+        new_tl,
+        gameplay_name,
+        gameplay_source_path,
+    )
+    if removed_dupes:
+        print(f'Removed duplicate gameplay audio from A2+: {removed_dupes} clip(s).')
 
     # Ruler markers are timeline-resident and Resolve does not copy them when
     # rebuilding a derived timeline. Preserve them by shifting everything right

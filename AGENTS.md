@@ -56,6 +56,10 @@ future projects:
 - If an audit fails, stop. Read `_data/audits/<step_id>_report.json`, explain
   the violations/regressions, and do not continue until the timeline is fixed or
   the user explicitly accepts the deviation.
+- After a step audit passes, `scripts/audit_step.py audit` exports a Resolve
+  native `.drt` checkpoint under `_data/drt-checkpoints/`. Treat that DRT as the
+  durable timeline checkpoint for any API-built/API-modified section. If DRT
+  export fails, the audit must fail and the pipeline must stop.
 - Preserve timeline markers, clip-level markers, and clip colors across every
   derived timeline. If a step cuts or ripples, remap those annotations; do not
   silently drop them.
@@ -64,6 +68,11 @@ future projects:
   and left uncut unless the user explicitly asks for a surgical edit.
 - Gameplay V1 clips must have aligned A1 dialogue coverage. Intro/outro assets
   are exempt. `audit_step.py` enforces this globally via `v1_has_a1_coverage`.
+- For Gen 1 Red/Blue/Yellow timelines where leader intros are discrete
+  video/audio insertions, those leader-intro sections are protected structural
+  content just like the channel intro/outro. Cut application must not trim or
+  remove them, and every audit after placement must fail if any leader-intro
+  video or audio clip identity/count is lost.
 - Battle-intro clips must exist on V2. `place_battle_intros.py` verifies the API
   placement and writes `_data/qa-reports/battle-intros-placements.json`; the
   Step 9 audit also checks V2 intro presence.
@@ -82,6 +91,26 @@ future projects:
   A2 means a mistaken or unreasonably short music clip; Yellow on A2 means trim
   trailing silence. Consult `_data/manual-pass/detection_notes.md` when present
   before changing QA detector behavior.
+- For Pokemon Red/Blue RBYNewLayout projects, do not infer battle markers from
+  transcript guesses when session logs exist. Read the matching
+  `%APPDATA%\rbypc-frontend\logs\...\events.json`, replay markers with
+  `C:\Programming\RBYNewLayout\scripts\session_marker_labels.py`, and map marker
+  elapsed time to source time with the MP4 `creation_time` minus
+  `meta.json.startedAt`. If a project has separate part files and only part 2
+  has valid markers, keep the part FCPXMLs/media separate, map markers only into
+  part 2, then merge/remap into the combined deliverable. For Gen 1 leader
+  intros, prefer Blue-specific intro files (`SurgeBlue.mp4`, `ErikaBlue.mp4`,
+  etc.) when present and fall back to the standard leader intro (`Brock.mp4`,
+  `Misty.mp4`, `Lorelei.mp4`, etc.) when no Blue-specific version exists.
+- Before re-running auto-editor or transcription on split Gen 1 recordings,
+  sanity-check which extracted WAV is dialogue with
+  `scripts\detect_dialogue_audio.py`. Dialogue should be mostly quiet except
+  during speech and should transcribe as high-probability speech. Reject tracks
+  that are constant BGM, desktop audio/alerts, or music mixed under speech.
+  When there is a full 5-track export, the historical FCPXML/A1 primary track
+  can remain the default. When a travel/single-mic setup yields only 3
+  subtracks, do not assume track 1; use the detector's chosen track for the
+  auto-editor stream selector and for transcription.
 
 ---
 

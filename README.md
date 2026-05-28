@@ -214,6 +214,10 @@ It is intentionally more strict than the individual helper scripts:
 
 - Every step is bracketed by `scripts/audit_step.py snapshot --step <id>` and
   `scripts/audit_step.py audit --step <id>`.
+- Passing audits export a Resolve-native `.drt` checkpoint to
+  `_data/drt-checkpoints/` and record it in the report's `drt_checkpoint` field.
+  The DRT is the durable checkpoint for API-built/API-modified timeline sections;
+  a DRT export failure makes the audit fail.
 - Step scopes live in `scripts/audit_scopes.py`; audits fail when a step changes
   clips, markers, track colors, or timeline state outside its declared scope.
 - Timeline-resident state must persist across every derived timeline. Ruler

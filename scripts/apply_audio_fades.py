@@ -37,6 +37,46 @@ TAGS_PATH        = Path.home() / '.resolve-mcp' / 'bgm-tags.json'
 BATTLE_AUDIO_TAGS = {'battle_rival', 'battle_gym', 'battle_generic'}
 
 
+def _clip_source_path(item) -> str:
+    mpi = item.GetMediaPoolItem()
+    if mpi is None:
+        return ''
+    try:
+        return mpi.GetClipProperty('File Path') or ''
+    except Exception:
+        return ''
+
+
+def dominant_a1_source(tl) -> tuple[str, str]:
+    counts = {}
+    for item in (tl.GetItemListInTrack('audio', 1) or []):
+        src = _clip_source_path(item)
+        if not src:
+            continue
+        key = (src, item.GetName() or '')
+        counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return '', ''
+    return max(counts.items(), key=lambda kv: kv[1])[0]
+
+
+def fail_if_track_has_gameplay_audio(tl, track_index: int) -> bool:
+    gameplay_src, gameplay_name = dominant_a1_source(tl)
+    if not gameplay_src:
+        return False
+    dupes = [
+        item for item in (tl.GetItemListInTrack('audio', track_index) or [])
+        if _clip_source_path(item) == gameplay_src
+    ]
+    if not dupes:
+        return False
+    print(f'ERROR: A{track_index} contains raw gameplay-source audio before fades.', file=sys.stderr)
+    print(f'       source={gameplay_src}', file=sys.stderr)
+    print(f'       name={gameplay_name!r}, clips={len(dupes)}', file=sys.stderr)
+    print('       Rebuild or clean the music bed before running apply_audio_fades.py.', file=sys.stderr)
+    return True
+
+
 def render_fade_variant(source_path: Path, start_frame: int, end_frame: int,
                         fps: float, fade_in_frames: int, fade_out_frames: int) -> Path | None:
     """Pre-render an audio slice with fade-in and/or fade-out via ffmpeg.
@@ -141,6 +181,8 @@ def main() -> int:
 
     fade_frames = max(1, int(round(args.fade_sec * fps)))
     print(f'Timeline: "{tl.GetName()}"  fps={fps}  fade={fade_frames}f ({args.fade_sec}s)')
+    if fail_if_track_has_gameplay_audio(tl, args.track_index):
+        return 2
 
     # Collect A2 clips in order, with helper metadata
     a2 = sorted(tl.GetItemListInTrack('audio', args.track_index) or [],

@@ -18,6 +18,8 @@ Every step `N` is wrapped:
 
 If the audit exits with a non-zero code: STOP. Read `_data/audits/<step_id>_report.json` and surface the violations + regressions to the user. Do not proceed to the next step until the user has decided how to handle them (re-run the step, accept the deviation, or abort).
 
+When the audit passes, it automatically exports a Resolve-native `.drt` checkpoint to `_data/drt-checkpoints/` and records that path in the report's `drt_checkpoint` field. This is mandatory for any API-built or API-modified section; if the checkpoint export fails, the audit fails and the pipeline stops. Use the DRT as the durable Resolve-native recovery point for that step.
+
 Scope declarations for every step live in `scripts/audit_scopes.py`. The audit checks two things:
 - **Diff vs scope** — the changes actually observed must fall within the step's declared `allowed_changes`. Any other change is a violation.
 - **Preservation** — entries in `must_preserve` (e.g., Green battle-end markers, Magenta carousel marker, A2 clip continuity) survive the step. A lost marker that was placed by a prior step is flagged as a *regression*.
@@ -74,6 +76,28 @@ Read the JSON before continuing:
 - If the report says a session log exists but marker replay or source-media
   mapping failed, stop and surface the report. Do not continue until the user
   decides whether to proceed without embedded markers.
+
+### Step 0b — Dialogue audio sanity check for split Gen 1 sources
+
+Before re-running auto-editor or transcription on split source files, identify
+the dialogue audio track deliberately:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\detect_dialogue_audio.py --video "<source-dir>\<part-file>.mp4" --out _data\dialogue-audio-<part>.json --fail-weak"
+```
+
+The expected dialogue track is mostly quiet except when the streamer speaks,
+and Whisper should see high-probability speech during active regions. Tracks
+that are pure BGM, desktop audio/alerts, or music mixed under speech should not
+be treated as the dialogue driver for auto-editor or transcription.
+
+When an export has the full 5-track layout, the historical FCPXML/A1 primary
+track convention can be trusted by default, while still writing the sanity
+report. When a travel/single-mic setup produces only 3 extracted subtracks,
+do not assume track 1; use the detector's chosen path for auto-editor stream
+selection and transcription. For example, if the detector picks
+`<stem>_3.wav`, run auto-editor with the corresponding audio stream selector
+instead of blindly using FileOrganizer's default `audio:stream=0`.
 
 ### Step 1 — Battle gap insertion (transcribe + detect + FCPXML rewrite)
 
@@ -416,7 +440,10 @@ V2 overlay mode. Use `place_battle_intros.py --gen1-insert`, which creates a
 derived timeline, inserts the leader intro video/audio as real timeline time,
 and ripples later clips/markers right. In this mode, timeline `* Battle Start`
 markers from Step 0 are canonical when present; transcripts are only a fallback
-when no such markers exist.
+when no such markers exist. After placement, these Gen 1 leader intro video
+and audio clips are protected structural sections like the channel intro/outro:
+cut steps must not trim or remove them, and every later audit fails if any
+leader-intro clip identity/count disappears.
 
 **9a. Classify battle types (prerequisite — relay):**
 

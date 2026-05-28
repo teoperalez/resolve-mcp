@@ -154,6 +154,17 @@ def clip_overlaps_cut(src_start: int, src_end: int,
     return out
 
 
+def is_structural_clip(c: dict) -> bool:
+    """Intro/outro/leader-intro sections are not gameplay cut candidates."""
+    name = (c.get('name') or '').lower()
+    return (
+        'intro' in name
+        or 'outro' in name
+        or 'leader intro' in name
+        or 'leader-intro' in name
+    )
+
+
 # ── Core cut algorithm ────────────────────────────────────────────────────────
 
 def snap_cuts_to_silence(cuts: list[dict], source_video: str, sr: int = 48000,
@@ -265,6 +276,7 @@ def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
     removed_tl_ranges: list[tuple[int, int]] = []
     cumulative_shift = 0
     n_keep = n_delete = n_trim_start = n_trim_end = n_split = 0
+    n_protected = 0
 
     for pos in positions:
         group = pos_groups[pos]
@@ -277,6 +289,14 @@ def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
         tl_end    = pos + v['duration']
 
         shift_at_offset[pos] = cumulative_shift
+
+        if any(is_structural_clip(c) for c in group):
+            new_off = pos - cumulative_shift
+            for c in group:
+                new_clips.append({**c, 'offset': new_off})
+            n_keep += 1
+            n_protected += 1
+            continue
 
         overlaps = clip_overlaps_cut(src_start, src_end, src_cuts)
         if not overlaps:
@@ -385,6 +405,8 @@ def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
     print(f'  Operations: keep={n_keep} delete={n_delete} '
           f'trim_start={n_trim_start} trim_end={n_trim_end} '
           f'split/multi={n_split}')
+    if n_protected:
+        print(f'  Protected structural clip groups from cuts: {n_protected}')
     print(f'  Total timeline frames removed: {cumulative_shift} '
           f'({cumulative_shift/den:.2f}s)')
 
@@ -461,14 +483,97 @@ def apply_cuts(xml: str, cuts: list[dict], den: int = 60,
         'den': den,
         'counts': {'keep': n_keep, 'delete': n_delete,
                    'trim_start': n_trim_start, 'trim_end': n_trim_end,
-                   'split_multi': n_split},
+                   'split_multi': n_split, 'protected': n_protected},
     }
     return new_xml, replay
 
 
 # ── Resolve import ────────────────────────────────────────────────────────────
 
-def import_to_resolve(fcpxml_path: Path, label: str) -> tuple[bool, str]:
+def capture_current_timeline_markers() -> list[dict]:
+    """Capture ruler markers from the current Resolve timeline.
+
+    Resolve often drops FCPXML <marker> entries on import, so Step 4 must
+    reapply the live pre-cut timeline's markers through the API after import.
+    Timeline.GetMarkers() keys are relative to the timeline start.
+    """
+    try:
+        import DaVinciResolveScript as dvr
+    except ImportError:
+        return []
+    resolve = dvr.scriptapp('Resolve')
+    if resolve is None:
+        return []
+    project = resolve.GetProjectManager().GetCurrentProject()
+    tl = project.GetCurrentTimeline()
+    if tl is None:
+        return []
+    out = []
+    for frame, marker in sorted((tl.GetMarkers() or {}).items()):
+        out.append({
+            'frame': int(frame),
+            'color': marker.get('color', 'Blue'),
+            'name': marker.get('name', ''),
+            'note': marker.get('note', ''),
+            'duration': marker.get('duration', 1),
+            'customData': marker.get('customData', ''),
+        })
+    return out
+
+
+def shift_marker_frame(frame: int, removed_ranges: list[dict]) -> int:
+    """Map a pre-cut timeline frame to post-cut coordinates.
+
+    If a marker falls inside a removed range, keep the marker by pinning it to
+    that range's post-cut start. This satisfies the audit's preservation rule
+    and makes the marker visible for manual review instead of silently losing it.
+    """
+    shift = 0
+    for r in sorted(removed_ranges, key=lambda x: int(x['start'])):
+        start = int(r['start'])
+        end = int(r['end'])
+        if frame < start:
+            break
+        if start <= frame < end:
+            return max(0, start - shift)
+        shift += end - start
+    return max(0, frame - shift)
+
+
+def remap_markers(markers: list[dict], replay: dict) -> list[dict]:
+    ranges = replay.get('removed_tl_ranges_frames', [])
+    out = []
+    used = set()
+    for marker in markers:
+        m = dict(marker)
+        new_frame = shift_marker_frame(int(marker['frame']), ranges)
+        while new_frame in used:
+            new_frame += 1
+        used.add(new_frame)
+        m['frame'] = new_frame
+        out.append(m)
+    return out
+
+
+def add_markers_to_timeline(timeline, markers: list[dict], label: str) -> None:
+    if not markers:
+        return
+    added = 0
+    for marker in markers:
+        ok = timeline.AddMarker(
+            int(marker['frame']),
+            marker.get('color') or 'Blue',
+            marker.get('name') or '',
+            marker.get('note') or '',
+            marker.get('duration') or 1,
+            marker.get('customData') or '',
+        )
+        added += 1 if ok else 0
+    print(f'  [{label}] Reapplied ruler markers: {added}/{len(markers)}')
+
+
+def import_to_resolve(fcpxml_path: Path, label: str,
+                      markers_to_add: list[dict] | None = None) -> tuple[bool, str]:
     """Import the FCPXML into the running Resolve project. Returns
     (success, imported_timeline_name)."""
     try:
@@ -482,8 +587,20 @@ def import_to_resolve(fcpxml_path: Path, label: str) -> tuple[bool, str]:
         return False, ''
     project = resolve.GetProjectManager().GetCurrentProject()
     pool    = project.GetMediaPool()
+    existing = {
+        (project.GetTimelineByIndex(i).GetName() or '')
+        for i in range(1, project.GetTimelineCount() + 1)
+        if project.GetTimelineByIndex(i)
+    }
+    base_name = f'{fcpxml_path.stem} {label}'
+    timeline_name = base_name
+    n_unique = 2
+    while timeline_name in existing:
+        timeline_name = f'{base_name} {n_unique}'
+        n_unique += 1
     print(f'  [{label}] Importing: {fcpxml_path.name}')
-    ok = pool.ImportTimelineFromFile(str(fcpxml_path))
+    ok = pool.ImportTimelineFromFile(str(fcpxml_path),
+                                     {'timelineName': timeline_name})
     if not ok:
         print(f'  [{label}] Import returned {ok!r} (likely name collision)')
         return False, ''
@@ -493,10 +610,13 @@ def import_to_resolve(fcpxml_path: Path, label: str) -> tuple[bool, str]:
     n = project.GetTimelineCount()
     for i in range(n, 0, -1):
         t = project.GetTimelineByIndex(i)
-        if t and label.lower() in (t.GetName() or '').lower():
+        if t and (t.GetName() or '') == timeline_name:
             print(f'  [{label}] Found timeline: {t.GetName()!r}')
+            add_markers_to_timeline(t, markers_to_add or [], label)
             return True, t.GetName() or ''
     last = project.GetTimelineByIndex(n)
+    if last:
+        add_markers_to_timeline(last, markers_to_add or [], label)
     return True, (last.GetName() if last else '')
 
 
@@ -507,6 +627,19 @@ def set_current_timeline_by_name(name_substr: str) -> bool:
     for i in range(1, project.GetTimelineCount() + 1):
         t = project.GetTimelineByIndex(i)
         if t and name_substr.lower() in (t.GetName() or '').lower():
+            project.SetCurrentTimeline(t)
+            print(f'Set current timeline: {t.GetName()!r}')
+            return True
+    return False
+
+
+def set_current_timeline_exact(name: str) -> bool:
+    import DaVinciResolveScript as dvr
+    resolve = dvr.scriptapp('Resolve')
+    project = resolve.GetProjectManager().GetCurrentProject()
+    for i in range(1, project.GetTimelineCount() + 1):
+        t = project.GetTimelineByIndex(i)
+        if t and (t.GetName() or '') == name:
             project.SetCurrentTimeline(t)
             print(f'Set current timeline: {t.GetName()!r}')
             return True
@@ -627,10 +760,21 @@ def main() -> int:
 
     if args.import_to_resolve:
         print('\n── Importing into Resolve ──')
-        import_to_resolve(high_out, '(cuts: high)')
-        import_to_resolve(all_out,  '(cuts: all)')
+        pre_import_markers = capture_current_timeline_markers()
+        print(f'  Captured pre-cut ruler markers for API reapply: {len(pre_import_markers)}')
+        _high_ok, _high_name = import_to_resolve(
+            high_out,
+            '(cuts: high)',
+            remap_markers(pre_import_markers, high_replay),
+        )
+        _all_ok, all_name = import_to_resolve(
+            all_out,
+            '(cuts: all)',
+            remap_markers(pre_import_markers, all_replay),
+        )
         # Set ALL-cuts as current (user continues operations on this timeline)
-        set_current_timeline_by_name('(cuts: all)')
+        if not (all_name and set_current_timeline_exact(all_name)):
+            set_current_timeline_by_name('(cuts: all)')
 
     return 0
 

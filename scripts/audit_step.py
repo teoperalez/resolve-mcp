@@ -12,9 +12,12 @@ Two subcommands:
         Load <step>_pre.json. Diff. Validate diff against the step's
         declared scope in audit_scopes.py. Run verify_pipeline.py's
         audio/structure checks against the post-state. Write a report to
-        _data/audits/<step>_report.json. Exit with violation count.
+        _data/audits/<step>_report.json. If the audit passes, export a
+        Resolve-native DRT checkpoint to _data/drt-checkpoints/ and record it
+        in the report. Exit with violation count.
 
         --strict   also fails if expected changes were not observed.
+        --no-drt   skips the post-pass DRT checkpoint export.
 
 A non-zero exit code means the pipeline should STOP and the user should
 inspect the report before continuing.
@@ -25,6 +28,7 @@ import argparse
 import json
 import sys
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 # Bootstrap Resolve env (sets sys.path so DaVinciResolveScript imports)
@@ -308,6 +312,73 @@ def _check_gen1_battle_intros_present(post: dict, rule: dict) -> list[dict]:
         'reason': f'expected at least {min_count} Gen 1 LeaderIntros clip(s) on '
                   f'{kind.upper()}{idx}, found {len(intros)}',
         'item': {'found': [c.get('name') for c in intros]},
+    }]
+
+
+def _is_gen1_leader_intro_clip(c: dict) -> bool:
+    source = (c.get('source_path') or '').replace('\\', '/').lower()
+    name = (c.get('name') or '').lower()
+    return (
+        '/gymleaders/leaderintros/' in source
+        or '/leaderintros/' in source
+        or 'leader intro' in name
+    )
+
+
+def _gen1_intro_identity(c: dict) -> tuple:
+    return (
+        c.get('track_kind', ''),
+        int(c.get('track_index', 0)),
+        c.get('source_path') or '',
+        int(c.get('src_left', 0)),
+        int(c.get('src_dur', 0)),
+        c.get('name') or '',
+    )
+
+
+def _check_gen1_leader_intros_preserved(pre: dict, post: dict) -> list[dict]:
+    """Once Gen 1 discrete leader intros exist, every later audit protects them.
+
+    These clips are structural editorial sections like the channel intro/outro:
+    downstream steps may ripple-shift them, but must not delete, trim, or swap
+    either the video intro or its paired audio.
+    """
+    pre_counts: Counter = Counter()
+    for kind in ('video', 'audio'):
+        for tdata in pre.get('tracks', {}).get(kind, {}).values():
+            for c in tdata.get('clips', []):
+                if _is_gen1_leader_intro_clip(c):
+                    pre_counts[_gen1_intro_identity(c)] += 1
+
+    if not pre_counts:
+        return []
+
+    post_counts: Counter = Counter()
+    for kind in ('video', 'audio'):
+        for tdata in post.get('tracks', {}).get(kind, {}).values():
+            for c in tdata.get('clips', []):
+                if _is_gen1_leader_intro_clip(c):
+                    post_counts[_gen1_intro_identity(c)] += 1
+
+    missing = []
+    for key, pre_n in pre_counts.items():
+        post_n = post_counts.get(key, 0)
+        if post_n < pre_n:
+            missing.append({
+                'identity': list(key),
+                'pre': pre_n,
+                'post': post_n,
+            })
+
+    if not missing:
+        return []
+
+    return [{
+        'rule': {'kind': 'gen1_leader_intros_preserved'},
+        'kind': 'gen1_leader_intros_preserved',
+        'reason': f'{len(missing)} Gen 1 leader intro clip identity/count(s) '
+                  f'were lost or altered after placement',
+        'item': {'missing': missing[:30]},
     }]
 
 
@@ -668,6 +739,38 @@ def _connect():
     return r, proj, tl
 
 
+def _export_drt_checkpoint(resolve, tl, step_id: str) -> dict:
+    """Export a Resolve-native DRT checkpoint for a passed audit."""
+    if tl is None:
+        return {
+            'exported': False,
+            'reason': 'no current timeline',
+        }
+    repo_root = Path(__file__).resolve().parent.parent
+    out_dir = repo_root / '_data' / 'drt-checkpoints'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    timeline_name = tl.GetName() or 'unknown_timeline'
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    out_path = out_dir / (
+        f'{step_id}__{timestamp}__{S.slugify_timeline_name(timeline_name)}.drt'
+    )
+    try:
+        ok = bool(tl.Export(str(out_path), resolve.EXPORT_DRT, resolve.EXPORT_NONE))
+    except Exception as exc:
+        return {
+            'exported': False,
+            'path': str(out_path),
+            'reason': f'{type(exc).__name__}: {exc}',
+        }
+    return {
+        'exported': ok,
+        'path': str(out_path),
+        'timeline': timeline_name,
+        'size_bytes': out_path.stat().st_size if ok and out_path.exists() else 0,
+        'reason': '' if ok else 'Timeline.Export returned false',
+    }
+
+
 def cmd_snapshot(args) -> int:
     _r, proj, tl = _connect()
     snap = S.capture_timeline_state(tl, proj)
@@ -683,7 +786,7 @@ def cmd_snapshot(args) -> int:
 
 
 def cmd_audit(args) -> int:
-    _r, proj, tl = _connect()
+    resolve, proj, tl = _connect()
     pre_path = S.snapshot_path(args.step, 'pre')
     if not pre_path.exists():
         print(f'ERROR: pre-snapshot not found at {pre_path}', file=sys.stderr)
@@ -745,6 +848,7 @@ def cmd_audit(args) -> int:
     violations.extend(_check_v1_has_a1_coverage(post))
     violations.extend(_check_no_gameplay_audio_outside_a1(post))
     violations.extend(_check_no_raw_gameplay_audio_on_a2(post))
+    violations.extend(_check_gen1_leader_intros_preserved(pre, post))
 
     if not scope.get('creates_new_timeline'):
         # Mark any "must_preserve" violations whose lost item carries the
@@ -785,6 +889,18 @@ def cmd_audit(args) -> int:
             })
 
     passed = len(violations) == 0
+    drt_checkpoint = None
+    if passed and not args.no_drt:
+        drt_checkpoint = _export_drt_checkpoint(resolve, tl, args.step)
+        if not drt_checkpoint.get('exported'):
+            violations.append({
+                'rule': {'kind': 'drt_checkpoint_export'},
+                'reason': 'passed audit but failed to export DRT checkpoint: '
+                          f'{drt_checkpoint.get("reason")}',
+                'item': drt_checkpoint,
+            })
+            passed = False
+
     report = {
         'step_id': args.step,
         'passed': passed,
@@ -811,6 +927,7 @@ def cmd_audit(args) -> int:
         'audio_flags':  audio['flags'],
         'expected_observed': expected_observed,
         'expected_missing':  expected_missing,
+        'drt_checkpoint': drt_checkpoint,
         'diff_full': diff,
     }
     path = S.report_path(args.step)
@@ -820,6 +937,8 @@ def cmd_audit(args) -> int:
     print()
     if passed:
         print(f'  PASS — no violations.   report: {path}')
+        if drt_checkpoint and drt_checkpoint.get('exported'):
+            print(f'  DRT checkpoint: {drt_checkpoint.get("path")}')
     else:
         print(f'  FAIL — {len(violations)} violation(s), {len(regressions)} regression(s)')
         for v in violations[:10]:
@@ -851,6 +970,8 @@ def main() -> int:
     audit_ap.add_argument('--step', required=True, help='Step ID (see audit_scopes.py)')
     audit_ap.add_argument('--strict', action='store_true',
                            help='Also fail when an expected change was not observed')
+    audit_ap.add_argument('--no-drt', action='store_true',
+                          help='Do not export a DRT checkpoint after a passing audit')
     audit_ap.set_defaults(func=cmd_audit)
 
     args = ap.parse_args()

@@ -33,6 +33,9 @@ raises a violation for any change that isn't explicitly allowed.
 Global audit gates also run for every step, independent of the per-step scope:
     v1_has_a1_coverage  窶・every gameplay V1 clip must have aligned A1 audio
                          coverage. Intro/outro assets are exempt.
+    gen1_leader_intros_preserved — once discrete Gen 1 leader intro video/audio
+                         clips exist, later steps must preserve their source
+                         identities and counts just like intro/outro sections.
 """
 from __future__ import annotations
 

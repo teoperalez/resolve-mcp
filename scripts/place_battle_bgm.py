@@ -46,6 +46,46 @@ MIN_BGM_FRAMES   = 12   # ~0.2s — skip placements shorter than this
 DEFAULT_FINAL_SEQUENCE = ['Dual Screen Lovelife', 'Motivated By Clouds', 'Roll Me in Stardust']
 
 
+def _clip_source_path(item) -> str:
+    mpi = item.GetMediaPoolItem()
+    if mpi is None:
+        return ''
+    try:
+        return mpi.GetClipProperty('File Path') or ''
+    except Exception:
+        return ''
+
+
+def dominant_a1_source(tl) -> tuple[str, str]:
+    counts = {}
+    for item in (tl.GetItemListInTrack('audio', 1) or []):
+        src = _clip_source_path(item)
+        if not src:
+            continue
+        key = (src, item.GetName() or '')
+        counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return '', ''
+    return max(counts.items(), key=lambda kv: kv[1])[0]
+
+
+def fail_if_a2_has_gameplay_audio(tl) -> bool:
+    gameplay_src, gameplay_name = dominant_a1_source(tl)
+    if not gameplay_src:
+        return False
+    dupes = [
+        item for item in (tl.GetItemListInTrack('audio', 2) or [])
+        if _clip_source_path(item) == gameplay_src
+    ]
+    if not dupes:
+        return False
+    print('ERROR: A2 contains raw gameplay-source audio before BGM placement.', file=sys.stderr)
+    print(f'       source={gameplay_src}', file=sys.stderr)
+    print(f'       name={gameplay_name!r}, clips={len(dupes)}', file=sys.stderr)
+    print('       Rebuild or clean the A2 music bed before running place_battle_bgm.py.', file=sys.stderr)
+    return True
+
+
 # ── Bin / clip lookup ──────────────────────────────────────────────────────
 
 def find_subfolder(parent, name: str):
@@ -173,6 +213,8 @@ def main() -> int:
     tl_start = tl.GetStartFrame()
 
     print(f'Timeline: "{tl.GetName()}"  fps={fps}  start={tl_start}')
+    if fail_if_a2_has_gameplay_audio(tl):
+        return 2
 
     # ── BGM bin + eligible tracks ───────────────────────────────────────────
     root      = pool.GetRootFolder()

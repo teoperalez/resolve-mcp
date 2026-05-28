@@ -16,7 +16,7 @@ RBY_SCRIPTS = Path(r"C:\Programming\RBYNewLayout\scripts")
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def parse_dt(value: str) -> datetime:

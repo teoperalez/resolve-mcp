@@ -361,10 +361,17 @@ def import_into_resolve(fcpxml_path: Path, markers: list[dict]) -> bool:
     new_tl = None
     for i in range(1, n + 1):
         t = project.GetTimelineByIndex(i)
-        if t and 'battle-gaps' in (t.GetName() or '').lower():
+        if t and (t.GetName() or '') == explicit_name:
             new_tl = t
             target_name = t.GetName()
             break
+    if new_tl is None:
+        for i in range(n, 0, -1):
+            t = project.GetTimelineByIndex(i)
+            if t and 'battle-gaps' in (t.GetName() or '').lower():
+                new_tl = t
+                target_name = t.GetName()
+                break
     if new_tl is None:
         # Fallback: take the LAST timeline (most recently added).
         new_tl = project.GetTimelineByIndex(n)
