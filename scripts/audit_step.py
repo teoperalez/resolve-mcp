@@ -321,6 +321,7 @@ def _is_gen1_leader_intro_clip(c: dict) -> bool:
     return (
         '/gymleaders/leaderintros/' in source
         or '/leaderintros/' in source
+        or '/leader-intros/' in source
         or 'leader intro' in name
     )
 
@@ -399,7 +400,12 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
     def exempt(c: dict) -> bool:
         name = (c.get('name') or '').lower()
         source = (c.get('source_path') or '').replace('\\', '').lower()
-        return 'intro' in name or 'outro' in name or 'leaderintros' in source
+        return (
+            'intro' in name
+            or 'outro' in name
+            or 'leaderintros' in source
+            or 'leader-intros' in source
+        )
 
     def same_dialogue_family(video_clip: dict, audio_clip: dict) -> bool:
         v_name = (video_clip.get('name') or '').lower()
