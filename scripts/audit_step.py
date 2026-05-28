@@ -401,6 +401,24 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
         source = (c.get('source_path') or '').replace('\\', '').lower()
         return 'intro' in name or 'outro' in name or 'leaderintros' in source
 
+    def same_dialogue_family(video_clip: dict, audio_clip: dict) -> bool:
+        v_name = (video_clip.get('name') or '').lower()
+        a_name = (audio_clip.get('name') or '').lower()
+        v_src = (video_clip.get('source_path') or '').lower()
+        a_src = (audio_clip.get('source_path') or '').lower()
+        if (audio_clip.get('name') or '') == (video_clip.get('name') or '') and a_src == v_src:
+            return True
+        if not a_src.endswith('.wav'):
+            return False
+        # FileOrganizer/Resolve split-track WAVs are named from the source
+        # video stem, e.g. "<part 1>_3.wav". Treat those as the dialogue mate
+        # for the matching MP4 when source frames line up.
+        v_stem = Path(v_src).stem.lower()
+        a_stem = Path(a_src).stem.lower()
+        if v_stem and a_stem.startswith(v_stem) and a_stem.endswith(('_1', '_2', '_3', '_4', '_5')):
+            return True
+        return bool(v_name and v_name.replace('.mp4', '') in a_name)
+
     for vc in v1:
         if exempt(vc):
             continue
@@ -412,9 +430,7 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
 
         has_match = False
         for ac in a1:
-            if (ac.get('name') or '') != v_name:
-                continue
-            if (ac.get('source_path') or '') != v_src:
+            if not same_dialogue_family(vc, ac):
                 continue
             a_start = int(ac.get('start_abs', 0))
             a_end = int(ac.get('end_abs', 0))
