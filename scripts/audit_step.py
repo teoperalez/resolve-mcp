@@ -128,8 +128,32 @@ def _allowed(diff_entry_kind: str, item, allowed_changes: list, fps: float) -> b
     return False
 
 
-def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[dict]:
+def _clip_color_change_allowed(cm: dict, allowed_changes: list) -> bool:
+    """True when a clips_modified entry only reflects an allowed color flag."""
+    if set(cm.get('fields_changed', [])) != {'clip_color'}:
+        return False
+    ident = cm.get('identity', [])
+    track_name = ident[0] if ident else ''
+    after_color = (cm.get('after') or {}).get('clip_color') or ''
+    for rule in allowed_changes:
+        if rule.get('kind') != 'colors_changed':
+            continue
+        rt = rule.get('track')
+        if rt is not None:
+            rt_str = f'{"V" if rt[0] == "video" else "A"}{rt[1]}'
+            if track_name != rt_str:
+                continue
+        to_colors = rule.get('to_colors')
+        if to_colors is not None and after_color not in to_colors:
+            continue
+        return True
+    return False
+
+
+def _check_must_preserve(diff: dict, must_preserve: list, fps: float,
+                         allowed_changes: list | None = None) -> list[dict]:
     """Return a list of violations for must_preserve rules that diff broke."""
+    allowed_changes = allowed_changes or []
     violations: list[dict] = []
     for rule in must_preserve:
         kind = rule.get('kind')
@@ -139,6 +163,8 @@ def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[di
             rt = rule.get('track')
             for c in diff.get('clips_removed', []):
                 if rt is None or _clip_track_tuple(c) == (rt[0], int(rt[1])):
+                    if _allowed('clips_removed', c, allowed_changes, fps):
+                        continue
                     violations.append({
                         'rule': rule,
                         'reason': 'clip removed on must-preserve track',
@@ -153,6 +179,10 @@ def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[di
                     rt_str = f'{"V" if rt[0] == "video" else "A"}{rt[1]}'
                     if tr != rt_str:
                         continue
+                if _allowed('clips_modified', cm, allowed_changes, fps):
+                    continue
+                if _clip_color_change_allowed(cm, allowed_changes):
+                    continue
                 violations.append({
                     'rule': rule,
                     'reason': f'clip modified on must-preserve track ({", ".join(cm.get("fields_changed", []))})',
@@ -217,7 +247,7 @@ def _check_must_preserve(diff: dict, must_preserve: list, fps: float) -> list[di
             # Validated separately
             pass
 
-        elif kind == 'battle_intros_present':
+        elif kind in ('battle_intros_present', 'gen1_battle_intros_present'):
             # Validated separately
             pass
 
@@ -262,6 +292,25 @@ def _check_battle_intros_present(post: dict, rule: dict) -> list[dict]:
     }]
 
 
+def _check_gen1_battle_intros_present(post: dict, rule: dict) -> list[dict]:
+    track = rule.get('track', ('video', 1))
+    kind, idx = track[0], str(track[1])
+    min_count = int(rule.get('min_count', 1))
+    clips = post.get('tracks', {}).get(kind, {}).get(idx, {}).get('clips', [])
+    intros = [
+        c for c in clips
+        if 'leaderintros' in (c.get('source_path') or '').replace('\\', '').lower()
+    ]
+    if len(intros) >= min_count:
+        return []
+    return [{
+        'rule': rule,
+        'reason': f'expected at least {min_count} Gen 1 LeaderIntros clip(s) on '
+                  f'{kind.upper()}{idx}, found {len(intros)}',
+        'item': {'found': [c.get('name') for c in intros]},
+    }]
+
+
 def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
     """Flag gameplay V1 clips with no corresponding aligned A1 audio.
 
@@ -278,7 +327,8 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
 
     def exempt(c: dict) -> bool:
         name = (c.get('name') or '').lower()
-        return 'intro' in name or 'outro' in name
+        source = (c.get('source_path') or '').replace('\\', '').lower()
+        return 'intro' in name or 'outro' in name or 'leaderintros' in source
 
     for vc in v1:
         if exempt(vc):
@@ -323,6 +373,80 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
             })
 
     return violations
+
+
+def _dominant_gameplay_source(post: dict) -> tuple[str, str]:
+    """Return (source_path, name) for the dominant A1 gameplay source."""
+    a1 = post.get('tracks', {}).get('audio', {}).get('1', {}).get('clips', [])
+    candidates = [
+        ((c.get('source_path') or ''), (c.get('name') or ''))
+        for c in a1
+        if c.get('source_path')
+    ]
+    if not candidates:
+        return '', ''
+    (src, name), _count = Counter(candidates).most_common(1)[0]
+    return src, name
+
+
+def _check_no_gameplay_audio_outside_a1(post: dict) -> list[dict]:
+    """Fail if the dominant gameplay source appears on A2+.
+
+    A1 is the only valid home for gameplay/dialogue audio. A2 is reserved for
+    music/battle audio, A3 for intentional outro audio, and A4+ should not
+    receive gameplay audio. This catches Resolve auto-expanding embedded MP4
+    audio when scripts append video MediaPoolItems.
+    """
+    gameplay_src, gameplay_name = _dominant_gameplay_source(post)
+    if not gameplay_src:
+        return []
+
+    violations = []
+    audio_tracks = post.get('tracks', {}).get('audio', {})
+    for idx, tdata in audio_tracks.items():
+        if int(idx) == 1:
+            continue
+        dupes = [
+            c for c in tdata.get('clips', [])
+            if (c.get('source_path') or '') == gameplay_src
+        ]
+        if dupes:
+            violations.append({
+                'rule': {'kind': 'no_gameplay_audio_outside_a1'},
+                'reason': f'A{idx} contains {len(dupes)} gameplay-source audio '
+                          f'clip(s) from {gameplay_name!r}; A1 is the only '
+                          f'valid gameplay/dialogue audio track',
+                'item': {
+                    'track': f'A{idx}',
+                    'source_path': gameplay_src,
+                    'first_clips': [
+                        {
+                            'name': c.get('name'),
+                            'start_abs': c.get('start_abs'),
+                            'duration': c.get('duration'),
+                        }
+                        for c in dupes[:10]
+                    ],
+                },
+            })
+    return violations
+
+
+def _check_no_raw_gameplay_audio_on_a2(post: dict) -> list[dict]:
+    """Stronger A2-specific gate for the music bed."""
+    gameplay_src, gameplay_name = _dominant_gameplay_source(post)
+    if not gameplay_src:
+        return []
+    a2 = post.get('tracks', {}).get('audio', {}).get('2', {}).get('clips', [])
+    dupes = [c for c in a2 if (c.get('source_path') or '') == gameplay_src]
+    if not dupes:
+        return []
+    return [{
+        'rule': {'kind': 'no_raw_gameplay_audio_on_a2'},
+        'reason': f'A2 music bed contains {len(dupes)} raw gameplay-source '
+                  f'audio clip(s) from {gameplay_name!r}',
+        'item': {'first_clips': [c.get('name') for c in dupes[:10]]},
+    }]
 
 
 def _check_creates_new_timeline(pre: dict, post: dict, scope: dict) -> list[dict]:
@@ -374,6 +498,8 @@ def _check_creates_new_timeline(pre: dict, post: dict, scope: dict) -> list[dict
             })
 
     if exp.get('preserve_clip_colors'):
+        ignored_colors = set(exp.get('preserve_clip_colors_except', []))
+
         def colored_counter(snap: dict) -> Counter:
             out = Counter()
             for kind in ('video', 'audio', 'subtitle'):
@@ -381,6 +507,8 @@ def _check_creates_new_timeline(pre: dict, post: dict, scope: dict) -> list[dict
                     for clip in tdata.get('clips', []):
                         color = clip.get('clip_color') or ''
                         if not color:
+                            continue
+                        if color in ignored_colors:
                             continue
                         key = (
                             clip.get('track', ''),
@@ -459,13 +587,11 @@ def _scan_unexpected(diff: dict, scope: dict, fps: float) -> list[dict]:
             # clips_modified items are diff-shaped {identity, fields_changed,...}
             # Map them to a clip dict for the rule matcher.
             if kind == 'clips_modified':
-                synthetic = {
-                    'track_kind': item.get('identity', ['', ''])[0][:1].lower(),
-                    'track_index': int(item.get('identity', ['', '0'])[0][1:] or 0)
-                    if len(item.get('identity', [])) > 0 else 0,
-                }
                 # Use original-shaped fallback for matcher
-                if not _allowed(kind, item, allowed, fps):
+                if (
+                    not _allowed(kind, item, allowed, fps)
+                    and not _clip_color_change_allowed(item, allowed)
+                ):
                     violations.append({
                         'rule': None,
                         'reason': f'unexpected {kind}: {item}',
@@ -585,26 +711,40 @@ def cmd_audit(args) -> int:
     violations: list[dict] = []
     regressions: list[dict] = []
 
-    if scope.get('creates_new_timeline'):
+    if scope.get('unknown_step'):
+        # Unknown/ad-hoc checkpoints are intentionally permissive: capture the
+        # diff and run audio checks, but do not enforce a declared scope.
+        pass
+    elif scope.get('creates_new_timeline'):
         # In new-timeline mode the diff would be "everything different" —
         # skip diff/preserve checks; validate derived expectations only.
         violations.extend(_check_creates_new_timeline(pre, post, scope))
     else:
         # Standard mode: preserve + unexpected-change scan
-        violations.extend(_check_must_preserve(diff, scope.get('must_preserve', []), fps))
+        violations.extend(_check_must_preserve(
+            diff,
+            scope.get('must_preserve', []),
+            fps,
+            scope.get('allowed_changes', []),
+        ))
         violations.extend(_scan_unexpected(diff, scope, fps))
 
-        # Special-case A2 overlap detection
-        for rule in scope.get('must_preserve', []):
-            if rule.get('kind') == 'no_a2_overlaps':
-                violations.extend(_check_no_a2_overlaps(post, fps))
-            elif rule.get('kind') == 'battle_intros_present':
-                violations.extend(_check_battle_intros_present(post, rule))
+    # Special-case checks that need the post snapshot, including creates-new-
+    # timeline scopes where the normal diff-based preservation scan is skipped.
+    for rule in scope.get('must_preserve', []):
+        if rule.get('kind') == 'no_a2_overlaps':
+            violations.extend(_check_no_a2_overlaps(post, fps))
+        elif rule.get('kind') == 'battle_intros_present':
+            violations.extend(_check_battle_intros_present(post, rule))
+        elif rule.get('kind') == 'gen1_battle_intros_present':
+            violations.extend(_check_gen1_battle_intros_present(post, rule))
 
     # Global integrity gate: every gameplay V1 clip should have aligned A1
     # dialogue coverage. Keep this independent of step scopes because any
     # append/replace operation can accidentally drop linked audio.
     violations.extend(_check_v1_has_a1_coverage(post))
+    violations.extend(_check_no_gameplay_audio_outside_a1(post))
+    violations.extend(_check_no_raw_gameplay_audio_on_a2(post))
 
     if not scope.get('creates_new_timeline'):
         # Mark any "must_preserve" violations whose lost item carries the

@@ -47,6 +47,34 @@ Re-running cut analysis later in the workflow would force redoing everything in 
 
 ## Pipeline order
 
+### Step 0 — Session-log marker preflight
+
+Run this before any transcript, battle-detection, or FCPXML rewrite work:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\preflight_session_markers.py"
+```
+
+This writes `transcripts\session-markers-preflight.json`.
+
+Read the JSON before continuing:
+
+- If `should_embed_session_markers=true`, the project has an RBYNewLayout
+  session log. Treat those markers as canonical from the start of the pipeline.
+  Do not infer RBY battle markers from transcript guesses when the preflight has
+  mapped session-log markers to source media. Preserve/remap those markers
+  through every FCPXML-derived timeline, and use timeline `* Battle Start`
+  markers as canonical for Gen 1 leader intro placement.
+- If `should_embed_session_markers=false`, continue with the normal transcript
+  battle-detection flow below.
+- If source media is split into multiple part files, use `markers_by_media` from
+  the preflight to know which part(s) receive valid session markers. Do not
+  collapse separate part files into a single combined MP4 just to simplify
+  marker mapping.
+- If the report says a session log exists but marker replay or source-media
+  mapping failed, stop and surface the report. Do not continue until the user
+  decides whether to proceed without embedded markers.
+
 ### Step 1 — Battle gap insertion (transcribe + detect + FCPXML rewrite)
 
 **1-snap:**
@@ -377,9 +405,18 @@ Allowed: Green ruler markers removed AND added (the refine step is delete-then-r
 
 ---
 
-### Step 9 — Place major-boss battle intros on V2
+### Step 9 — Place major-boss battle intros
 
 For each rival / gym leader / Elite 4 / champion battle, overlay a 5-second pre-battle intro graphic on V2 (covering the last 5s of the V1 clip that runs into the battle).
+
+Exception: for Gen 1 Red/Blue/Yellow projects whose leader intros are discrete
+video + audio files (for example `Brock.mp4` plus `audio\Brock.mp3` under
+`C:\Programming\RBYNewLayout\gymLeaders\LeaderIntros`), do not use the silent
+V2 overlay mode. Use `place_battle_intros.py --gen1-insert`, which creates a
+derived timeline, inserts the leader intro video/audio as real timeline time,
+and ripples later clips/markers right. In this mode, timeline `* Battle Start`
+markers from Step 0 are canonical when present; transcripts are only a fallback
+when no such markers exist.
 
 **9a. Classify battle types (prerequisite — relay):**
 
@@ -419,15 +456,23 @@ Relay — YOU must complete this step (skip if no rival battles in `transcripts/
   ```
 - The script caches to `transcripts/rival-starter.json` and exits.
 
-**9c. Place the intros on V2:**
+**9c. Place the intros:**
 
 **9-snap:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py snapshot --step step9_place_battle_intros"
 ```
 
+Normal overlay mode:
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_intros.py"
+```
+
+Gen 1 discrete insert mode:
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py snapshot --step step9_place_battle_intros_gen1"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_intros.py --gen1-insert"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step step9_place_battle_intros_gen1"
 ```
 
 **9-audit:**
@@ -435,6 +480,10 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step step9_place_battle_intros"
 ```
 Allowed: V2 clip additions + idempotent V2 sweep removals. Must preserve: V1 contents, A1 contents, Green and Red markers.
+
+If the user asks to stop for manual review after leader intro placement, stop
+after the Step 9 audit passes. Do not continue to carousel layout, A2 music,
+Fairlight, normalization, or render steps.
 
 ---
 

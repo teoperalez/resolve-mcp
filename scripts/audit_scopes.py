@@ -99,6 +99,9 @@ SCOPES: dict = {
             'new_timeline_name_contains': '(cuts: all)',
             'preserve_ruler_marker_count': True,
             'preserve_clip_colors': True,
+            # Orange/Yellow are Step 3 cut-candidate flags. If those clips are
+            # deleted in Step 4, their colors should disappear with them.
+            'preserve_clip_colors_except': COLORS_CUT_FLAGS,
         },
         'allowed_changes': [],
         'must_preserve': [],
@@ -208,6 +211,25 @@ SCOPES: dict = {
             {'kind': 'markers', 'where': 'ruler', 'colors': COLORS_BATTLE_END},
             {'kind': 'markers', 'where': 'clip_level'},
             {'kind': 'battle_intros_present', 'track': ('video', 2), 'min_count': 4},
+        ],
+    },
+
+    # ── Step 9 variant: Gen 1 discrete intro insertion ──
+    'step9_place_battle_intros_gen1': {
+        'description': 'Insert Gen 1 leader intro video/audio as real timeline segments',
+        'creates_new_timeline': True,
+        'derived_expectations': {
+            'preserve_source_pool': True,
+            'new_timeline_name_contains': '(gen1 intros)',
+            'v1_clip_count_delta_gte': 4,
+            'preserve_ruler_marker_count': True,
+            'preserve_clip_colors': True,
+            'no_duplicate_source_audio_tracks': [('audio', 2), ('audio', 3),
+                                                 ('audio', 4), ('audio', 5)],
+        },
+        'allowed_changes': [],
+        'must_preserve': [
+            {'kind': 'gen1_battle_intros_present', 'track': ('video', 1), 'min_count': 4},
         ],
     },
 
