@@ -136,6 +136,16 @@ Locate the auto-editor's FCPXML — typically next to the source video at `<sour
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps_fcpxml.py "<source-dir>\<video-name>_ALTERED.fcpxml" --battles transcripts\battles.json --import-to-resolve"
 ```
 
+For Gen 1 Red/Blue/Yellow projects with discrete leader/E4/champion intro
+insertions, those boss battles get real timeline time from the intro insertion
+step. Insert ordinary battle gaps only for non-boss battles:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py snapshot --step step1_rby_non_boss_battle_gaps"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\insert_battle_gaps_fcpxml.py "<source-dir>\<video-name>_ALTERED.fcpxml" --battles transcripts\battles.json --only-gen1-non-bosses --import-to-resolve"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step step1_rby_non_boss_battle_gaps"
+```
+
 After import, the new `(battle-gaps)` timeline becomes current. All subsequent steps until cut application operate on it.
 
 **1-audit:**
@@ -498,7 +508,7 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 Gen 1 discrete insert mode:
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py snapshot --step step9_place_battle_intros_gen1"
-cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_intros.py --gen1-insert"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_battle_intros.py --gen1-insert --gen1-speed 2"
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step step9_place_battle_intros_gen1"
 ```
 

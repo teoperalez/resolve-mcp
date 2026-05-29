@@ -63,6 +63,19 @@ SCOPES: dict = {
         'must_preserve': [],
     },
 
+    # ── Step 1 variant: RBY non-boss battle gaps only ──
+    'step1_rby_non_boss_battle_gaps': {
+        'description': 'Insert battle gaps for Gen 1 non-boss battles only; leader/E4/champion battles are handled by discrete intros',
+        'creates_new_timeline': True,
+        'derived_expectations': {
+            'v1_clip_count_delta_gte': 0,
+            'preserve_source_pool': True,
+            'new_timeline_name_contains': '(battle-gaps)',
+        },
+        'allowed_changes': [],
+        'must_preserve': [],
+    },
+
     # ── Step 2: rough battle-end green markers ──
     'step2_mark_battle_ends_rough': {
         'description': 'Place Green ruler markers at battle-end estimates',

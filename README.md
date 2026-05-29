@@ -229,6 +229,13 @@ It is intentionally more strict than the individual helper scripts:
 - Battle-intro overlays must land on V2. The placement script verifies the API
   result and writes `_data/qa-reports/battle-intros-placements.json`; the audit
   scope also checks that the expected V2 intro clips exist.
+- Gen 1 Red/Blue/Yellow discrete leader intros are inserted as real timeline
+  clips at 2x speed via `place_battle_intros.py --gen1-insert --gen1-speed 2`.
+  Their retimed media is cached under `~/.resolve-mcp/cache/retimed-gen1-intros`.
+- On Gen 1 Red/Blue/Yellow projects, ordinary battle gaps should be inserted
+  only for non-boss battles with `insert_battle_gaps_fcpxml.py
+  --only-gen1-non-bosses`; leader/E4/champion battles get timeline time from
+  their discrete intro clips.
 - A2 is reserved for intentional music/battle audio. Auto-editor linked audio
   refs on A2-A5 are dropped by default during FCPXML cut import. Do not clear
   A2-A5 defensively after the edit timeline is built; let the Step 6 audit fail

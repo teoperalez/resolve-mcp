@@ -41,6 +41,31 @@ sys.path.insert(0, os.path.dirname(__file__))
 import _resolve_env  # noqa: F401
 
 
+GEN1_BOSS_NAMES = {
+    'brock', 'misty', 'surge', 'lt surge', 'lt. surge', 'erika', 'koga',
+    'sabrina', 'blaine', 'giovanni', 'lorelei', 'bruno', 'agatha', 'lance',
+    'champion', 'blue',
+}
+
+
+def _trainer_key(name: str) -> str:
+    key = (name or '').lower()
+    key = key.replace(' battle start', '').replace(' battle finish', '')
+    key = key.replace('battle', '')
+    key = re.sub(r'[^a-z0-9. ]+', ' ', key)
+    key = re.sub(r'\s+', ' ', key).strip()
+    return key
+
+
+def is_gen1_boss_battle(battle: dict) -> bool:
+    """True for Gen 1 fights handled by discrete leader-intro insertion."""
+    raw = battle.get('trainer_name') or battle.get('leader') or battle.get('name') or ''
+    key = _trainer_key(raw)
+    if key in GEN1_BOSS_NAMES:
+        return True
+    return any(key.startswith(n + ' ') for n in GEN1_BOSS_NAMES)
+
+
 # ── FCPXML rational arithmetic ────────────────────────────────────────────────
 
 def parse_rational(s: str) -> tuple[int, int]:
@@ -407,6 +432,10 @@ def main() -> int:
     ap.add_argument('--battles', default='transcripts/battles.json',
                     help='battles.json from detect_battles.py')
     ap.add_argument('--gap-frames', type=int, default=60)
+    ap.add_argument('--exclude-gen1-bosses', action='store_true',
+                    help='Skip Gen 1 leader/E4/champion battles that are handled by discrete intro insertion')
+    ap.add_argument('--only-gen1-non-bosses', action='store_true',
+                    help='Alias for --exclude-gen1-bosses; insert gaps only for non-boss Gen 1 battles')
     ap.add_argument('-o', '--output', default=None,
                     help='Output FCPXML path (default: <input>_BATTLEGAPS.fcpxml)')
     ap.add_argument('--import-to-resolve', action='store_true',
@@ -430,6 +459,15 @@ def main() -> int:
     if not battles:
         print('No battles in file; nothing to do.')
         return 0
+    if args.exclude_gen1_bosses or args.only_gen1_non_bosses:
+        before = len(battles)
+        battles = [b for b in battles if not is_gen1_boss_battle(b)]
+        skipped = before - len(battles)
+        print(f'Gen 1 non-boss gap mode: skipped {skipped} boss/leader battle(s), '
+              f'kept {len(battles)} non-boss battle(s)')
+        if not battles:
+            print('No non-boss battles remain; nothing to do.')
+            return 0
 
     print(f'Input:   {in_path}')
     print(f'Battles: {len(battles)}')

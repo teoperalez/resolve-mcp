@@ -42,6 +42,7 @@ import os
 import json
 import re
 import argparse
+import subprocess
 from collections import Counter
 from pathlib import Path
 
@@ -58,6 +59,7 @@ RIVAL_STARTER    = TRANSCRIPTS_DIR / 'rival-starter.json'
 BATTLE_INTROS_BIN        = 'battle-intros'
 SILVER_BATTLE_INTROS_BIN = 'silver-battle-intros'
 GEN1_LEADER_INTROS_DIR   = Path(r'C:\Programming\RBYNewLayout\gymLeaders\LeaderIntros')
+GEN1_RETIME_CACHE_DIR    = Path.home() / '.resolve-mcp' / 'cache' / 'retimed-gen1-intros'
 GEN1_ALIASES = {
     'lt surge': 'Surge',
     'lt. surge': 'Surge',
@@ -66,6 +68,11 @@ GEN1_ALIASES = {
     'champion': 'Champion',
     'rival3': 'Champion',
     'giovanni_gym': 'Giovanni',
+}
+GEN1_LEADER_NAMES = {
+    'brock', 'misty', 'surge', 'lt surge', 'lt. surge', 'erika', 'koga',
+    'sabrina', 'blaine', 'giovanni', 'lorelei', 'bruno', 'agatha', 'lance',
+    'champion', 'blue',
 }
 
 # Canonical Crystal/HGSS rival encounter order, used as a fallback when
@@ -232,6 +239,52 @@ def gen1_intro_paths(leader: str, root: Path, prefer_blue: bool = True) -> tuple
     audio_name = 'Giovanni 3.mp3' if leader == 'Giovanni' else f'{leader}.mp3'
     audio = root / 'audio' / audio_name
     return video, audio if audio.exists() else None
+
+
+def retime_audio_filter(speed: float) -> str:
+    """ffmpeg atempo only accepts 0.5..2.0, so chain filters if needed."""
+    remaining = float(speed)
+    chunks = []
+    while remaining > 2.0:
+        chunks.append('atempo=2.0')
+        remaining /= 2.0
+    while remaining < 0.5:
+        chunks.append('atempo=0.5')
+        remaining /= 0.5
+    chunks.append(f'atempo={remaining:.6g}')
+    return ','.join(chunks)
+
+
+def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
+    """Return a cached media file retimed to `speed` for Gen 1 insert mode."""
+    if abs(speed - 1.0) < 0.001:
+        return path
+    if speed <= 0:
+        raise ValueError(f'Invalid Gen 1 intro speed: {speed}')
+    GEN1_RETIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    suffix = f'{speed:.3f}'.rstrip('0').rstrip('.').replace('.', 'p') + 'x'
+    out_ext = path.suffix if kind == 'video' else '.mp3'
+    out = GEN1_RETIME_CACHE_DIR / f'{path.stem}__{suffix}{out_ext}'
+    if out.exists() and out.stat().st_size > 0 and out.stat().st_mtime >= path.stat().st_mtime:
+        return out
+    if kind == 'video':
+        cmd = [
+            'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
+            '-i', str(path),
+            '-filter:v', f'setpts=PTS/{speed:.8g}',
+            '-an',
+            str(out),
+        ]
+    else:
+        cmd = [
+            'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
+            '-i', str(path),
+            '-vn',
+            '-filter:a', retime_audio_filter(speed),
+            str(out),
+        ]
+    subprocess.run(cmd, check=True)
+    return out
 
 
 def battle_inputs_from_markers(tl) -> tuple[list[dict], dict]:
@@ -516,6 +569,8 @@ def main() -> int:
                          f'(default: {GEN1_LEADER_INTROS_DIR})')
     ap.add_argument('--gen1-audio-track', type=int, default=3,
                     help='Audio track for Gen 1 leader intro audio (default: A3)')
+    ap.add_argument('--gen1-speed', type=float, default=2.0,
+                    help='Playback speed for Gen 1 discrete leader intro video/audio (default: 2.0)')
     ap.add_argument('--no-blue-variants', action='store_true',
                     help='In --gen1-insert mode, do not prefer LeaderBlue.mp4 variants.')
     ap.add_argument('--dry-run', action='store_true',
@@ -616,6 +671,13 @@ def main() -> int:
             if audio_path is None:
                 skipped.append((b, f'[{btype}] Gen 1 audio intro missing for {leader}'))
                 continue
+            if abs(args.gen1_speed - 1.0) >= 0.001:
+                try:
+                    video_path = retime_gen1_media(video_path, args.gen1_speed, 'video')
+                    audio_path = retime_gen1_media(audio_path, args.gen1_speed, 'audio')
+                except Exception as exc:
+                    skipped.append((b, f'[{btype}] failed to retime Gen 1 intro for {leader}: {exc}'))
+                    continue
             video_mpi = item_for_path(pool, video_path, mpi_by_path)
             audio_mpi = item_for_path(pool, audio_path, mpi_by_path)
             if video_mpi is None or audio_mpi is None:
@@ -633,8 +695,8 @@ def main() -> int:
                 'tl_frame': tl_frame,
                 'record_rel': int(tl_frame - tl.GetStartFrame()),
                 'duration_frames': duration_frames,
-                'audio_duration_frames': audio_duration_frames,
-                'reason': f'Gen 1 insert → {video_path.name} + {audio_path.name}',
+                'audio_duration_frames': min(audio_duration_frames, duration_frames),
+                'reason': f'Gen 1 insert @ {args.gen1_speed:g}x → {video_path.name} + {audio_path.name}',
             })
             continue
 
