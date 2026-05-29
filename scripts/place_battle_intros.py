@@ -196,7 +196,7 @@ def media_duration_tl_frames(mpi, fps: float) -> int:
         try:
             native = int(props.get(key) or 0)
             if native > 0:
-                return max(1, int(round(native * fps / clip_fps)))
+                return max(1, int(native * fps / clip_fps))
         except Exception:
             pass
     for key in ('Video Duration', 'Audio Duration', 'Duration'):
@@ -209,6 +209,19 @@ def media_duration_tl_frames(mpi, fps: float) -> int:
             except Exception:
                 pass
     return int(round(5 * fps))
+
+
+def media_duration_native_frames(mpi, fallback_tl_frames: int) -> int:
+    """Best-effort MediaPoolItem duration in native source frames."""
+    props = mpi.GetClipProperty() or {}
+    for key in ('Frames', 'Video Frames'):
+        try:
+            native = int(props.get(key) or 0)
+            if native > 0:
+                return native
+        except Exception:
+            pass
+    return fallback_tl_frames
 
 
 def gen1_leader_name(battle: dict) -> str | None:
@@ -460,7 +473,7 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
         payload.append({
             'mediaPoolItem': p['video_mpi'],
             'startFrame': 0,
-            'endFrame': p['duration_frames'],
+            'endFrame': p.get('duration_native_frames') or p['duration_frames'],
             'recordFrame': record,
             'trackIndex': 1,
             'mediaType': 1,
@@ -699,6 +712,7 @@ def main() -> int:
                 skipped.append((b, f'[{btype}] could not import Gen 1 intro media for {leader}'))
                 continue
             duration_frames = media_duration_tl_frames(video_mpi, fps)
+            duration_native_frames = media_duration_native_frames(video_mpi, duration_frames)
             audio_duration_frames = media_duration_tl_frames(audio_mpi, fps)
             placements.append({
                 'battle': b,
@@ -710,6 +724,7 @@ def main() -> int:
                 'tl_frame': tl_frame,
                 'record_rel': int(tl_frame - tl.GetStartFrame()),
                 'duration_frames': duration_frames,
+                'duration_native_frames': duration_native_frames,
                 'audio_duration_frames': min(audio_duration_frames, duration_frames),
                 'reason': f'Gen 1 insert @ {args.gen1_speed:g}x → {video_path.name} + {audio_path.name}',
             })

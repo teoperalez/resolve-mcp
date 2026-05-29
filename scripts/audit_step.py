@@ -322,6 +322,8 @@ def _is_gen1_leader_intro_clip(c: dict) -> bool:
         '/gymleaders/leaderintros/' in source
         or '/leaderintros/' in source
         or '/leader-intros/' in source
+        or '/retimed-gen1-intros/' in source
+        or '__2x_resolve' in name
         or 'leader intro' in name
     )
 
@@ -405,6 +407,8 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
             or 'outro' in name
             or 'leaderintros' in source
             or 'leader-intros' in source
+            or 'retimed-gen1-intros' in source
+            or '__2x_resolve' in name
         )
 
     def same_dialogue_family(video_clip: dict, audio_clip: dict) -> bool:
