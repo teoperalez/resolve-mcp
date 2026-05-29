@@ -232,10 +232,17 @@ It is intentionally more strict than the individual helper scripts:
 - Gen 1 Red/Blue/Yellow discrete leader intros are inserted as real timeline
   clips at 2x speed via `place_battle_intros.py --gen1-insert --gen1-speed 2`.
   Their retimed media is cached under `~/.resolve-mcp/cache/retimed-gen1-intros`.
+  The retimed video placement uses native media frames for `startFrame` /
+  `endFrame`, while ripple duration uses timeline frames; this matters for
+  24fps intro assets on 60fps timelines.
 - On Gen 1 Red/Blue/Yellow projects, ordinary battle gaps should be inserted
   only for non-boss battles with `insert_battle_gaps_fcpxml.py
   --only-gen1-non-bosses`; leader/E4/champion battles get timeline time from
   their discrete intro clips.
+- The Victreebel RBY UMB recovery/rebuild runner is
+  `scripts/rebuild_victreebel_rby_timeline.py`. It is intentionally
+  project-specific and records self-audit/DRT outputs under the project's
+  `CODEx/full_api_rebuild` folder.
 - A2 is reserved for intentional music/battle audio. Auto-editor linked audio
   refs on A2-A5 are dropped by default during FCPXML cut import. Do not clear
   A2-A5 defensively after the edit timeline is built; let the Step 6 audit fail

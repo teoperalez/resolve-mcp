@@ -75,10 +75,21 @@ future projects:
   video or audio clip identity/count is lost. Insert those Gen 1 intros at 2x
   speed using `place_battle_intros.py --gen1-insert --gen1-speed 2`; the script
   creates cached retimed media instead of depending on Resolve retime metadata.
+  For retimed intro media, remember Resolve's `AppendToTimeline` frame domains:
+  video `startFrame`/`endFrame` are native media frames, while the ripple
+  duration is timeline frames. Mixing those makes 24fps retimed intros too long
+  and lets A1 gameplay audio resume under the leader video.
 - For Gen 1 Red/Blue/Yellow battle gaps, leader/E4/champion battles are handled
   by the discrete intro insertion and should be excluded from ordinary
   pre-battle gap insertion. Use `insert_battle_gaps_fcpxml.py
   --only-gen1-non-bosses` for the battle-gap step on those projects.
+- For the Victreebel Red/Blue Ultra Minimum Battles handoff timeline, the
+  verified project-specific rebuild tool is
+  `scripts\rebuild_victreebel_rby_timeline.py`. It rebuilds the timeline through
+  2x leader intros and non-boss gaps, self-audits A1 coverage/one-frame
+  gaps/leader intro counts, exports a DRT, and should be paired with the
+  handoff file at
+  `E:\Victreebel Red and Blue Ultra Minimum Battles\CODEx\VICTREEBEL_PASSOFF.md`.
 - Battle-intro clips must exist on V2. `place_battle_intros.py` verifies the API
   placement and writes `_data/qa-reports/battle-intros-placements.json`; the
   Step 9 audit also checks V2 intro presence.
