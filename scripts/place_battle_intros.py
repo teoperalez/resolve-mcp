@@ -264,7 +264,7 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
     GEN1_RETIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     suffix = (
         f'{speed:.3f}'.rstrip('0').rstrip('.').replace('.', 'p')
-        + 'x_resolve'
+        + 'x_resolve2'
     )
     out_ext = path.suffix if kind == 'video' else '.mp3'
     out = GEN1_RETIME_CACHE_DIR / f'{path.stem}__{suffix}{out_ext}'
@@ -275,9 +275,12 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
             '-i', str(path),
             '-map', '0:v:0',
+            '-map_metadata', '-1',
+            '-map_chapters', '-1',
             '-filter:v', f'setpts=PTS/{speed:.8g}',
             '-pix_fmt', 'yuv420p',
             '-movflags', '+faststart',
+            '-write_tmcd', '0',
             '-dn', '-sn',
             '-an',
             str(out),
@@ -287,6 +290,8 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
             '-i', str(path),
             '-map', '0:a:0',
+            '-map_metadata', '-1',
+            '-map_chapters', '-1',
             '-vn',
             '-filter:a', retime_audio_filter(speed),
             '-codec:a', 'libmp3lame',
