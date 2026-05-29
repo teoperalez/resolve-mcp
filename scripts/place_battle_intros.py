@@ -262,7 +262,10 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
     if speed <= 0:
         raise ValueError(f'Invalid Gen 1 intro speed: {speed}')
     GEN1_RETIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = f'{speed:.3f}'.rstrip('0').rstrip('.').replace('.', 'p') + 'x'
+    suffix = (
+        f'{speed:.3f}'.rstrip('0').rstrip('.').replace('.', 'p')
+        + 'x_resolve'
+    )
     out_ext = path.suffix if kind == 'video' else '.mp3'
     out = GEN1_RETIME_CACHE_DIR / f'{path.stem}__{suffix}{out_ext}'
     if out.exists() and out.stat().st_size > 0 and out.stat().st_mtime >= path.stat().st_mtime:
@@ -271,7 +274,11 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
         cmd = [
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
             '-i', str(path),
+            '-map', '0:v:0',
             '-filter:v', f'setpts=PTS/{speed:.8g}',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            '-dn', '-sn',
             '-an',
             str(out),
         ]
@@ -279,8 +286,11 @@ def retime_gen1_media(path: Path, speed: float, kind: str) -> Path:
         cmd = [
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
             '-i', str(path),
+            '-map', '0:a:0',
             '-vn',
             '-filter:a', retime_audio_filter(speed),
+            '-codec:a', 'libmp3lame',
+            '-q:a', '2',
             str(out),
         ]
     subprocess.run(cmd, check=True)
