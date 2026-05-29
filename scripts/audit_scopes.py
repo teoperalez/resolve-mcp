@@ -352,6 +352,24 @@ SCOPES: dict = {
         ],
     },
 
+    'victreebel_battle_audio_crossfades': {
+        'description': 'Place Victreebel RBY battle audio and crossfade A3 leader intro audio into A2',
+        'creates_new_timeline': False,
+        'allowed_changes': [
+            {'kind': 'clips_added',   'track': ('audio', 2)},
+            {'kind': 'clips_removed', 'track': ('audio', 2)},
+            {'kind': 'clips_added',   'track': ('audio', 3)},
+            {'kind': 'clips_removed', 'track': ('audio', 3)},
+        ],
+        'must_preserve': [
+            {'kind': 'clips', 'track': ('video', 1)},
+            {'kind': 'clips', 'track': ('audio', 1)},
+            {'kind': 'markers'},
+            {'kind': 'no_a2_overlaps'},
+            {'kind': 'gen1_leader_intro_audio_fade_replacement'},
+        ],
+    },
+
     # ── Step 13: Fairlight preset (mixer state; locks A2) ──
     'step13_apply_fairlight_preset': {
         'description': 'Apply "Standard Gameplay youtube" Fairlight preset; locks A2',

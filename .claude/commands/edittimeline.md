@@ -623,6 +623,28 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 ```
 Auto-picks the alphabetical-first track in each tag if `--rival-track` / `--gym-track` / `--other-track` are omitted. Loops within each battle interval; truncates the last loop at the battle end.
 
+**Gen 1 discrete leader-audio crossfade exception.** For RBY projects where
+Step 9 inserted real 2x leader intro video/audio on V1/A3, and the desired
+battle music is the same leader audio continuing after the intro, use the
+project-specific marker-driven placer instead of the generic BGM-tagged battle
+audio command:
+
+```
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py snapshot --step victreebel_battle_audio_crossfades"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\place_victreebel_battle_audio.py"
+cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step victreebel_battle_audio_crossfades"
+```
+
+This script reads the live timeline markers directly. Rival ranges get
+`CODEx\assets\leader-audio\Rival.mp3` on A2 from battle start to finish with a
+fade-out. Leader/E4/champion ranges continue the matching retimed
+`__2x_resolve2` audio source on A2, starting 1 second before the `Leader Intro
+End` marker. The existing A3 leader intro audio is replaced with a frame-exact
+WAV fade-out variant, so A3 fades out while A2 fades in during the 60-frame
+overlap. The audit permits only A2 additions and same-duration A3 leader-audio
+fade replacements, while still preserving V1/A1/markers and rejecting A2
+overlaps.
+
 **12d-audit:**
 ```
 cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts\audit_step.py audit --step step12d_place_battle_audio"
@@ -650,6 +672,12 @@ cmd.exe /c "cd /d C:\Programming\resolve-mcp && .venv\Scripts\python.exe scripts
 Allowed: A2 clip additions. Must preserve: V1/V2/A1/A3, all battle-audio clips placed by 12d, no A2 overlaps.
 
 **12f. Apply -3dB fades at battle boundaries:**
+
+Skip this generic fade step for battle clips already processed by
+`place_victreebel_battle_audio.py`; that script bakes the Rival fade-outs and
+the A3→A2 leader crossfades. Only run a follow-up fade pass if the specific
+timeline still needs between-battle/general-BGM fades, and wrap it with a
+scope that preserves the Gen 1 leader-audio fade replacements.
 
 **12f-snap:**
 ```

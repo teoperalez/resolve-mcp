@@ -339,39 +339,87 @@ def _gen1_intro_identity(c: dict) -> tuple:
     )
 
 
-def _check_gen1_leader_intros_preserved(pre: dict, post: dict) -> list[dict]:
+def _has_faded_audio_replacement(pre_clip: dict, post_clips: list[dict]) -> bool:
+    """True when an A3 leader intro audio clip was intentionally swapped for a
+    same-duration baked fade variant produced by place_victreebel_battle_audio.
+    """
+    if pre_clip.get('track_kind') != 'audio' or int(pre_clip.get('track_index', 0)) != 3:
+        return False
+    name = pre_clip.get('name') or ''
+    if '__2x_resolve' not in name:
+        return False
+    def compact(text: str) -> str:
+        return ''.join(ch.lower() for ch in text if ch.isalnum())
+
+    stem = compact(Path(name).stem)
+    start = int(pre_clip.get('start_abs', 0))
+    end = int(pre_clip.get('end_abs', 0))
+    duration = int(pre_clip.get('duration', 0))
+    for clip in post_clips:
+        if clip.get('track_kind') != 'audio' or int(clip.get('track_index', 0)) != 3:
+            continue
+        source = (clip.get('source_path') or '').replace('\\', '/').lower()
+        post_name = (clip.get('name') or '').lower()
+        if '/victreebel-battle-audio/' not in source:
+            continue
+        if stem not in compact(source) and stem not in compact(post_name):
+            continue
+        if int(clip.get('start_abs', 0)) != start:
+            continue
+        if int(clip.get('end_abs', 0)) != end:
+            continue
+        if int(clip.get('duration', 0)) != duration:
+            continue
+        return True
+    return False
+
+
+def _check_gen1_leader_intros_preserved(
+    pre: dict,
+    post: dict,
+    allow_audio_fade_replacement: bool = False,
+) -> list[dict]:
     """Once Gen 1 discrete leader intros exist, every later audit protects them.
 
     These clips are structural editorial sections like the channel intro/outro:
     downstream steps may ripple-shift them, but must not delete, trim, or swap
     either the video intro or its paired audio.
     """
-    pre_counts: Counter = Counter()
+    pre_intro_clips = []
     for kind in ('video', 'audio'):
         for tdata in pre.get('tracks', {}).get(kind, {}).values():
             for c in tdata.get('clips', []):
                 if _is_gen1_leader_intro_clip(c):
-                    pre_counts[_gen1_intro_identity(c)] += 1
+                    pre_intro_clips.append(c)
+    pre_counts: Counter = Counter(_gen1_intro_identity(c) for c in pre_intro_clips)
 
     if not pre_counts:
         return []
 
-    post_counts: Counter = Counter()
+    post_intro_clips = []
     for kind in ('video', 'audio'):
         for tdata in post.get('tracks', {}).get(kind, {}).values():
             for c in tdata.get('clips', []):
                 if _is_gen1_leader_intro_clip(c):
-                    post_counts[_gen1_intro_identity(c)] += 1
+                    post_intro_clips.append(c)
+    post_counts: Counter = Counter(_gen1_intro_identity(c) for c in post_intro_clips)
 
     missing = []
     for key, pre_n in pre_counts.items():
         post_n = post_counts.get(key, 0)
         if post_n < pre_n:
-            missing.append({
-                'identity': list(key),
-                'pre': pre_n,
-                'post': post_n,
-            })
+            candidates = [c for c in pre_intro_clips if _gen1_intro_identity(c) == key]
+            for pre_clip in candidates[:pre_n - post_n]:
+                if (
+                    allow_audio_fade_replacement
+                    and _has_faded_audio_replacement(pre_clip, post_intro_clips)
+                ):
+                    continue
+                missing.append({
+                    'identity': list(key),
+                    'pre': pre_n,
+                    'post': post_n,
+                })
 
     if not missing:
         return []
@@ -874,7 +922,15 @@ def cmd_audit(args) -> int:
     violations.extend(_check_v1_has_a1_coverage(post))
     violations.extend(_check_no_gameplay_audio_outside_a1(post))
     violations.extend(_check_no_raw_gameplay_audio_on_a2(post))
-    violations.extend(_check_gen1_leader_intros_preserved(pre, post))
+    allow_audio_fade_replacement = any(
+        rule.get('kind') == 'gen1_leader_intro_audio_fade_replacement'
+        for rule in scope.get('must_preserve', [])
+    )
+    violations.extend(_check_gen1_leader_intros_preserved(
+        pre,
+        post,
+        allow_audio_fade_replacement=allow_audio_fade_replacement,
+    ))
 
     if not scope.get('creates_new_timeline'):
         # Mark any "must_preserve" violations whose lost item carries the
