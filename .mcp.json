@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "resolve": {
+      "command": "C:\\Programming\\resolve-mcp\\.venv\\Scripts\\resolve-mcp.exe",
+      "args": []
+    }
+  }
+}
