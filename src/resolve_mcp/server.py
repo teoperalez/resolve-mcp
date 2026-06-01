@@ -1471,6 +1471,139 @@ def set_voice_isolation_state(
         return f"Error: {e}"
 
 
+@mcp.tool()
+def get_clip_voice_isolation_state(
+    track_index: int,
+    item_index: int,
+    track_type: str = "audio",
+) -> str:
+    """
+    Get the Voice Isolation state for a single clip (TimelineItem).
+    Use this for IRL footage where only some clips have background audio
+    bleeding into the dialogue — isolate per clip instead of the whole track.
+    Requires DaVinci Resolve Studio.
+
+    Parameters:
+    - track_index: 1-based track index
+    - item_index: 0-based index of the clip within the track
+    - track_type: "audio" or "video" (default: "audio")
+    """
+    try:
+        item = _get_timeline_item(track_type, track_index, item_index)
+        if not hasattr(item, 'GetVoiceIsolationState'):
+            return "Per-clip Voice Isolation is not available in this Resolve version."
+        state = item.GetVoiceIsolationState()
+        return json.dumps(safe_serialize(state), indent=2)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+def set_clip_voice_isolation_state(
+    track_index: int,
+    item_index: int,
+    enabled: bool,
+    amount: int = 100,
+    track_type: str = "audio",
+) -> str:
+    """
+    Set Voice Isolation on a single clip (TimelineItem) to isolate speech from
+    background noise. Ideal for IRL videos: enable it only on the clips where
+    ambient/background audio bleeds into the dialogue, leaving clean clips
+    untouched. Requires DaVinci Resolve Studio.
+
+    Parameters:
+    - track_index: 1-based track index
+    - item_index: 0-based index of the clip within the track
+    - enabled: True to enable, False to disable
+    - amount: Isolation amount (0-100, default: 100)
+    - track_type: "audio" or "video" (default: "audio")
+    """
+    try:
+        item = _get_timeline_item(track_type, track_index, item_index)
+        if not hasattr(item, 'SetVoiceIsolationState'):
+            return "Per-clip Voice Isolation is not available in this Resolve version."
+        success = item.SetVoiceIsolationState(
+            {"isEnabled": enabled, "amount": amount}
+        )
+        state = "enabled" if enabled else "disabled"
+        return _ok(
+            success,
+            f"Voice Isolation {state} (amount: {amount}) on {track_type} track {track_index} clip {item_index}",
+            "Failed to set clip voice isolation state",
+        )
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+def generate_speech(
+    text: str,
+    timecode: str,
+    voice_model: str = "Female 1",
+    add_to_timeline: bool = True,
+    audio_track: int = 1,
+    speed: Optional[int] = None,
+    pitch: Optional[int] = None,
+    variation: Optional[int] = None,
+    custom_voice_file: Optional[str] = None,
+    filename: Optional[str] = None,
+) -> str:
+    """
+    Generate AI text-to-speech audio (Project.GenerateSpeech) and optionally
+    drop it onto the timeline at a given timecode. Useful for scripted
+    narration / voiceover. Requires DaVinci Resolve Studio with the AI Speech
+    Generator package installed (Extras Download Manager).
+
+    Parameters:
+    - text: The text to synthesize.
+    - timecode: Timeline timecode to place the clip at (e.g. "01:00:05:00").
+    - voice_model: Voice preset, e.g. "Female 1", "Male 1", or "Custom Voice"
+                   (use "Custom Voice" together with custom_voice_file).
+    - add_to_timeline: Place the generated clip on the timeline (default: True).
+    - audio_track: 1-based audio track to place the clip on (default: 1).
+    - speed: Optional speaking speed adjustment.
+    - pitch: Optional pitch adjustment.
+    - variation: Optional variation adjustment.
+    - custom_voice_file: Absolute path to a custom voice file (with "Custom Voice").
+    - filename: Optional name for the generated media pool item.
+    """
+    try:
+        conn = _conn()
+        project = conn.get_project()
+        if not hasattr(project, 'GenerateSpeech'):
+            return "GenerateSpeech is not available in this Resolve version (requires 21.0+)."
+
+        settings: Dict[str, Any] = {
+            "TextInput": text,
+            "VoiceModel": voice_model,
+            "AddToTimeline": add_to_timeline,
+            "AudioTrack": audio_track,
+        }
+        if speed is not None:
+            settings["Speed"] = speed
+        if pitch is not None:
+            settings["Pitch"] = pitch
+        if variation is not None:
+            settings["Variation"] = variation
+        if custom_voice_file:
+            settings["CustomVoiceFile"] = custom_voice_file
+        if filename:
+            settings["Filename"] = filename
+
+        item = project.GenerateSpeech(settings, timecode)
+        if not item:
+            return (
+                "GenerateSpeech returned no item. Ensure the AI Speech Generator "
+                "package is installed (Extras Download Manager) and the timecode is valid."
+            )
+        name = item.GetName() if hasattr(item, "GetName") else "speech clip"
+        placed = f" and placed on audio track {audio_track} at {timecode}" if add_to_timeline else ""
+        return f"Generated speech '{name}'{placed}."
+    except Exception as e:
+        return f"Error: {e}"
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  CODE EXECUTION (POWER TOOL)
 # ═══════════════════════════════════════════════════════════════════
@@ -1698,6 +1831,66 @@ def list_whisper_models() -> str:
         "default": DEFAULT_MODEL,
         "note": "First use of each model triggers a one-time download.",
     }, indent=2)
+
+
+@mcp.tool()
+def resolve_transcribe_audio(
+    clip_name: Optional[str] = None,
+    use_speaker_detection: Optional[bool] = None,
+) -> str:
+    """
+    Transcribe audio using DaVinci Resolve's built-in (native) transcriber,
+    with optional speaker detection. Unlike transcribe_audio (which runs
+    Whisper on an external file), this uses Resolve's own engine on media
+    pool clips and stores the transcript inside Resolve. Useful for IRL
+    multi-speaker footage. Requires DaVinci Resolve Studio 21.0+.
+
+    Parameters:
+    - clip_name: Name of a media pool clip to transcribe. If omitted, transcribes
+                 every clip in the media pool (root folder and nested folders).
+    - use_speaker_detection: True/False to enable/disable speaker detection for
+                 this run. If omitted, uses the project's current setting.
+    """
+    try:
+        conn = _conn()
+        mp = conn.get_media_pool()
+        root = mp.GetRootFolder()
+        if root is None:
+            return "Error: Could not get root folder from media pool"
+
+        def _call(obj) -> Any:
+            if not hasattr(obj, "TranscribeAudio"):
+                return None
+            if use_speaker_detection is None:
+                return obj.TranscribeAudio()
+            return obj.TranscribeAudio(use_speaker_detection)
+
+        if clip_name is None:
+            result = _call(root)
+            if result is None:
+                return "Native TranscribeAudio is not available in this Resolve version (requires 21.0+)."
+            return _ok(result, "Transcribed all media pool clips (folder + nested).", "Native transcription failed.")
+
+        # Find the named clip by walking the folder tree.
+        def _find(folder):
+            for clip in (folder.GetClipList() or []):
+                if clip.GetName() == clip_name:
+                    return clip
+            for sub in (folder.GetSubFolderList() or []):
+                found = _find(sub)
+                if found:
+                    return found
+            return None
+
+        clip = _find(root)
+        if clip is None:
+            return f"No media pool clip named '{clip_name}' found."
+        result = _call(clip)
+        if result is None:
+            return "Native TranscribeAudio is not available in this Resolve version (requires 21.0+)."
+        return _ok(result, f"Transcribed clip '{clip_name}'.", f"Native transcription failed for '{clip_name}'.")
+    except Exception as e:
+        return f"Error: {e}"
 
 
 # ═══════════════════════════════════════════════════════════════════
