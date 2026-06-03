@@ -2,23 +2,28 @@
 
 Reconstructs the talking-head edit from the source clip ranges (clips.json),
 drops whole-cut clips, trims partial (drag) cuts via the segmap, bakes a grade
-(CDL slope/offset + saturation), and muxes the mic audio. No Resolve needed.
+(CDL slope/offset + saturation). Uses a SINGLE concat pass mapping the video and
+its OWN embedded mic audio stream so video+audio stay locked (no drift). No
+Resolve needed.
 
 Usage:
-    python build_cut_preview.py --source SRC.mp4 --mic MIC.wav --clips clips.json
+    python build_cut_preview.py --source SRC.mp4 --clips clips.json
         --segmap segmap.json --decisions pink_decisions.json --out OUT.mp4
-        [--slope "1.485 1.515 1.545"] [--offset -0.1896] [--sat 1.02] [--tl-fps 60]
-        [--crf 18]
+        [--mic-stream 0] [--slope "1.485 1.515 1.545"] [--offset -0.1896]
+        [--sat 1.02] [--tl-fps 60] [--crf 18]
+
+--mic-stream is the 0-based embedded audio stream index in --source to use as
+the dialogue track (verify with: ffprobe -select_streams a SRC.mp4).
 """
 import json, subprocess, os, argparse
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--source", required=True)
-ap.add_argument("--mic", required=True)
 ap.add_argument("--clips", required=True)
 ap.add_argument("--segmap", required=True)
 ap.add_argument("--decisions", required=True)
 ap.add_argument("--out", required=True)
+ap.add_argument("--mic-stream", type=int, default=0, help="0-based embedded audio stream index (the mic)")
 ap.add_argument("--slope", default="1.0 1.0 1.0")
 ap.add_argument("--offset", type=float, default=0.0)
 ap.add_argument("--sat", type=float, default=1.0)
@@ -66,23 +71,27 @@ total = sum(e - s for s, e in segs)
 print("kept segments:", len(segs), "| total %.2fs (%d:%02d)" % (total, total // 60, total % 60))
 print("whole-cut:", sorted(whole_cuts), "| partial-cut clips:", dict(source_cuts))
 
-def write_list(path, src):
-    with open(path, "w") as f:
-        f.write("ffconcat version 1.0\n")
-        for (s, e) in segs:
-            f.write("file '%s'\ninpoint %.3f\noutpoint %.3f\n" % (src, s, e))
-write_list(OUTDIR + "/_v.txt", A.source); write_list(OUTDIR + "/_a.txt", A.mic)
+listf = OUTDIR + "/_concat.txt"
+with open(listf, "w") as f:
+    f.write("ffconcat version 1.0\n")
+    for (s, e) in segs:
+        f.write("file '%s'\ninpoint %.3f\noutpoint %.3f\n" % (A.source, s, e))
 
 sl = A.slope.split(); off255 = A.offset * 255.0
 grade = ("lutrgb=r='clip(val*%s%+.1f,0,255)':g='clip(val*%s%+.1f,0,255)':b='clip(val*%s%+.1f,0,255)',eq=saturation=%s"
          % (sl[0], off255, sl[1], off255, sl[2], off255, A.sat))
-tv, ta = OUTDIR + "/_pv.mp4", OUTDIR + "/_pa.aac"
-print("[1/3] video concat + grade ..."); subprocess.run(["ffmpeg", "-y", "-v", "error", "-stats", "-f", "concat", "-safe", "0", "-i", OUTDIR + "/_v.txt",
-    "-map", "0:v:0", "-vf", grade, "-r", str(int(A.tl_fps)), "-c:v", "libx264", "-crf", str(A.crf), "-preset", "veryfast", "-pix_fmt", "yuv420p", "-an", tv], check=True)
-print("[2/3] audio concat ..."); subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", OUTDIR + "/_a.txt", "-map", "0:a:0", "-c:a", "aac", "-b:a", "192k", ta], check=True)
-print("[3/3] mux ..."); subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", tv, "-i", ta, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "copy", "-shortest", A.out], check=True)
-for f in (tv, ta):
-    try: os.remove(f)
-    except OSError: pass
-d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1", A.out], capture_output=True, text=True).stdout.strip()
-print("WROTE", A.out, "| duration", d)
+
+# SINGLE pass: video + its own embedded mic audio, trimmed together -> stay in sync.
+print("encoding (single pass: video + embedded a:%d) ..." % A.mic_stream)
+subprocess.run(["ffmpeg", "-y", "-v", "error", "-stats", "-f", "concat", "-safe", "0", "-i", listf,
+                "-map", "0:v:0", "-map", "0:a:%d" % A.mic_stream, "-vf", grade,
+                "-r", str(int(A.tl_fps)), "-vsync", "cfr",
+                "-c:v", "libx264", "-crf", str(A.crf), "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", A.out], check=True)
+try: os.remove(listf)
+except OSError: pass
+
+probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,duration",
+                        "-of", "default=nw=1", A.out], capture_output=True, text=True).stdout
+print("WROTE", A.out)
+print(probe.strip())

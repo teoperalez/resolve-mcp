@@ -16,6 +16,12 @@ In any cut phase, split decisions two ways:
   review tool and let the editor decide. Borderline non-words are content
   judgments; the auto-categorizer stays conservative.
 
+For split recordings, keep audio-artifact review source-local but run narrative
+review globally. False starts, redo takes, repetitions, and abandoned narrative
+threads can cross part boundaries; Part 2 may replace, rehash, or invalidate a
+line from Part 1. The approved cut manifest must keep the part/source identity
+on every cut so those global decisions still apply to the correct FCPXML.
+
 ## Pipeline
 
 | Step | Tool | Output |
@@ -27,6 +33,16 @@ In any cut phase, split decisions two ways:
 | 5. 1080p preview | `scripts/build_cut_preview.py` | `CUTS_PREVIEW_1080p.mp4` |
 | 6. *(editor approves)* | — | — |
 | 7. Apply in Resolve + 4K | `Timeline.DeleteClips(items, True)` + `scripts/render_timeline.py --preset 4k` | final |
+
+Victreebel RBY UMB uses `scripts/generate_victreebel_cut_candidates.py` as the
+project wrapper. It emits per-part waveform review pages plus one all-parts
+narrative prompt under the project `CODEx/cut_review` folder.
+
+After review, write the accepted source-time cuts to
+`CODEx/approved_cuts_victreebel.json` with a `part` field on every cut, then run
+`scripts/apply_victreebel_approved_cuts.py`. That wrapper is project-specific
+because the corrected bases use explicit `_3.wav` A1 refs; it preserves the
+paired audio/video refs while rippling approved cuts.
 
 Step 1 is produced from the **current** Resolve timeline (run it before any
 ripple edits so indices match). Steps 2–5 need no Resolve.
@@ -63,3 +79,7 @@ cuts translate to exact source trims in steps 5 and 7.
 - The 1080p preview bakes a grade via ffmpeg `lutrgb` (slope/offset) + `eq`
   (saturation); pass the project's CDL with `--slope/--offset/--sat`. This is an
   approximation of the Resolve grade — the final 4K is rendered from Resolve.
+- Historical case-study lessons from the retired Brock Red and Misty Red
+  `audio-checks/` workspaces are preserved in `docs/brock_misty_cut_lessons.md`.
+  Use that note for false-start QA, waveform thresholds, final-render review,
+  and challenge-specific cut-boundary pitfalls without restoring old artifacts.

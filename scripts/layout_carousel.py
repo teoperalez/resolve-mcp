@@ -10,7 +10,9 @@ Workflow:
   2. Identify V1 clips from that marker to just before the outro (the last
      V1 clip is assumed to be the outro).
   3. Copy those clips to V2 (preserving their timeline positions).
-  4. Set CropBottom=530 on every new V2 clip.
+  4. Set CropBottom=530 on every new V2 clip. This is required: V2 keeps the
+     tight dialogue cuts on the upper picture while the continuous V1 bed
+     remains visible at the bottom for the member-name roll.
   5. Delete the original V1 clips in that range.
   6. Append ONE extended clip on V1 covering [carousel_start → outro_start)
      using the first carousel clip's MediaPoolItem with extended source range.
@@ -71,6 +73,53 @@ def cleanup_duplicate_gameplay_audio(tl, gameplay_name: str,
         print(f'WARNING: failed to delete {len(to_delete)} duplicate gameplay audio clips from A2+.')
         return 0
     return len(to_delete)
+
+
+def _to_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def set_and_verify_crop_bottom(item, crop_bottom: float) -> tuple[bool, str]:
+    """Apply CropBottom and verify the readback.
+
+    Resolve's SetProperty return value is not reliable enough to trust by
+    itself. A missing crop breaks the carousel look, so this function treats
+    readback mismatch as a hard failure for the caller.
+    """
+    attempts = []
+    try:
+        attempts.append(('SetProperty(key,value)', item.SetProperty('CropBottom', crop_bottom)))
+    except Exception as exc:
+        attempts.append(('SetProperty(key,value)', f'EXC {exc}'))
+
+    readback = None
+    try:
+        readback = _to_float(item.GetProperty('CropBottom'))
+    except Exception:
+        readback = None
+
+    if readback is not None and abs(readback - crop_bottom) < 0.01:
+        return True, f'readback={readback}'
+
+    # Some Resolve builds accept a dict form even when the key/value form
+    # reports False. Try it before declaring the edit unsafe to continue.
+    try:
+        attempts.append(('SetProperty(dict)', item.SetProperty({'CropBottom': crop_bottom})))
+    except Exception as exc:
+        attempts.append(('SetProperty(dict)', f'EXC {exc}'))
+
+    try:
+        readback = _to_float(item.GetProperty('CropBottom'))
+    except Exception:
+        readback = None
+
+    if readback is not None and abs(readback - crop_bottom) < 0.01:
+        return True, f'readback={readback}'
+
+    return False, f'readback={readback!r}; attempts={attempts!r}'
 
 
 def main() -> int:
@@ -192,16 +241,20 @@ def main() -> int:
     # ── 2) Apply CropBottom to each newly placed V2 clip ────────────────────
     print(f'Step 2: applying CropBottom={args.crop_bottom} to V2 clips...')
     n_cropped = 0
+    crop_failures = []
     for item in v2_placed:
-        try:
-            ok = item.SetProperty('CropBottom', args.crop_bottom)
-        except Exception as e:
-            ok = f'EXC {e}'
-        if ok is True:
+        ok, detail = set_and_verify_crop_bottom(item, args.crop_bottom)
+        if ok:
             n_cropped += 1
         else:
-            print(f'  WARN: SetProperty failed on {item.GetName()!r}: returned {ok!r}')
+            crop_failures.append((item.GetName() or '', detail))
+            print(f'  ERROR: CropBottom did not stick on {item.GetName()!r}: {detail}')
     print(f'  Applied CropBottom to {n_cropped}/{len(v2_placed)} V2 clips.')
+
+    if crop_failures:
+        print('\nABORT: V2 carousel crop is required. Leaving copied V2 clips in place '
+              'for inspection and not deleting/replacing V1.', file=sys.stderr)
+        return 2
 
     # ── 3) Delete original carousel clips from V1 ───────────────────────────
     print(f'Step 3: deleting {len(carousel_clips)} V1 carousel clips...')

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -12,12 +13,16 @@ import _resolve_env  # noqa: F401
 import DaVinciResolveScript as dvr
 
 from scripts import build_victreebel_rby_fcpxml as B
+from scripts import derive_rby_umb_hold_regions as H
 from scripts import place_battle_intros as PBI
 
 
 FPS = 60
 OUT_DIR = B.CODEX_DIR / "full_api_rebuild"
 TIMELINE_BASE = "Victreebel RBY UMB full API rebuild 2x gaps verified"
+STYLE_PASS_TIMELINE_BASE = "Victreebel UMB CODEx log-hold style pass"
+PART1_VIDEO = B.PROJECT_DIR / "Victreebel Red and Blue Ultra Minimum Battles part 1.mp4"
+PART2_VIDEO = B.PROJECT_DIR / "Victreebel Red and Blue Ultra Minimum Battles part 2.mp4"
 
 
 @dataclass
@@ -91,6 +96,168 @@ def load_parts():
         B.load_video_clips(p1_fixed, 1, B.PART1_DIALOGUE),
         B.load_video_clips(p2_fixed, 2, B.PART2_DIALOGUE),
     )
+
+
+def closed_holds_for_source(source_video: Path, kinds: set[str]) -> list[dict]:
+    events = H.load_json(B.SESSION_DIR / "events.json")
+    source_offset = H.source_start_elapsed(B.SESSION_DIR / "meta.json", source_video)
+    source_dur = H.source_duration_sec(source_video)
+    regions = H.derive_regions(
+        events,
+        source_offset=source_offset,
+        fps=FPS,
+        source_dur=source_dur,
+        pad_post_battle_start=0.0,
+        pad_post_battle_end=0.0,
+    )
+    out = []
+    for region in regions:
+        if region.kind not in kinds or region.source_end_frame is None:
+            continue
+        out.append(
+            {
+                "label": region.label,
+                "kind": region.kind,
+                "start": int(region.source_start_frame),
+                "end": int(region.source_end_frame),
+                "region": asdict(region),
+            }
+        )
+    return sorted(out, key=lambda h: (h["start"], h["end"], h["label"]))
+
+
+def first_intersecting_hold(holds: list[dict], src_start: int, src_end: int, hold_index: int) -> int | None:
+    i = hold_index
+    while i < len(holds):
+        hold = holds[i]
+        if hold["end"] <= src_start:
+            i += 1
+            continue
+        if hold["start"] >= src_end:
+            return None
+        return i
+    return None
+
+
+def clip_piece(template: B.Clip, offset: int, src_start: int, duration: int,
+               label: str | None = None) -> B.Clip | None:
+    if duration <= 0:
+        return None
+    return B.Clip(
+        part=template.part,
+        src=template.src,
+        dialogue=template.dialogue,
+        offset=offset,
+        start=src_start,
+        duration=duration,
+        name=label or template.name,
+    )
+
+
+def append_clip_piece(out: list[B.Clip], template: B.Clip, record: int,
+                      src_start: int, src_end: int, label: str | None = None) -> int:
+    piece = clip_piece(template, record, src_start, src_end - src_start, label)
+    if piece:
+        out.append(piece)
+        return record + piece.duration
+    return record
+
+
+def apply_source_holds_to_clips(clips: list[B.Clip], holds: list[dict]) -> tuple[list[B.Clip], dict]:
+    """Replace only the V1 picture over hold ranges.
+
+    The editorial formula learned from the Golem reference is not a ripple
+    restore. A1 remains the auto-editor-cut dialogue, while V1 is made visually
+    continuous over the existing compressed timeline range.
+    """
+    if not holds:
+        return clips, {
+            "input_clips": len(clips),
+            "output_clips": len(clips),
+            "holds_requested": 0,
+            "holds_emitted": 0,
+            "duration_delta": 0,
+            "visual_only": True,
+        }
+
+    ordered = sorted(clips, key=lambda c: (c.offset, c.start))
+    old_frames = max(c.offset + c.duration for c in ordered)
+    record_holds = []
+    for hold in holds:
+        record_start, start_snapped = B.map_source_frame(ordered, hold["start"])
+        record_end, end_snapped = B.map_source_frame(ordered, hold["end"])
+        if record_start is None or record_end is None or record_end <= record_start:
+            continue
+        record_holds.append(
+            {
+                **hold,
+                "record_start": record_start,
+                "record_end": record_end,
+                "record_duration": record_end - record_start,
+                "source_duration": hold["end"] - hold["start"],
+                "start_snapped": start_snapped,
+                "end_snapped": end_snapped,
+            }
+        )
+
+    record_holds.sort(key=lambda h: (h["record_start"], h["record_end"]))
+    merged: list[dict] = []
+    for hold in record_holds:
+        if merged and hold["record_start"] < merged[-1]["record_end"]:
+            raise RuntimeError(f"Overlapping visual hold regions: {merged[-1]['label']} and {hold['label']}")
+        merged.append(hold)
+
+    out: list[B.Clip] = []
+    for clip in ordered:
+        pieces = [(clip.offset, clip.start, clip.duration)]
+        for hold in merged:
+            h0 = hold["record_start"]
+            h1 = hold["record_end"]
+            next_pieces = []
+            for off, src, dur in pieces:
+                end = off + dur
+                if end <= h0 or off >= h1:
+                    next_pieces.append((off, src, dur))
+                    continue
+                if off < h0:
+                    keep = h0 - off
+                    next_pieces.append((off, src, keep))
+                if end > h1:
+                    trim = h1 - off
+                    next_pieces.append((h1, src + trim, end - h1))
+            pieces = next_pieces
+        for off, src, dur in pieces:
+            piece = clip_piece(clip, off, src, dur)
+            if piece:
+                out.append(piece)
+
+    template_by_part = {clip.part: clip for clip in ordered}
+    for hold in merged:
+        template = template_by_part.get(ordered[0].part, ordered[0])
+        piece = clip_piece(
+            template,
+            hold["record_start"],
+            hold["start"],
+            hold["record_duration"],
+            hold["label"],
+        )
+        if piece:
+            out.append(piece)
+
+    out.sort(key=lambda c: (c.offset, c.start, c.name))
+    new_frames = max(c.offset + c.duration for c in out)
+    report = {
+        "input_clips": len(ordered),
+        "output_clips": len(out),
+        "holds_requested": len(holds),
+        "holds_emitted": len(merged),
+        "input_frames": old_frames,
+        "output_frames": new_frames,
+        "duration_delta": new_frames - old_frames,
+        "visual_only": True,
+        "holds": merged,
+    }
+    return out, report
 
 
 def leader_for_marker(label: str) -> str | None:
@@ -353,10 +520,14 @@ def append_entries(pool, entries: list[Entry], items: dict[str, object], tl_star
         )
     payload.sort(key=lambda s: (s["recordFrame"], s["trackIndex"], s["mediaType"]))
     placed = 0
-    for i in range(0, len(payload), 50):
-        got = pool.AppendToTimeline(payload[i : i + 50]) or []
+    batch_size = 20
+    for i in range(0, len(payload), batch_size):
+        end = min(i + batch_size, len(payload))
+        log(f"  appending {i + 1}-{end}/{len(payload)}")
+        got = pool.AppendToTimeline(payload[i:end]) or []
         placed += len(got)
-        log(f"  appended {min(i + 50, len(payload))}/{len(payload)} placed={placed}")
+        log(f"  appended {end}/{len(payload)} placed={placed}")
+        time.sleep(0.05)
     return placed
 
 
@@ -459,27 +630,61 @@ def self_audit(timeline, insertions: list[dict], gaps: list[dict]) -> dict:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--apply-log-holds",
+        action="store_true",
+        help="replace auto-editor micro-cuts with continuous logged visual-card spans",
+    )
+    parser.add_argument(
+        "--timeline-base",
+        default=None,
+        help="base name for the created Resolve timeline",
+    )
+    args = parser.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    part1, part2 = load_parts()
-    intro_frames = media_frames(B.INTRO_PATH)
+    part1_audio, part2_audio = load_parts()
+    part1_video = part1_audio
+    part2_video = part2_audio
+    hold_report: dict[str, dict] = {}
+    if args.apply_log_holds:
+        part1_holds = closed_holds_for_source(PART1_VIDEO, {"intro_stats", "intro_moveset", "intro_card"})
+        part2_holds = closed_holds_for_source(PART2_VIDEO, {"post_battle_data_card", "final_tierlist"})
+        part1_video, hold_report["part1"] = apply_source_holds_to_clips(part1_audio, part1_holds)
+        part2_video, hold_report["part2"] = apply_source_holds_to_clips(part2_audio, part2_holds)
+        hold_path = OUT_DIR / "victreebel_log_hold_regions_report.json"
+        hold_path.write_text(json.dumps(hold_report, indent=2), encoding="utf-8")
+        log(
+            "applied log holds: "
+            f"part1 {hold_report['part1']['holds_emitted']}/{hold_report['part1']['holds_requested']} "
+            f"delta={hold_report['part1']['duration_delta']}f; "
+            f"part2 {hold_report['part2']['holds_emitted']}/{hold_report['part2']['holds_requested']} "
+            f"delta={hold_report['part2']['duration_delta']}f"
+        )
+    intro_frames = B.video_duration_frames(B.INTRO_PATH)
+    intro_native_frames = native_video_frames(B.INTRO_PATH)
     bgm_frames = media_frames(B.BGM_PATH)
-    outro_frames = media_frames(B.OUTRO_PATH)
-    part1_len = max(c.offset + c.duration for c in part1)
+    outro_frames = B.video_duration_frames(B.OUTRO_PATH)
+    outro_native_frames = native_video_frames(B.OUTRO_PATH)
+    part1_len = max(c.offset + c.duration for c in part1_audio)
     part2_base = intro_frames + part1_len
-    markers, timing = B.build_markers(part2, part2_base)
+    markers, timing = B.build_markers(part2_audio, part2_base)
 
     entries: list[Entry] = [
-        Entry(B.INTRO_PATH, 1, 1, 0, 0, intro_frames, "intro"),
+        Entry(B.INTRO_PATH, 1, 1, 0, 0, intro_frames, "intro", source_duration=intro_native_frames),
         Entry(B.BGM_PATH, 2, 2, 0, 0, min(bgm_frames, intro_frames), "intro_music"),
     ]
-    for clip in part1:
+    for clip in part1_video:
         entries.append(Entry(clip.src, 1, 1, intro_frames + clip.offset, clip.start, clip.duration, "gameplay", 1))
+    for clip in part1_audio:
         entries.append(Entry(clip.dialogue, 2, 1, intro_frames + clip.offset, clip.start, clip.duration, "dialogue", 1))
-    for clip in part2:
+    for clip in part2_video:
         entries.append(Entry(clip.src, 1, 1, part2_base + clip.offset, clip.start, clip.duration, "gameplay", 2))
+    for clip in part2_audio:
         entries.append(Entry(clip.dialogue, 2, 1, part2_base + clip.offset, clip.start, clip.duration, "dialogue", 2))
-    end_without_outro = max(part2_base + c.offset + c.duration for c in part2)
-    entries.append(Entry(B.OUTRO_PATH, 1, 1, end_without_outro, 0, outro_frames, "outro"))
+    end_without_outro = max(part2_base + c.offset + c.duration for c in part2_audio)
+    entries.append(Entry(B.OUTRO_PATH, 1, 1, end_without_outro, 0, outro_frames, "outro", source_duration=outro_native_frames))
     entries.append(Entry(B.OUTRO_PATH, 2, 3, end_without_outro, 0, outro_frames, "outro_audio"))
 
     gaps = add_nonboss_gaps(entries, markers)
@@ -487,7 +692,8 @@ def main() -> int:
     log(f"prepared entries={len(entries)} leaders={len(insertions)} nonboss_gaps={sum(1 for g in gaps if g['status'] == 'inserted')}")
 
     resolve, project, pool = connect()
-    name = unique_timeline_name(project, TIMELINE_BASE)
+    default_base = STYLE_PASS_TIMELINE_BASE if args.apply_log_holds else TIMELINE_BASE
+    name = unique_timeline_name(project, args.timeline_base or default_base)
     timeline = pool.CreateEmptyTimeline(name)
     if not timeline:
         raise RuntimeError("CreateEmptyTimeline failed")
@@ -509,6 +715,7 @@ def main() -> int:
     report["entries_expected"] = len(entries)
     report["placed_count"] = placed
     report["timing"] = timing
+    report["log_holds"] = hold_report
     report["ok"] = not report["violations"] and placed == len(entries)
     drt = OUT_DIR / f"{timeline.GetName()}.drt"
     try:

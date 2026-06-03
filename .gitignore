@@ -33,6 +33,10 @@ transcriptions.json
 # Generated / local files (do not commit)
 transcripts/
 plans/
+audio-checks/
+audio_check_output.log
+scratch/
+training/
 
 # Data sidecar repo — clone of github.com/teoperalez/resolve-mcp-data
 # Contains snapshot of transcripts/ + plans/prompts/ so other machines
