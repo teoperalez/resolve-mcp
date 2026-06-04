@@ -35,6 +35,18 @@ DEFAULT_REPORT = Path(
 DEFAULT_REBUILD_REPORT_DIR = Path(
     r"E:\Victreebel Red and Blue Ultra Minimum Battles\CODEx\full_api_rebuild"
 )
+EXTRA_REBUILD_REPORT_DIRS = [
+    Path(
+        r"E:\Victreebel Red and Blue Ultra Minimum Battles\CODEx"
+        r"\cut_review_locked_autocut\final_full_rebuild"
+    )
+]
+VISUAL_HOLD_FIX_REPORT_DIRS = [
+    Path(
+        r"E:\Victreebel Red and Blue Ultra Minimum Battles\CODEx"
+        r"\cut_review_locked_autocut\final_full_rebuild_hold_fixed"
+    )
+]
 
 COLORS = {
     "intro": "Orange",
@@ -159,10 +171,11 @@ def markers_named(markers: list[dict[str, Any]], name: str) -> list[dict[str, An
 
 def parse_tiercard_holds(markers: list[dict[str, Any]], timeline_end_rel: int) -> list[dict[str, Any]]:
     holds = []
-    prefix = "Visual Tiercard V1 Hold Start:"
+    prefixes = ("Visual Hold Fixed:", "Visual Tiercard V1 Hold Start:")
     for marker in markers:
         name = marker["name"]
-        if not name.startswith(prefix):
+        prefix = next((p for p in prefixes if name.startswith(p)), None)
+        if not prefix:
             continue
         label = name.removeprefix(prefix).strip()
         duration_match = re.search(r"\bdur=(\d+)\b", marker["note"])
@@ -238,11 +251,21 @@ def is_intro_outro_asset(item) -> bool:
 
 
 def rebuild_report_for_timeline(timeline_name: str) -> Path | None:
-    exact = DEFAULT_REBUILD_REPORT_DIR / f"{timeline_name}_report.json"
-    if exact.exists():
-        return exact
+    report_dirs = [DEFAULT_REBUILD_REPORT_DIR, *EXTRA_REBUILD_REPORT_DIRS]
+    timeline_names = [timeline_name]
+    for suffix in (" visual holds fixed", " visual holds old rule fixed"):
+        if timeline_name.endswith(suffix):
+            timeline_names.append(timeline_name.removesuffix(suffix))
+    for name in timeline_names:
+        for report_dir in report_dirs:
+            exact = report_dir / f"{name}_report.json"
+            if exact.exists():
+                return exact
+    candidates = []
+    for report_dir in report_dirs:
+        candidates.extend(report_dir.glob("*_report.json"))
     candidates = sorted(
-        DEFAULT_REBUILD_REPORT_DIR.glob("*_report.json"),
+        candidates,
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -251,8 +274,24 @@ def rebuild_report_for_timeline(timeline_name: str) -> Path | None:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if data.get("timeline") == timeline_name:
+        if data.get("timeline") in timeline_names:
             return path
+    return None
+
+
+def visual_hold_fix_report_for_timeline(timeline_name: str) -> Path | None:
+    for report_dir in VISUAL_HOLD_FIX_REPORT_DIRS:
+        exact = report_dir / f"{timeline_name}_visual_hold_fix_report.json"
+        if exact.exists():
+            return exact
+    for report_dir in VISUAL_HOLD_FIX_REPORT_DIRS:
+        for path in sorted(report_dir.glob("*_visual_hold_fix_report.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if data.get("timeline") == timeline_name:
+                return path
     return None
 
 
@@ -309,12 +348,35 @@ def load_log_hold_ranges(timeline, start_frame: int, v1_items: list[Any]) -> lis
     return ranges
 
 
+def load_visual_hold_fix_ranges(timeline_name: str) -> list[dict[str, Any]]:
+    report_path = visual_hold_fix_report_for_timeline(timeline_name)
+    if not report_path:
+        return []
+    data = json.loads(report_path.read_text(encoding="utf-8"))
+    ranges = []
+    for hold in data.get("holds") or []:
+        ranges.append(
+            {
+                "kind": "tiercard",
+                "label": hold.get("label") or "Visual Hold",
+                "start": int(hold["rel_start"]),
+                "end": int(hold["rel_end"]),
+                "color": COLORS["tiercard"],
+                "priority": PRIORITY["tiercard"],
+                "source": "visual_hold_fix",
+                "report": str(report_path),
+            }
+        )
+    return ranges
+
+
 def build_ranges(timeline, start_frame: int) -> list[dict[str, Any]]:
     markers = marker_rows(timeline)
     v1_items = timeline.GetItemListInTrack("video", 1) or []
     timeline_end_rel = int(timeline.GetEndFrame()) - start_frame
     ranges: list[dict[str, Any]] = []
     log_hold_ranges = load_log_hold_ranges(timeline, start_frame, v1_items)
+    visual_hold_fix_ranges = load_visual_hold_fix_ranges(timeline.GetName())
 
     rival_starts = markers_named(markers, "Rival Battle Start")
     rival_finishes = markers_named(markers, "Rival Battle Finish")
@@ -334,6 +396,7 @@ def build_ranges(timeline, start_frame: int) -> list[dict[str, Any]]:
             }
         )
     ranges.extend(log_hold_ranges)
+    ranges.extend(visual_hold_fix_ranges)
     if not any(r["kind"] == "intro" and r.get("source") == "log_holds" for r in log_hold_ranges):
         for item in EXTRA_INTRO_RANGES:
             ranges.append(
@@ -349,9 +412,11 @@ def build_ranges(timeline, start_frame: int) -> list[dict[str, Any]]:
 
     marker_tiercard_holds = parse_tiercard_holds(markers, timeline_end_rel)
     ranges.extend(marker_tiercard_holds)
-    tiercard_holds = [
+    # Prefer explicit marker-fixed holds when both the older short log-derived
+    # ranges and the repaired visual-hold ranges exist on a timeline.
+    tiercard_holds = visual_hold_fix_ranges + marker_tiercard_holds + [
         r for r in log_hold_ranges if r["kind"] == "tiercard"
-    ] + marker_tiercard_holds
+    ]
 
     rival_gap_markers = [
         m

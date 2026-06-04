@@ -31,9 +31,13 @@ cuda-win = [
     "nvidia-cublas-cu12>=12.0",
     "nvidia-cudnn-cu12>=9.0",
 ]
+gui-build = [
+    "pyinstaller>=6.0",
+]
 
 [project.scripts]
 resolve-mcp = "resolve_mcp.server:main"
+resolve-edit-flow-gui = "resolve_mcp.edit_flow_app:main"
 
 [tool.uv]
 # onnxruntime >=1.21 dropped Python 3.10 wheels; pin to the last compatible range

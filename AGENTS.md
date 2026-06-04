@@ -83,13 +83,32 @@ future projects:
   by the discrete intro insertion and should be excluded from ordinary
   pre-battle gap insertion. Use `insert_battle_gaps_fcpxml.py
   --only-gen1-non-bosses` for the battle-gap step on those projects.
-- For the Victreebel Red/Blue Ultra Minimum Battles handoff timeline, the
-  verified project-specific rebuild tool is
-  `scripts\rebuild_victreebel_rby_timeline.py`. It rebuilds the timeline through
-  2x leader intros and non-boss gaps, self-audits A1 coverage/one-frame
-  gaps/leader intro counts, exports a DRT, and should be paired with the
-  handoff file at
+- For the Victreebel Red/Blue Ultra Minimum Battles handoff timelines, pair all
+  work with the handoff file at
   `E:\Victreebel Red and Blue Ultra Minimum Battles\CODEx\VICTREEBEL_PASSOFF.md`.
+  The verified corrected-base rebuild tool is
+  `scripts\rebuild_victreebel_rby_timeline.py`. The verified approved-cuts
+  final rebuild bridge is
+  `scripts\rebuild_victreebel_final_from_review_spine.py`, which consumes the
+  approved live V1/A1 review spine, restores the dropped Champion marker,
+  applies source-derived holds, inserts non-boss gaps and 2x Gen 1 leader
+  intros, supports resume after Resolve scripting bridge interruptions, and
+  exports a DRT/self-audit report before downstream BGM/battle-audio/carousel
+  and color passes. The first approved-cuts full rebuild still missed true
+  post-battle V1 hold replacement; the verified repair helper is
+  `scripts\apply_victreebel_visual_hold_fix.py`. It duplicates the final
+  timeline, replaces only V1 over the intended post-battle hold spans, verifies
+  exactly one Purple V1 clip per hold, and uses the old post-battle rule:
+  from each `Beat ...`/finish marker, search backward to the last battle-overlay
+  segment as the hold source anchor, then extend through the data card until the
+  next main-UI segment; for Champion, extend through the post-battle card until
+  the first `Final Tierlist` marker.
+- Resolve timeline rebuilds through the Python API are slow and heavy. For
+  cut-review projects, avoid repeated partial API rebuilds for cuts, holds, BGM,
+  carousel, and cleanup. Keep approvals and timing decisions as source/remap
+  metadata while the review timeline is lightweight, then run one deterministic
+  heavy rebuild after cuts are approved and holds/BGM/downstream placements are
+  known, so the user can walk away and come back to a validated final timeline.
 - Battle-intro clips must exist on V2. `place_battle_intros.py` verifies the API
   placement and writes `_data/qa-reports/battle-intros-placements.json`; the
   Step 9 audit also checks V2 intro presence.

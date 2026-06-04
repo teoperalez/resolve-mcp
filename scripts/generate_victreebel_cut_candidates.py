@@ -7,6 +7,12 @@ and Part 2 separate so source-frame decisions remain unambiguous.
 Outputs default to:
   E:/Victreebel Red and Blue Ultra Minimum Battles/CODEx/cut_review/
 
+The review order is intentionally dialogue-first. First resolve explicit spoken
+edit instructions/restart declarations, then scan the full dialogue for
+repetitions, false starts, abandoned lines, self-corrections, and mid-segment
+restart candidates. Audio artifacts and any partial-section dialogue cuts are
+then routed to the HTML review surface.
+
 For each part it writes:
   - clips.json
   - categories.json and waves_candidates.png from waveform_qa.py
@@ -298,6 +304,38 @@ def build_all_parts_narrative_prompt(clips: list[dict], transcript_paths: dict[s
     body = "\n".join(format_narrative_clip_line(c) for c in clips)
     return f"""You are reviewing a single finished Pokemon challenge narrative that was recorded in two separate files.
 
+## Review Contract
+
+The goal is a final timeline free of repetitions, false starts, abandoned
+narrative threads, self-correction fragments, explicit editor-note tangents, and
+audio artifacts.
+
+Do as much cutting decision work as possible before involving the editor. Return
+as few user-facing candidates as possible: auto-cut high-confidence whole-FCPXML
+section mistakes through the section-safe pipeline, auto-keep weak/speculative
+leads, and reserve HTML/Pink review for true borderline cases after exhaustive
+checking or strong candidates that would require a cut boundary inside an
+FCPXML section. False positives are more costly than false negatives.
+
+Review in this order:
+
+1. First find clear spoken edit instructions and restart declarations: "cut
+    this", "this is a restart", "everything before this was a mistake", "I moved
+    that to the outro", or any tangent the speaker says should be removed.
+2. Then scan the full dialogue for repetitions, false starts, abandoned
+    narrative threads, self-corrections, stale takes, and mid-segment restart
+    candidates.
+3. Leave non-word artifacts such as breaths, clicks, throat clears, and waveform
+    bursts for the HTML/audio-artifact pass unless the transcript itself shows a
+    clear mic check or spoken pre-roll.
+
+Candidates that cover whole FCPXML sections can be applied automatically by the
+section-safe classifier when the evidence is strong. Candidates that start or
+end inside an FCPXML section must be reviewed in HTML/Pink rather than applied
+directly, but only report them when the evidence is strong enough to justify
+editor attention or remains genuinely borderline after exhaustive checking. Do
+not report weak or merely plausible candidates.
+
 ## Critical Scope Rule
 
 Treat Part 1 and Part 2 as ONE continuous video story. The part boundary is not
@@ -314,30 +352,52 @@ Transcripts used:
 
 ## What To Flag
 
-Flag only editorial/narrative cuts:
+Flag dialogue cuts:
 
+- explicit edit notes or restart declarations that identify content to remove
 - false starts where the speaker begins a line and restarts cleaner later
 - true repetitions where one delivery is clearly a failed take or stale setup
 - abandoned narrative threads that are superseded later
 - cross-part rehashes where Part 2 replaces or invalidates a Part 1 line
-- mid-clip self-corrections such as "so X, so Y" or "actually..."
+- full restart ranges where the speaker explicitly says the previous take was a mistake
+- self-corrections, including small repeated words, when the first token/phrase
+    is a genuine abandoned fragment rather than intentional emphasis
+- mid-clip false starts, repetitions, or self-corrections when only part of a
+    section should be removed
+
+Do NOT flag generic non-word audio artifacts in this dialogue pass:
+
+- breaths, clicks, throat clears, or empty waveform artifacts
+- generic audio polish that does not change the story
+- pure silence/dead air with no spoken words
+
+If a tiny repeated word is a real self-correction, include it only when context
+clearly proves the first token/phrase is abandoned. Otherwise auto-keep it and
+do not return it as a candidate.
 
 Do not flag a Part 2 recap just because it repeats Part 1. Recaps can be
 intentional. Flag the older/staler line only when the later line clearly
 functions as the real take, changes direction, or makes the earlier line
 misleading in the final story.
 
-Use the `WORDS_IN_CLIP` annotation as the source of truth for what audio is
-actually removed. The assigned Whisper segment is context only.
+Use the `WORDS_IN_CLIP` annotation for precise boundaries after deciding a cut,
+not as standalone proof that a clip is an artifact. `WORDS_IN_CLIP(0)` can be a
+lead for the later audio-artifact pass, but obvious dialogue context, normal
+gaps between words, and clips with overlapping transcript text should not be
+reported as artifacts. Do not promote raw duplicate-word or immediate
+phrase-repeat heuristics unless the surrounding dialogue proves the first token
+or phrase is actually abandoned.
 
 Preserve Teo's style: softeners like "of course", "actually", "basically",
 "kind of", "like", and "now" are often intentional. Do not over-tighten natural
 cadence. Never split atomic references such as "Rival 2", "rival number two",
 "the second gym leader", "attempt number one", or "reset 29".
 
-If a cut is plausible but uncertain, include `confidence: "medium"` and put the
-word `borderline` in the reason so it goes to audio verification instead of
-being silently accepted.
+If a cut is only plausible because evidence is thin, do not output it. Use
+`confidence: "medium"` only for a true borderline case after checking the
+surrounding transcript, word timings, neighboring clips, and FCPXML section
+safety. Those true borderline cases should go to editor review instead of being
+silently kept or cut.
 
 ## Clip List
 
@@ -364,16 +424,17 @@ Respond with ONLY a raw JSON array. No markdown fences, no prose.
   {{
     "part": "part2",
     "start_sec": 456.10,
-    "end_sec": 457.30,
+    "end_sec": 461.30,
     "confidence": "medium",
     "type": "mid_clip_false_start",
-    "reason": "Trail-off before a clean restart in the next sub-segment"
+    "reason": "Abandoned phrase before a clean restart in the next sub-segment"
   }}
 ]
 
 Allowed `part` values: `part1`, `part2`.
-Allowed `type` values: `false_start`, `repetition`, `abandoned_thread`,
-`mid_clip_false_start`, `mid_clip_repetition`, `self_correction`.
+Allowed `type` values: `explicit_edit_note`, `false_start`, `repetition`,
+`abandoned_thread`, `full_restart`, `self_correction`,
+`mid_clip_false_start`, `mid_clip_repetition`, `mid_clip_self_correction`.
 """
 
 
@@ -601,18 +662,10 @@ def main() -> int:
     write_json(out_dir / "clips_all_v1.json", {"timeline": timeline.GetName(), "clips": rows})
 
     all_part_rows = {part.key: rows_for_part(rows, part) for part in PARTS.values()}
-    wanted_parts = list(PARTS.values()) if args.part == "all" else [PARTS[args.part]]
-    part_reports = []
-    for part in wanted_parts:
-        part_rows = all_part_rows[part.key]
-        if not part_rows:
-            raise RuntimeError(f"No V1 clips found for {part.label}: {part.video}")
-        print(f"\n{part.label}: {len(part_rows)} V1 clips")
-        part_reports.append(build_part_artifacts(part, part_rows, out_dir, args))
 
     narrative = None
     if not args.skip_narrative_prompt:
-        print("\nBuilding all-parts narrative review prompt...")
+        print("\nBuilding all-parts dialogue review prompt (instructions + repetitions + false starts)...")
         narrative = build_narrative_artifacts(
             all_part_rows,
             int(timeline.GetStartFrame()),
@@ -622,10 +675,41 @@ def main() -> int:
         print(f"  Narrative clips indexed: {narrative['clip_count']}")
         print(f"  Prompt: {narrative['prompt']}")
 
+    wanted_parts = list(PARTS.values()) if args.part == "all" else [PARTS[args.part]]
+    part_reports = []
+    for part in wanted_parts:
+        part_rows = all_part_rows[part.key]
+        if not part_rows:
+            raise RuntimeError(f"No V1 clips found for {part.label}: {part.video}")
+        print(f"\n{part.label}: {len(part_rows)} V1 clips")
+        part_reports.append(build_part_artifacts(part, part_rows, out_dir, args))
+
     auto_candidates = [c for p in part_reports for c in p["auto_cut_candidates"]]
     review_candidates = [c for p in part_reports for c in p["review_candidates"]]
     report = {
         "schema": "victreebel_cut_candidates_v1",
+        "review_policy": "explicit_instruction_then_full_dialogue_then_audio_artifacts",
+        "selection_policy": "auto_cut_high_confidence_whole_sections_auto_keep_weak_leads_minimize_user_review_false_positive_averse",
+        "review_order": [
+            {
+                "stage": 1,
+                "name": "explicit_instruction_scan",
+                "focus": "spoken edit notes, restart declarations, cut-this/tangent removal instructions",
+                "artifact": narrative["prompt"] if narrative else None,
+            },
+            {
+                "stage": 2,
+                "name": "full_dialogue_llm_review",
+                "focus": "repetitions, false starts, abandoned narratives, self-corrections, mid-segment candidates",
+                "artifact": narrative["prompt"] if narrative else None,
+            },
+            {
+                "stage": 3,
+                "name": "audio_artifact_html_review",
+                "focus": "confirmed no-dialogue artifacts, mic bumps, throat clears, transcription hallucinations with evidence, and strong partial-section candidates",
+                "artifacts": [p["artifacts"]["review_html"] for p in part_reports],
+            },
+        ],
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "project": project.GetName(),
         "timeline": timeline.GetName(),
@@ -648,8 +732,9 @@ def main() -> int:
     print(f"\nWrote candidate manifest: {report_path}")
     print(
         "Candidates: "
+        f"explicit-instruction/full-dialogue prompt first, then "
         f"{len(auto_candidates)} auto-cut definite, "
-        f"{len(review_candidates)} questionable review"
+        f"{len(review_candidates)} audio-artifact/manual-review"
     )
     return 0
 

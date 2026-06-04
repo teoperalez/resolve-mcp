@@ -19,6 +19,9 @@ Example:
   python scripts/place_rby_umb_bgm.py ^
     --game-audio "E:\\Run\\tracks\\Run_2.wav" ^
     --dry-run
+
+Use --end-at-timeline-end for runs that do not have a discrete outro clip at
+the end of V1.
 """
 
 import argparse
@@ -427,6 +430,9 @@ def main() -> int:
     ap.add_argument("--track-index", type=int, default=2)
     ap.add_argument("--protect-name-regex", default=None,
                     help="extra A2 clip-name regex to preserve as battle music")
+    ap.add_argument("--end-at-timeline-end", "--no-outro", dest="end_at_timeline_end",
+                    action="store_true",
+                    help="Fill through timeline end instead of treating the last V1 clip as an outro.")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report", type=Path, default=REPORT_PATH)
     args = ap.parse_args()
@@ -456,9 +462,16 @@ def main() -> int:
         timeline.AddTrack("audio", "stereo")
 
     v1 = sorted(timeline.GetItemListInTrack("video", 1) or [], key=lambda c: c.GetStart())
-    if len(v1) < 2:
-        raise RuntimeError("V1 needs gameplay plus outro")
-    outro_start = v1[-1].GetStart()
+    if args.end_at_timeline_end:
+        if not v1:
+            raise RuntimeError("V1 has no gameplay clips")
+        outro_start = timeline.GetEndFrame()
+        print(f"Fill end: timeline end {outro_start}")
+    else:
+        if len(v1) < 2:
+            raise RuntimeError("V1 needs gameplay plus outro, or use --end-at-timeline-end")
+        outro_start = v1[-1].GetStart()
+        print(f"Fill end: last V1/outro start {outro_start}")
     dominant = dominant_v1_source(v1)
     v1_map = build_v1_map(v1, dominant, fps)
     if not v1_map:
@@ -569,6 +582,7 @@ def main() -> int:
         "fps": fps,
         "game_audio": str(args.game_audio),
         "dominant_v1_source": dominant,
+        "end_mode": "timeline_end" if args.end_at_timeline_end else "last_v1_as_outro",
         "outro_start_abs": outro_start,
         "opening_end_abs": opening_end,
         "ending_start_abs": ending_start,
@@ -589,7 +603,7 @@ def main() -> int:
 
     rendered = [render_segment(seg, fps) for seg in segments]
     root = pool.GetRootFolder()
-    target_folder = find_subfolder(root, ("Victreebel CODEx Assets", "assets")) or root
+    target_folder = find_subfolder(root, ("Mewtwo CODEx Assets", "Victreebel CODEx Assets", "assets")) or root
     media = import_media(pool, target_folder, sorted({p.resolve() for p in rendered}))
 
     if delete_a2:

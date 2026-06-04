@@ -1,0 +1,98 @@
+{
+  "schema": "resolve_edit_flow_profiles_v1",
+  "profiles": [
+    {
+      "id": "mewtwo_rby_umb_redo",
+      "name": "Mewtwo RBY UMB Redo",
+      "description": "Review-first Mewtwo Red/Blue Ultra Minimum Battles workflow: build the lightweight review base, pause once for narrative cuts, collect cut decisions, then run the heavy deterministic rebuild stages.",
+      "project_dir": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo",
+      "codex_dir": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/CODEx",
+      "paths": {
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates_mewtwo.json",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.in.md",
+        "narrative_output": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.out.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts_mewtwo.json",
+        "handoff_bundle": "{codex_dir}/cut_review/llm_handoff.json",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
+        "hold_regions": "{codex_dir}/mewtwo_hold_regions.json",
+        "final_manifest": "{codex_dir}/Mewtwo_RBY_UMB_redo_CODEx_final_rebuild_base_manifest.json",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json"
+      },
+      "html_reviews": [
+        {
+          "label": "Waveform Review",
+          "html": "{codex_dir}/cut_review/review/index.html",
+          "decisions": "{codex_dir}/cut_review/review/pink_decisions.json"
+        }
+      ],
+      "prepare_steps": [
+        {
+          "id": "review-base",
+          "title": "Build lightweight review base",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "review-base"]
+        },
+        {
+          "id": "cut-candidates",
+          "title": "Generate LLM handoff and waveform candidates",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "cut-candidates"]
+        }
+      ],
+      "finish_steps": [
+        {
+          "id": "apply-html-decisions",
+          "title": "Apply waveform review decisions to the review spine",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "apply-html-decisions"],
+          "skip_unless_all_exist": ["html_decisions", "html_clips", "html_segmap"]
+        },
+        {
+          "id": "compile-approved-cuts",
+          "title": "Compile approved source-time cuts",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "compile-approved-cuts"]
+        },
+        {
+          "id": "final-base",
+          "title": "Build final approved-cuts base with visual holds",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "final-base"]
+        },
+        {
+          "id": "gen1-intros",
+          "title": "Insert 2x Gen 1 leader intros",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "gen1-intros"]
+        },
+        {
+          "id": "extract-game-audio",
+          "title": "Extract source game-audio bridge track",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "extract-game-audio"]
+        },
+        {
+          "id": "bgm-dry-run",
+          "title": "Preview BGM/game-audio placement",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "bgm-dry-run"]
+        },
+        {
+          "id": "bgm",
+          "title": "Place BGM/game-audio bed",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "bgm"]
+        },
+        {
+          "id": "carousel-dry-run",
+          "title": "Preview carousel layout",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "carousel-dry-run"]
+        },
+        {
+          "id": "carousel",
+          "title": "Apply carousel layout",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "carousel"]
+        },
+        {
+          "id": "validate-order",
+          "title": "Validate finished-stage artifacts",
+          "command": ["{python}", "scripts/run_mewtwo_rby_umb_pipeline.py", "--stage", "validate-order", "--strict"],
+          "optional": true
+        }
+      ]
+    }
+  ]
+}
