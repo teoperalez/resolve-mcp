@@ -16,10 +16,23 @@ from pathlib import Path
 from typing import Iterable
 
 
-PROJECT_DIR = Path(r"E:\Victreebel Red and Blue Ultra Minimum Battles")
+def first_existing_path(*paths: Path) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+PROJECT_DIR = first_existing_path(
+    Path(r"E:\Victreebel Red and Blue Ultra Minimum Battles"),
+    Path(r"C:\Users\teope\Videos\Victreebel Red and Blue Ultra Minimum Battles"),
+)
 CODEX_DIR = PROJECT_DIR / "CODEx"
 CODEX_ASSETS_DIR = CODEX_DIR / "assets"
-SESSION_DIR = Path(r"C:\Users\teope\AppData\Roaming\rbypc-frontend\logs\2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles")
+SESSION_DIR = first_existing_path(
+    CODEX_DIR / "session-log",
+    Path(r"C:\Users\teope\AppData\Roaming\rbypc-frontend\logs\2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles"),
+)
 RBY_ROOT = Path(r"C:\Programming\RBYNewLayout")
 LEADER_DIR = RBY_ROOT / "gymLeaders" / "LeaderIntros"
 INTRO_SOURCE = RBY_ROOT / "Blue Version Intro.mp4"

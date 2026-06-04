@@ -42,11 +42,24 @@ from scripts import derive_rby_umb_hold_regions as H
 FPS = 60
 FRAME_DURATION = f"1/{FPS}s"
 
-PROJECT_DIR = Path(r"C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo")
+def first_existing_path(*paths: Path) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+PROJECT_DIR = first_existing_path(
+    Path(r"E:\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
+    Path(r"C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
+)
 CODEX_DIR = PROJECT_DIR / "CODEx"
-SESSION_DIR = Path(
-    r"C:\Users\teope\AppData\Roaming\rbypc-frontend\logs"
-    r"\2026-06-04T05_39_57_738__Mewtwo__Ultra_Minimum_Battles"
+SESSION_DIR = first_existing_path(
+    CODEX_DIR / "session-log",
+    Path(
+        r"C:\Users\teope\AppData\Roaming\rbypc-frontend\logs"
+        r"\2026-06-04T05_39_57_738__Mewtwo__Ultra_Minimum_Battles"
+    ),
 )
 VIDEO_PATH = PROJECT_DIR / "Mewtwo Red and Blue Ultra Minimum Battles Redo.mp4"
 DIALOGUE_PATH = (
