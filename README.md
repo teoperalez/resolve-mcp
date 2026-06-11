@@ -198,6 +198,111 @@ and the per-project SSD copies become optional belt-and-suspenders.
 
 ---
 
+## Recovering missing RBYNewLayout tierlist database entries
+
+Sometimes RBYNewLayout finishes a run but the completed entry does not
+persist to the MongoDB database. Rebuild the entry from the run artifacts
+instead of guessing from memory.
+
+### Data sources
+
+- RBYNewLayout schema/validation:
+  `C:\Programming\RBYNewLayout\prisma\schema.prisma` and
+  `C:\Programming\RBYNewLayout\Yellow.js` (`validateTierEntry`,
+  `beatChampion`, and `buildCurrentRunSnapshot`).
+- Session log metadata/events:
+  `%APPDATA%\rbypc-frontend\logs\...\meta.json` and `events.json`, or the
+  project copy under `<project>\CODEx\session-log\`.
+- Resolve/source screenshots:
+  the first clean gameplay scene after each post-battle tiercard is the most
+  reliable source for checkpoint `level` and `EXP TO LEVEL UP`.
+- Final splits/tiercard screenshots:
+  use the visible RBYNewLayout run clock for `brockTime`, `mistyTime`, etc.,
+  and `realTime`/`champTime`. Do not use `events.json` `tElapsedMs` for these;
+  that is the logger elapsed clock, not necessarily the run timer.
+
+### Reconstructing fields
+
+Use `events.json` for identity and counters:
+
+- `run:set-clicked` before the successful run gives species, nickname,
+  run type, and attempt context. If another `set-clicked` appears after the
+  final tierlist, that is the next attempt, not the completed one.
+- Top-level `resets`, `tms`, `optional`, and `brokenTMs` watcher events give
+  final scored counters.
+- Per-boss watcher events such as `kogaResets-increment` and
+  `champTMs-increment` give checkpoint counters. Scores use:
+
+```text
+score = round2(100 - 0.1 * resets - 0.25 * optionalBattles - tms - 10 * brokenTMs)
+```
+
+Use screenshots for checkpoint levels and EXP:
+
+1. Locate each post-battle tiercard/visual-hold boundary. When a visual-hold
+   manifest exists, it will usually be under
+   `<project>\CODEx\...\timeline_screenshots_...\visual_holds_*_manifest.json`.
+2. The first gameplay scene after the tiercard/hold shows the left stat panel.
+   Read `LV. N STATS`, `EXP TO LEVEL UP`, and `GROWTH RATE`.
+3. Convert `EXP TO LEVEL UP` to total EXP using the Pokemon's Gen 1 growth
+   curve:
+
+```text
+total_exp = required_exp(level + 1) - exp_to_next
+```
+
+For Medium-Slow growth, used by Victreebel:
+
+```text
+required_exp(L) = floor((6/5) * L^3 - 15 * L^2 + 100 * L - 140)
+```
+
+For other species, confirm the displayed growth rate before applying a curve.
+
+### Generating and validating JSON
+
+Create a single JSON object with the fields required by `validateTierEntry`.
+Omit `id`; omit `timestamp` for normal app/Prisma import, or set
+`timestamp` only as `$setOnInsert` when writing directly with MongoDB.
+
+Before writing to the database, validate:
+
+- All required string and numeric fields from `Yellow.js` are present.
+- `score` and each checkpoint score match the formula above.
+- Final `experience` matches the level/growth-curve reconstruction.
+- The entry is keyed uniquely by at least
+  `version`, `runtype`, `species`, `name`, `attempt`, and `realTime`.
+
+### Database write pattern
+
+RBYNewLayout reads `DATABASE_URL` from `C:\Programming\RBYNewLayout\.env` and
+uses MongoDB/Prisma collection `Tierlist`.
+
+Preferred behavior is idempotent upsert, not blind insert:
+
+```js
+await db.collection('Tierlist').updateOne(
+  { version, runtype, species, name, attempt, realTime },
+  { $set: entry, $setOnInsert: { timestamp: new Date() } },
+  { upsert: true }
+)
+```
+
+If Node fails on the Atlas `mongodb+srv://` URL with `querySrv ECONNREFUSED`,
+Windows DNS may still resolve the SRV record. Resolve
+`_mongodb._tcp.<cluster-host>` with PowerShell, then connect with the resolved
+shard hosts in a normal `mongodb://host1,host2,host3/<db>?tls=true&authSource=admin&replicaSet=...`
+URI. Keep credentials from `.env`; do not print them in logs or chat.
+
+After writing, verify with a read:
+
+- exact key count is `1`;
+- total matching species/run-type count increased as expected;
+- stored core fields (`level`, `experience`, `realTime`, `resets`, `tms`,
+  `score`, `isVisible`) match the reconstructed JSON.
+
+---
+
 ## Editing Scripts
 
 Ready-to-run Python scripts for common editing operations. Each script is self-contained — no external environment setup needed. Run them with the project venv's Python.
