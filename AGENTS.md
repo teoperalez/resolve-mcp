@@ -28,6 +28,23 @@ If Resolve isn't connected, you'll get a clear error. Tell the user to check tha
 
 ---
 
+## GUI / orchestrator shortcut
+
+When the user says "GUI", "the GUI", "orchestrator", or "workflow GUI" in this
+repo, use the restored Resolve edit orchestrator. Do not report that it is
+missing. Launch it from `C:\Programming\resolve-mcp` with:
+
+```powershell
+.venv\Scripts\python.exe scripts\orchestrator_gui.py
+```
+
+The CLI entry is `scripts\orchestrator_run.py`; installed entry points are
+`resolve-orchestrator-gui`, `resolve-orchestrator`, and
+`resolve-edit-flow-gui`. The Mewtwo profile is `mewtwo_rby_umb_redo`, configured
+in `config/orchestrator_workflows.json`. See `docs/orchestrator_gui.md`.
+
+---
+
 ## Screenshot — use it liberally
 
 `screenshot` captures the Resolve window (or full screen as fallback) and returns it as an image.
