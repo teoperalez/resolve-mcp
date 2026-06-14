@@ -194,6 +194,20 @@ def clip_candidate(row: dict, cat: dict, disposition: str) -> dict:
     }
 
 
+def artifact_like_waveform(cat: dict, *, review: bool = False) -> bool:
+    cat_name = str(cat.get("cat") or "")
+    if cat_name == "definite":
+        return True
+    if not review or cat_name != "possible":
+        return False
+    run_vs = float(cat.get("run_vs") or 0.0)
+    peak = float(cat.get("peak") or 0.0)
+    rms = float(cat.get("rms") or 0.0)
+    # Keep the medium bucket narrow: this is for short blips with only a trace
+    # of voiced energy, not short words that Whisper missed.
+    return run_vs < 0.08 or peak < 0.09 or rms < 0.014
+
+
 CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 DISPOSITION_BY_CONFIDENCE = {
     "high": "auto_cut",
@@ -226,6 +240,11 @@ STOPWORDS = {
     "we",
     "with",
     "you",
+}
+STRUCTURAL_REVIEW_STATUSES = {
+    "locked_confirmed",
+    "structural_confirmed",
+    "revision_needed",
 }
 
 
@@ -448,8 +467,52 @@ def locked_manual_cuts() -> list[dict]:
     ]
 
 
+def transcript_segment_bounds(segment: dict) -> tuple[float, float]:
+    return float(segment.get("start", 0.0)), float(segment.get("end", segment.get("start", 0.0)))
+
+
+def transcript_excerpt(segments: list[dict], start_sec: float, end_sec: float, max_chars: int = 1800) -> str:
+    lines = []
+    for segment in segments:
+        seg_start, seg_end = transcript_segment_bounds(segment)
+        if seg_end <= start_sec or seg_start >= end_sec:
+            continue
+        text = " ".join(str(segment.get("text") or "").split())
+        if not text:
+            continue
+        lines.append(f"[{seg_start:.2f}-{seg_end:.2f}] {text}")
+    excerpt = "\n".join(lines)
+    if len(excerpt) > max_chars:
+        return excerpt[: max_chars - 18].rstrip() + "\n[excerpt truncated]"
+    return excerpt
+
+
+def build_locked_cut_context(transcript_path: Path, manual_cuts: list[dict]) -> list[dict]:
+    if not transcript_path.exists():
+        return []
+    transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+    segments = transcript.get("segments", [])
+    contexts = []
+    for cut in manual_cuts:
+        start_sec = float(cut["start_sec"])
+        end_sec = float(cut["end_sec"])
+        contexts.append(
+            {
+                "label": cut["label"],
+                "proposed_start_sec": start_sec,
+                "proposed_end_sec": end_sec,
+                "before_context": transcript_excerpt(segments, start_sec - 25.0, start_sec, max_chars=900),
+                "cut_opening": transcript_excerpt(segments, start_sec, min(end_sec, start_sec + 65.0)),
+                "cut_closing": transcript_excerpt(segments, max(start_sec, end_sec - 65.0), end_sec),
+                "after_context": transcript_excerpt(segments, end_sec, end_sec + 25.0, max_chars=900),
+            }
+        )
+    return contexts
+
+
 def build_mewtwo_prompt(clips: list[dict], transcript_path: Path, manual_cuts: list[dict]) -> str:
     body = "\n".join(MCC.format_clip_line(c) for c in clips)
+    locked_context = build_locked_cut_context(transcript_path, manual_cuts)
     return f"""You are reviewing a Mewtwo Pokemon Red/Blue Ultra Minimum Battles redo timeline before any heavy rebuild steps.
 
 ## Review Contract
@@ -460,10 +523,21 @@ self-corrections, explicit edit notes, and restart explanations. Do not cut
 natural Teo cadence, useful game-mechanic explanation, battle context, reset
 count information, or intentional recap.
 
-Two source-time cuts are already locked into the review base and should not be
-returned again:
+The review base already removes these structural restart ranges before the clip
+list below. Verify them using the transcript context and include one JSON record
+for each structural restart cut in your output:
+
+- Use `status: "locked_confirmed"` when the proposed source-time bounds are correct.
+- Use `status: "revision_needed"` and corrected `start_sec` / `end_sec` if the
+  transcript shows the structural cut boundaries should move.
+- These structural restart rows document source-time removals for the final
+  rebuild; they are not routed to the HTML partial-section review.
 
 {json.dumps(manual_cuts, indent=2)}
+
+Transcript context for the structural restart ranges:
+
+{json.dumps(locked_context, indent=2)}
 
 The transcript used for this prompt is:
 {transcript_path}
@@ -486,10 +560,19 @@ Respond with ONLY a raw JSON array. No markdown fences, no prose.
     "confidence": "medium",
     "type": "repetition",
     "reason": "Earlier failed take is replaced by a cleaner line shortly after."
+  }},
+  {{
+    "label": "remove_full_run_restart_explanation",
+    "start_sec": 1818.50,
+    "end_sec": 2080.53,
+    "confidence": "locked",
+    "type": "full_restart",
+    "status": "locked_confirmed",
+    "reason": "The source leaves the failed Ice Beam/save-state branch and resumes at the clean Brock retry plan."
   }}
 ]
 
-Allowed `type` values: explicit_edit_note, false_start, repetition,
+Allowed `type` values: explicit_restart_cut, explicit_edit_note, false_start, repetition,
 abandoned_thread, full_restart, self_correction, mid_clip_false_start,
 mid_clip_repetition, mid_clip_self_correction.
 """
@@ -584,7 +667,7 @@ def build_waveform_candidates(rows: list[dict], out_dir: Path, args: argparse.Na
         cat_name = cat.get("cat", "")
         if cat_name in auto_cats:
             candidates.append(finalized_candidate(clip_candidate(row, cat, "auto"), rows, "waveform", "high"))
-        elif cat_name in review_cats:
+        elif args.include_possible_waveform_review and cat_name in review_cats and artifact_like_waveform(cat, review=True):
             candidates.append(finalized_candidate(clip_candidate(row, cat, "review"), rows, "waveform", "medium"))
 
     waveform_path = out_dir / "waveform_candidates.json"
@@ -618,7 +701,7 @@ def build_ngram_candidates(rows: list[dict], out_dir: Path, args: argparse.Names
             words.append({"token": token, "word": word.get("word", ""), "start": float(word["start"]), "end": float(word["end"])})
     words.sort(key=lambda item: item["start"])
 
-    candidates: list[dict] = []
+    diagnostics: list[dict] = []
     seen_keys: set[tuple[int, int]] = set()
     last_seen: dict[tuple[str, ...], int] = {}
     for n in (5, 4, 3):
@@ -656,11 +739,13 @@ def build_ngram_candidates(rows: list[dict], out_dir: Path, args: argparse.Names
                     "second_start_sec": round(float(words[i]["start"]), 4),
                 },
             }
-            candidates.append(finalized_candidate(raw, rows, "ngram", "medium"))
-            if len(candidates) >= int(args.max_ngram_candidates):
+            diagnostics.append(finalized_candidate(raw, rows, "ngram", "medium"))
+            if len(diagnostics) >= int(args.max_ngram_candidates):
                 break
-        if len(candidates) >= int(args.max_ngram_candidates):
+        if len(diagnostics) >= int(args.max_ngram_candidates):
             break
+
+    candidates = diagnostics if args.include_ngram_review else []
 
     path = out_dir / "ngram_candidates.json"
     write_json(
@@ -668,8 +753,13 @@ def build_ngram_candidates(rows: list[dict], out_dir: Path, args: argparse.Names
         {
             "schema": "mewtwo_ngram_candidates_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "note": "N-gram matches are leads. They are never promoted above manual review by this detector.",
+            "note": (
+                "N-gram matches are diagnostics by default. Exact phrase repeats "
+                "are not reliable cut candidates without narrative confirmation."
+            ),
             "candidates": candidates,
+            "diagnostics": diagnostics,
+            "include_ngram_review": bool(args.include_ngram_review),
         },
     )
     return {"candidates": candidates, "ngram_candidates": str(path)}
@@ -678,11 +768,15 @@ def build_ngram_candidates(rows: list[dict], out_dir: Path, args: argparse.Names
 def build_artifact_candidates(rows: list[dict], out_dir: Path, args: argparse.Namespace, timeline_start_frame: int) -> dict:
     clips = load_narrative_clips(out_dir, args, rows, timeline_start_frame)
     row_by_idx = {int(row["i"]): row for row in rows}
+    categories_path = out_dir / "categories.json"
+    categories = json.loads(categories_path.read_text(encoding="utf-8")) if categories_path.exists() else []
+    categories_by_i = {int(cat["i"]): cat for cat in categories if "i" in cat}
     candidates: list[dict] = []
     for clip in clips:
         row = row_by_idx.get(int(clip["idx"]) - 1)
         if not row:
             continue
+        cat = categories_by_i.get(int(row["i"]), {})
         has_words = bool(clip.get("words_in_clip"))
         duration = float(clip.get("duration") or 0.0)
         raw = {
@@ -696,27 +790,38 @@ def build_artifact_candidates(rows: list[dict], out_dir: Path, args: argparse.Na
                 "duration_sec": round(duration, 6),
                 "words_in_clip": len(clip.get("words_in_clip") or []),
                 "dup_text_cluster_size": clip.get("dup_text_cluster_size"),
+                "waveform_cat": cat.get("cat"),
+                "waveform_rms": cat.get("rms"),
+                "waveform_peak": cat.get("peak"),
+                "waveform_run_vs": cat.get("run_vs"),
+                "waveform_zcr": cat.get("zcr"),
             },
         }
         if not has_words and duration <= 0.25:
+            if not artifact_like_waveform(cat, review=False):
+                continue
             raw.update(
                 {
                     "confidence": "high",
-                    "type": "empty_extremely_short_clip",
-                    "reason": "Extremely short FCPXML section with no word-level transcript content.",
+                    "type": "empty_extremely_short_artifact",
+                    "reason": "Extremely short FCPXML section with no word-level transcript content and definite artifact-like waveform.",
                 }
             )
             candidates.append(finalized_candidate(raw, rows, "artifact_short_clip", "high"))
         elif not has_words and duration <= 0.70:
+            if not artifact_like_waveform(cat, review=True):
+                continue
             raw.update(
                 {
                     "confidence": "medium",
-                    "type": "empty_short_clip",
-                    "reason": "Short FCPXML section with no word-level transcript content; requires manual listening.",
+                    "type": "empty_short_artifact_review",
+                    "reason": "Short FCPXML section with no word-level transcript content and borderline artifact-like waveform.",
                 }
             )
             candidates.append(finalized_candidate(raw, rows, "artifact_short_clip", "medium"))
         elif clip.get("dup_text_cluster_artifact"):
+            if not artifact_like_waveform(cat, review=True):
+                continue
             raw.update(
                 {
                     "confidence": "medium",
@@ -778,18 +883,83 @@ def load_candidate_file(path: Path) -> list[dict]:
     raise RuntimeError(f"Candidate file does not contain a candidate list: {path}")
 
 
-def load_narrative_candidates(path: Path, rows: list[dict]) -> list[dict]:
+def load_narrative_rows(path: Path) -> list[dict]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    source_rows = payload if isinstance(payload, list) else payload.get("candidates", payload.get("cuts", []))
+    if isinstance(payload, list):
+        return payload
+    for key in ("candidates", "cuts"):
+        if isinstance(payload.get(key), list):
+            return payload[key]
+    return []
+
+
+def is_structural_narrative_review(raw: dict) -> bool:
+    status = str(raw.get("status") or "").strip().lower()
+    if status in STRUCTURAL_REVIEW_STATUSES:
+        return True
+    locked_labels = {cut["label"] for cut in locked_manual_cuts()}
+    cut_type = str(raw.get("type") or "").strip().lower()
+    return raw.get("label") in locked_labels and cut_type in {"explicit_restart_cut", "full_restart"}
+
+
+def load_narrative_structural_reviews(path: Path) -> list[dict]:
+    locked_by_label = {cut["label"]: cut for cut in locked_manual_cuts()}
+    reviews = []
+    for raw in load_narrative_rows(path):
+        if not is_structural_narrative_review(raw):
+            continue
+        row = dict(raw)
+        start_frame, end_frame = candidate_bounds(row)
+        label = row.get("label") or row.get("type") or "structural_restart_cut"
+        reference = locked_by_label.get(label)
+        row.update(
+            {
+                "label": label,
+                "source": "narrative_llm_structural_review",
+                "source_video": row.get("source_video") or str(M.VIDEO_PATH),
+                "source_start_frame": start_frame,
+                "source_end_frame": end_frame,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "source_start_sec": round(start_frame / TL_FPS, 6),
+                "source_end_sec": round(end_frame / TL_FPS, 6),
+                "start_sec": round(start_frame / TL_FPS, 6),
+                "end_sec": round(end_frame / TL_FPS, 6),
+                "confidence": row.get("confidence") or "locked",
+                "status": row.get("status") or "locked_confirmed",
+                "structural_cut": True,
+                "html_review_required": False,
+                "final_rebuild_cut": True,
+            }
+        )
+        if reference:
+            row["locked_reference"] = reference
+            row["matches_locked_reference"] = (
+                abs(start_frame - int(reference["start_frame"])) <= 2
+                and abs(end_frame - int(reference["end_frame"])) <= 2
+            )
+        reviews.append(row)
+    return reviews
+
+
+def load_narrative_candidates(path: Path, rows: list[dict]) -> list[dict]:
     candidates = []
-    for raw in source_rows:
+    for raw in load_narrative_rows(path):
+        if is_structural_narrative_review(raw):
+            continue
         if raw.get("status") in {"reject", "rejected", "keep"}:
             continue
         candidates.append(finalized_candidate(raw, rows, "narrative_llm", normalize_confidence(raw.get("confidence"), "medium")))
     return candidates
 
 
-def build_compiled_review_html(rows: list[dict], medium_candidates: list[dict], out_dir: Path, args: argparse.Namespace) -> dict:
+def build_compiled_review_html(
+    rows: list[dict],
+    medium_candidates: list[dict],
+    structural_reviews: list[dict],
+    out_dir: Path,
+    args: argparse.Namespace,
+) -> dict:
     review_dir = out_dir / "review"
     categories_path = out_dir / "categories.json"
     review_section_indexes = {
@@ -810,6 +980,8 @@ def build_compiled_review_html(rows: list[dict], medium_candidates: list[dict], 
         {
             "source_video": str(M.VIDEO_PATH),
             "dialogue_audio": str(M.DIALOGUE_PATH),
+            "structural_cuts": locked_manual_cuts(),
+            "structural_restart_reviews": structural_reviews,
             "clips": review_rows,
             "candidate_count": len(medium_candidates),
         },
@@ -873,6 +1045,7 @@ def compile_candidate_manifest(
         raise FileNotFoundError("Missing candidate compiler input(s):\n" + "\n".join(f"  - {path}" for path in missing))
 
     narrative_candidates = load_narrative_candidates(narrative_path, rows)
+    structural_reviews = load_narrative_structural_reviews(narrative_path)
     programmatic_candidates = []
     for path, source in (
         (waveform_path, "waveform"),
@@ -886,7 +1059,7 @@ def compile_candidate_manifest(
     high = [candidate for candidate in all_candidates if candidate["confidence"] == "high"]
     medium = [candidate for candidate in all_candidates if candidate["confidence"] == "medium"]
     low = [candidate for candidate in all_candidates if candidate["confidence"] == "low"]
-    review_artifacts = build_compiled_review_html(rows, medium, out_dir, args)
+    review_artifacts = build_compiled_review_html(rows, medium, structural_reviews, out_dir, args)
 
     report = {
         "schema": "mewtwo_cut_candidates_v2",
@@ -901,7 +1074,7 @@ def compile_candidate_manifest(
                 "stage": 1,
                 "name": "broad_narrative_llm_review",
                 "artifact": str(narrative_path),
-                "focus": "semantic false starts, repeated takes, abandoned thoughts, edit notes, and self-corrections",
+                "focus": "structural restart verification plus semantic false starts, repeated takes, abandoned thoughts, edit notes, and self-corrections",
             },
             {
                 "stage": 2,
@@ -924,6 +1097,7 @@ def compile_candidate_manifest(
         "counts": {
             "v1_clips": len(rows),
             "locked_manual_cuts": len(locked_manual_cuts()),
+            "structural_restart_reviews": len(structural_reviews),
             "high_confidence_auto_cuts": len(high),
             "medium_confidence_review_candidates": len(medium),
             "low_confidence_mark_only_candidates": len(low),
@@ -938,6 +1112,7 @@ def compile_candidate_manifest(
             "programmatic_candidates": str(programmatic_path),
             **review_artifacts,
         },
+        "structural_restart_reviews": structural_reviews,
         "candidates": all_candidates,
         "high_confidence_auto_cuts": high,
         "medium_confidence_review_candidates": medium,
@@ -974,6 +1149,16 @@ def main() -> int:
     parser.add_argument("--voiced-zcr", type=float, default=0.25)
     parser.add_argument("--review-categories", default="possible")
     parser.add_argument("--auto-categories", default="definite")
+    parser.add_argument(
+        "--include-possible-waveform-review",
+        action="store_true",
+        help="Promote narrowly artifact-like waveform 'possible' clips into manual review. Off by default.",
+    )
+    parser.add_argument(
+        "--include-ngram-review",
+        action="store_true",
+        help="Promote exact n-gram repeat diagnostics into manual review. Off by default because repeats need narrative confirmation.",
+    )
     parser.add_argument("--reuse-assets", action="store_true")
     parser.add_argument("--skip-waveform", action="store_true")
     parser.add_argument("--skip-html", action="store_true")

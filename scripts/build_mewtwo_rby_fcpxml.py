@@ -50,8 +50,8 @@ def first_existing_path(*paths: Path) -> Path:
 
 
 PROJECT_DIR = first_existing_path(
-    Path(r"E:\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
     Path(r"C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
+    Path(r"E:\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
 )
 CODEX_DIR = PROJECT_DIR / "CODEx"
 SESSION_DIR = first_existing_path(

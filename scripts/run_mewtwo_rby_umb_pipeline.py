@@ -334,6 +334,18 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
         mark_state("apply-html-decisions", "complete", normalized=str(NATIVE_NORMALIZED), offline=True, empty=True)
         return
     decisions = read_json(HTML_DECISIONS)
+    if decisions.get("dry_run_auto_approved") and (
+        any(value == "cut" for value in (decisions.get("pink") or {}).values())
+        or any((decisions.get("cuts") or {}).values())
+    ):
+        raise RuntimeError(
+            "Refusing dry-run auto-approved HTML decisions. The review page contains "
+            "medium-confidence and partial-section cut leads, so a generated "
+            "'cut every Pink section' file must not flow into approved source cuts. "
+            f"Open {CUT_REVIEW_DIR / 'review' / 'index.html'}, make the review "
+            f"decisions manually, save a fresh pink_decisions.json without "
+            f"dry_run_auto_approved=true, then rerun apply-html-decisions."
+        )
     clips_data = read_json(HTML_CLIPS)
     segmap = read_json(HTML_SEGMAP)
     _merged, metadata = compile_html_decision_cuts(decisions, clips_data, segmap, 60.0)
@@ -433,6 +445,7 @@ def compile_html_decision_cuts(
     merged = merge_timeline_ranges(raw_ranges)
     metadata = {
         "schema": "mewtwo_offline_html_review_decisions_v1",
+        "dry_run_auto_approved": bool(decisions.get("dry_run_auto_approved")),
         "whole_cut_indices": whole_cut_indices,
         "partial_records": partial_records,
         "raw_ranges": raw_ranges,
@@ -458,6 +471,26 @@ def source_cut_from_timeline_range(row: dict, timeline_fps: float) -> dict:
         "reason": f"approved HTML review cut from clip {clip.get('i')}",
         "origin": row,
     }
+
+
+def assert_no_dry_run_html_approval(stage: str) -> None:
+    if not APPROVED_SOURCE_CUTS.exists():
+        return
+    payload = read_json(APPROVED_SOURCE_CUTS)
+    approval_sources = [str(item) for item in payload.get("approval_sources") or []]
+    uses_html_normalization = any(str(NATIVE_NORMALIZED) in source for source in approval_sources)
+    if not uses_html_normalization:
+        return
+
+    metadata = read_json(NATIVE_NORMALIZED) if NATIVE_NORMALIZED.exists() else {}
+    decisions = read_json(HTML_DECISIONS) if HTML_DECISIONS.exists() else {}
+    if metadata.get("dry_run_auto_approved") or decisions.get("dry_run_auto_approved"):
+        raise RuntimeError(
+            f"Stage {stage!r} would consume approved source cuts that include "
+            "dry-run auto-approved HTML review decisions. Delete/regenerate the "
+            "HTML normalization and approved source-cut artifacts after making "
+            "manual decisions in the HTML review page."
+        )
 
 
 def merge_source_cuts(rows: list[dict]) -> list[dict]:
@@ -520,6 +553,13 @@ def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
     if NATIVE_NORMALIZED.exists():
         approval_sources.append(str(NATIVE_NORMALIZED))
         metadata = read_json(NATIVE_NORMALIZED)
+        decisions = read_json(HTML_DECISIONS) if HTML_DECISIONS.exists() else {}
+        if metadata.get("dry_run_auto_approved") or decisions.get("dry_run_auto_approved"):
+            raise RuntimeError(
+                "Refusing to compile approved source cuts from dry-run auto-approved "
+                "HTML decisions. Re-run apply-html-decisions after saving manual "
+                "review decisions from the HTML page."
+            )
         timeline_fps = 60.0
         for row in metadata.get("raw_ranges", []):
             if row.get("clip"):
@@ -558,6 +598,7 @@ def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
 
 def stage_final_base(args: argparse.Namespace) -> None:
     require([CUT_CANDIDATES, APPROVED_SOURCE_CUTS], "final-base")
+    assert_no_dry_run_html_approval("final-base")
     run(
         [
             sys.executable,
