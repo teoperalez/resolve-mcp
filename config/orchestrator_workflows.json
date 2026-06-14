@@ -1,0 +1,1581 @@
+{
+  "schema": "resolve_orchestrator_workflows_v1",
+  "profiles": [
+    {
+      "id": "mewtwo_rby_umb_redo",
+      "name": "Mewtwo RBY UMB Redo",
+      "workflow_id": "gen1_rby_umb_review_first",
+      "game_version": "pokemon_red_blue",
+      "challenge_type": "ultra_minimum_battles",
+      "description": "Review-first Mewtwo Red/Blue Ultra Minimum Battles workflow.",
+      "project_dir": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo",
+      "codex_dir": "{project_dir}/CODEx",
+      "parameters": {
+        "timeline_fps": 60,
+        "source_name": "Mewtwo Red and Blue Ultra Minimum Battles Redo",
+        "workflow_config": "{repo}/config/orchestrator_workflows.json",
+        "source_media": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo.mp4",
+        "dialogue_audio": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks/Mewtwo Red and Blue Ultra Minimum Battles Redo_4.wav",
+        "auto_editor_input": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks/Mewtwo Red and Blue Ultra Minimum Battles Redo_4.wav",
+        "auto_editor_export": "final-cut-pro",
+        "auto_editor_margin": "0.2s",
+        "auto_editor_edit": "audio",
+        "auto_editor_when_normal": "nil",
+        "auto_editor_when_silent": "cut",
+        "auto_editor_frame_rate": "60",
+        "auto_editor_extra_args": "",
+        "auto_editor_preview": false,
+        "llm_dispatch_mode": "auto",
+        "llm_open_code_workspace": true,
+        "llm_timeout_sec": 3600,
+        "llm_model": "",
+        "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+        "carousel_max_candidates": 30,
+        "review_fcpxml": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo RBY UMB redo review base.fcpxml"
+      },
+      "paths": {
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates_mewtwo.json",
+        "raw_autoeditor_fcpxml": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_4_AUTOEDITOR_RAW.fcpxml",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.in.md",
+        "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.out.json",
+        "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
+        "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
+        "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
+        "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
+        "categories_json": "{codex_dir}/cut_review/categories.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts_mewtwo.json",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts_mewtwo.json",
+        "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "game_audio": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks/Mewtwo Red and Blue Ultra Minimum Battles Redo_3.wav",
+        "handoff_bundle": "{codex_dir}/cut_review/llm_handoff.json",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_index": "{codex_dir}/cut_review/review/index.html",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
+        "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
+        "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "pipeline_order_report": "{codex_dir}/mewtwo_pipeline_order_report.json",
+        "final_manifest": "{codex_dir}/Mewtwo RBY UMB redo CODEx final rebuild base_manifest.json",
+        "clip_color_report": "{codex_dir}/qa-reports/mewtwo-rby-umb-clip-colors.json"
+      }
+    },
+    {
+      "id": "victreebel_umb",
+      "name": "Victreebel UMB",
+      "workflow_id": "gen1_rby_umb_review_first",
+      "game_version": "pokemon_red_blue",
+      "challenge_type": "ultra_minimum_battles",
+      "description": "Matched RBY session log: C:/Users/teope/AppData/Roaming/rbypc-frontend/logs/2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles",
+      "project_dir": "C:/Users/teope/Videos/Victreebel Red and Blue Ultra Minimum Battles",
+      "codex_dir": "C:/Users/teope/Videos/Victreebel Red and Blue Ultra Minimum Battles/CODEx",
+      "parameters": {
+        "workflow_config": "{repo}/config/orchestrator_workflows.json",
+        "timeline_fps": 60,
+        "whisper_model": "large-v3-turbo",
+        "llm_dispatch_mode": "auto",
+        "llm_open_code_workspace": true,
+        "llm_timeout_sec": 3600,
+        "llm_model": "",
+        "video_track": 1,
+        "source_media": "C:/Users/teope/Videos/Victreebel Red and Blue Ultra Minimum Battles/Victreebel Red and Blue Ultra Minimum Battles part 2.mp4",
+        "dialogue_audio": "C:/Users/teope/Videos/Victreebel Red and Blue Ultra Minimum Battles/Victreebel Red and Blue Ultra Minimum Battles part 2_tracks/Victreebel Red and Blue Ultra Minimum Battles part 2_3.wav",
+        "auto_editor_input": "C:/Users/teope/Videos/Victreebel Red and Blue Ultra Minimum Battles/Victreebel Red and Blue Ultra Minimum Battles part 2_tracks/Victreebel Red and Blue Ultra Minimum Battles part 2_3.wav",
+        "auto_editor_export": "final-cut-pro",
+        "auto_editor_margin": "0.2s",
+        "auto_editor_edit": "audio",
+        "auto_editor_when_normal": "nil",
+        "auto_editor_when_silent": "cut",
+        "auto_editor_frame_rate": "60",
+        "auto_editor_extra_args": "",
+        "auto_editor_preview": false,
+        "waveform_sr": 16000,
+        "review_sr": 44100,
+        "speech_rms": 0.02,
+        "voiced_zcr": 0.25,
+        "render_preset": "qa",
+        "render_name_arg": "",
+        "render_name": "",
+        "render_dir_arg": "",
+        "render_dir": "",
+        "fairlight_timeline_arg": "",
+        "fairlight_timeline": "",
+        "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+        "carousel_max_candidates": 30,
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "source_name": "Victreebel Red and Blue Ultra Minimum Battles part 2",
+        "session_dir": "C:/Users/teope/AppData/Roaming/rbypc-frontend/logs/2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles",
+        "session_events": "C:/Users/teope/AppData/Roaming/rbypc-frontend/logs/2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles/events.json",
+        "session_meta": "C:/Users/teope/AppData/Roaming/rbypc-frontend/logs/2026-05-16T04_28_56_871__Victreebel__Ultra_Minimum_Battles/meta.json",
+        "session_started_at": "2026-05-16T04:28:56.871000+00:00",
+        "log_subject": "Victreebel",
+        "log_challenge": "Ultra Minimum Battles",
+        "log_match_score": 268.804,
+        "source_duration_sec": 4248.883333,
+        "source_creation_time": "2026-05-16T04:53:31+00:00"
+      },
+      "paths": {
+        "clips_json": "{codex_dir}/cut_review/clips.json",
+        "review_clips_json": "{codex_dir}/cut_review/clips_for_review.json",
+        "categories_json": "{codex_dir}/cut_review/categories.json",
+        "cut_review_dir": "{codex_dir}/cut_review",
+        "html_review_dir": "{codex_dir}/cut_review/review",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_index": "{codex_dir}/cut_review/review/index.html",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "native_review_dir": "{codex_dir}/cut_review/native",
+        "approved_review_timeline": "{profile_name} approved review spine",
+        "transcript_json": "{codex_dir}/transcripts/transcript.json",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/review.in.md",
+        "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/review.out.json",
+        "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
+        "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
+        "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
+        "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
+        "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
+        "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "pipeline_order_report": "{codex_dir}/mewtwo_pipeline_order_report.json",
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
+        "raw_autoeditor_fcpxml": "{project_dir}/{source_name}_AUTOEDITOR_RAW.fcpxml",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
+        "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "game_audio": "{project_dir}/{source_name}_tracks/{source_name}_3.wav",
+        "final_manifest": "{codex_dir}/final_rebuild_manifest.json",
+        "clip_color_report": "{codex_dir}/qa-reports/section_color_report.json",
+        "session_dir": "{session_dir}",
+        "session_events": "{session_events}",
+        "session_meta": "{session_meta}"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "id": "profile_pipeline_stage",
+      "title": "Profile Pipeline Stage",
+      "description": "Runs a project/profile-selected pipeline script with a stage argument. Profiles choose the concrete script through {pipeline_script}.",
+      "command": [
+        "{python}",
+        "{pipeline_script}",
+        "--stage",
+        "{stage}"
+      ]
+    },
+    {
+      "id": "profile_pipeline_stage_strict",
+      "title": "Profile Pipeline Stage Strict",
+      "description": "Runs a project/profile-selected pipeline stage with --strict.",
+      "command": [
+        "{python}",
+        "{pipeline_script}",
+        "--stage",
+        "{stage}",
+        "--strict"
+      ]
+    },
+    {
+      "id": "member_carousel_finder",
+      "title": "Member Carousel Finder",
+      "description": "Finds the member carousel start marker by visual relay.",
+      "command": [
+        "{python}",
+        "scripts/find_member_carousel.py",
+        "--max-candidates",
+        "{max_candidates}"
+      ]
+    },
+    {
+      "id": "llm_prompt_packet",
+      "title": "LLM Dispatch",
+      "description": "Writes an orchestrator LLM packet, dispatches it through Codex/Code, and verifies the expected feedback artifact.",
+      "command": [
+        "{python}",
+        "scripts/orchestrator_llm_dispatch.py",
+        "--config",
+        "{workflow_config}",
+        "--profile",
+        "{profile_id}",
+        "--task",
+        "{task_id}"
+      ]
+    },
+    {
+      "id": "run_auto_editor",
+      "title": "Run Auto-Editor",
+      "description": "Runs auto-editor with the current project/profile settings and writes the raw FCPXML used by review-base workflows.",
+      "command": [
+        "{python}",
+        "scripts/orchestrator_auto_editor.py",
+        "--config",
+        "{workflow_config}",
+        "--profile",
+        "{profile_id}"
+      ]
+    },
+    {
+      "id": "fcpxml_segment_review_prepare",
+      "title": "FCPXML Segment Review Prepare",
+      "description": "Parses an FCPXML into reviewable source-backed segments, or writes a pending artifact when the FCPXML is not available yet.",
+      "command": [
+        "{python}",
+        "scripts/orchestrator_fcpxml_review.py",
+        "--fcpxml",
+        "{fcpxml}",
+        "--out",
+        "{out}",
+        "--fps",
+        "{timeline_fps}",
+        "--allow-missing"
+      ]
+    },
+    {
+      "id": "dump_timeline_clips",
+      "title": "Dump Timeline Clips",
+      "description": "Dumps current Resolve timeline video clips to JSON for waveform and cut review.",
+      "command": [
+        "{python}",
+        "scripts/dump_timeline_clips.py",
+        "--out",
+        "{clips_json}",
+        "--track",
+        "{video_track}"
+      ]
+    },
+    {
+      "id": "transcribe_audio",
+      "title": "Transcribe Audio",
+      "description": "Runs faster-whisper transcription through the project transcription script.",
+      "command": [
+        "{python}",
+        "scripts/transcribe_audio.py",
+        "--audio",
+        "{transcribe_input}",
+        "--model",
+        "{whisper_model}"
+      ]
+    },
+    {
+      "id": "waveform_qa",
+      "title": "Waveform QA",
+      "description": "Classifies timeline clips for possible audio-artifact review.",
+      "command": [
+        "{python}",
+        "scripts/waveform_qa.py",
+        "--mic",
+        "{dialogue_audio}",
+        "--clips",
+        "{clips_json}",
+        "--out-dir",
+        "{cut_review_dir}",
+        "--sr",
+        "{waveform_sr}",
+        "--speech-rms",
+        "{speech_rms}",
+        "--voiced-zcr",
+        "{voiced_zcr}",
+        "--tl-fps",
+        "{timeline_fps}"
+      ]
+    },
+    {
+      "id": "html_cut_review",
+      "title": "HTML Cut Review",
+      "description": "Builds the browser waveform review surface.",
+      "command": [
+        "{python}",
+        "scripts/build_cut_review.py",
+        "--mic",
+        "{dialogue_audio}",
+        "--clips",
+        "{review_clips_json}",
+        "--out-dir",
+        "{html_review_dir}",
+        "--categories",
+        "{categories_json}",
+        "--sr",
+        "{review_sr}",
+        "--tl-fps",
+        "{timeline_fps}"
+      ]
+    },
+    {
+      "id": "apply_native_cut_review",
+      "title": "Apply Native Cut Review Decisions",
+      "description": "Applies saved HTML review decisions to the current Resolve review spine.",
+      "command": [
+        "{python}",
+        "scripts/apply_cut_review_decisions_native.py",
+        "--decisions",
+        "{html_decisions}",
+        "--clips",
+        "{html_clips}",
+        "--segmap",
+        "{html_segmap}",
+        "--out-dir",
+        "{native_review_dir}",
+        "--timeline-name",
+        "{approved_review_timeline}"
+      ]
+    },
+    {
+      "id": "minimum_battles_detector",
+      "title": "Minimum Battles Detector",
+      "description": "Classifies whether the video is a Minimum Battles Series for intro-speed/tooling selection.",
+      "command": [
+        "{python}",
+        "scripts/detect_minimum_battles.py"
+      ]
+    },
+    {
+      "id": "detect_battles",
+      "title": "Detect Battles",
+      "description": "Writes and waits for the LLM relay battle-detection prompt.",
+      "command": [
+        "{python}",
+        "scripts/detect_battles.py",
+        "{transcript_json}",
+        "--out",
+        "{battles_json}"
+      ]
+    },
+    {
+      "id": "insert_battle_gaps_fcpxml",
+      "title": "Insert Battle Gaps FCPXML",
+      "description": "Inserts battle gaps through FCPXML rewrite.",
+      "command": [
+        "{python}",
+        "scripts/insert_battle_gaps_fcpxml.py",
+        "{input_fcpxml}",
+        "--battles",
+        "{battles_json}",
+        "--gap-frames",
+        "{battle_gap_frames}",
+        "-o",
+        "{battle_gaps_fcpxml}",
+        "{gen1_non_boss_flag}",
+        "{import_to_resolve_flag}"
+      ]
+    },
+    {
+      "id": "classify_battles",
+      "title": "Classify Battles",
+      "description": "Classifies detected battles as rival, gym, or other through LLM relay.",
+      "command": [
+        "{python}",
+        "scripts/classify_battles.py"
+      ]
+    },
+    {
+      "id": "classify_rival_starter",
+      "title": "Classify Rival Starter",
+      "description": "Determines rival starter/location metadata for Gen 2 intro assets.",
+      "command": [
+        "{python}",
+        "scripts/classify_rival_starter.py"
+      ]
+    },
+    {
+      "id": "place_battle_intros_overlay",
+      "title": "Place Battle Intro Overlays",
+      "description": "Places rival/gym leader intro overlays on V2.",
+      "command": [
+        "{python}",
+        "scripts/place_battle_intros.py",
+        "--overlap-sec",
+        "{battle_intro_overlap_sec}",
+        "{include_other_battle_intros_flag}"
+      ]
+    },
+    {
+      "id": "place_gen1_leader_intros",
+      "title": "Place Gen 1 Leader Intros",
+      "description": "Inserts discrete 2x Gen 1 leader intro clips.",
+      "command": [
+        "{python}",
+        "scripts/place_battle_intros.py",
+        "--gen1-insert",
+        "--gen1-speed",
+        "{gen1_intro_speed}"
+      ]
+    },
+    {
+      "id": "import_shared_assets",
+      "title": "Import Shared Assets",
+      "description": "Imports configured shared Pokemon assets.",
+      "command": [
+        "{python}",
+        "scripts/import_assets.py",
+        "--import-shared"
+      ]
+    },
+    {
+      "id": "import_game_assets",
+      "title": "Import Game Assets",
+      "description": "Imports game-specific assets.",
+      "command": [
+        "{python}",
+        "scripts/import_assets.py",
+        "--game",
+        "{game_key}",
+        "--do-import"
+      ]
+    },
+    {
+      "id": "insert_intro_outro",
+      "title": "Insert Intro Outro",
+      "description": "Builds an edited timeline with intro/outro assets.",
+      "command": [
+        "{python}",
+        "scripts/insert_intro_outro.py",
+        "--game",
+        "{game_key}",
+        "{intro_speed_arg}",
+        "{intro_speed}"
+      ]
+    },
+    {
+      "id": "place_bgm",
+      "title": "Place Intro BGM",
+      "description": "Places the project intro/general BGM starter track.",
+      "command": [
+        "{python}",
+        "scripts/place_bgm.py",
+        "--game",
+        "{game_key}"
+      ]
+    },
+    {
+      "id": "place_battle_bgm",
+      "title": "Place Battle BGM",
+      "description": "Places general BGM segments around battle ranges.",
+      "command": [
+        "{python}",
+        "scripts/place_battle_bgm.py",
+        "{seed_arg}",
+        "{seed}"
+      ]
+    },
+    {
+      "id": "place_battle_audio",
+      "title": "Place Battle Audio",
+      "description": "Places rival/gym/other battle audio by battle type.",
+      "command": [
+        "{python}",
+        "scripts/place_battle_audio.py",
+        "{rival_track_arg}",
+        "{rival_track}",
+        "{gym_track_arg}",
+        "{gym_track}",
+        "{other_track_arg}",
+        "{other_track}"
+      ]
+    },
+    {
+      "id": "apply_audio_fades",
+      "title": "Apply Audio Fades",
+      "description": "Applies prerendered constant-power fades at BGM/battle boundaries.",
+      "command": [
+        "{python}",
+        "scripts/apply_audio_fades.py",
+        "--fade-sec",
+        "{fade_sec}"
+      ]
+    },
+    {
+      "id": "layout_carousel",
+      "title": "Layout Member Carousel",
+      "description": "Applies member-carousel crop/underlay layout.",
+      "command": [
+        "{python}",
+        "scripts/layout_carousel.py",
+        "--marker-name",
+        "{carousel_marker_names}",
+        "{carousel_dry_run_flag}"
+      ]
+    },
+    {
+      "id": "apply_fairlight_preset",
+      "title": "Apply Fairlight Preset",
+      "description": "Installs/applies the project Fairlight preset.",
+      "command": [
+        "{python}",
+        "scripts/apply_fairlight_preset.py",
+        "{fairlight_timeline_arg}",
+        "{fairlight_timeline}"
+      ]
+    },
+    {
+      "id": "render_timeline",
+      "title": "Render Timeline",
+      "description": "Queues and starts a Resolve render preset.",
+      "command": [
+        "{python}",
+        "scripts/render_timeline.py",
+        "--preset",
+        "{render_preset}",
+        "{render_name_arg}",
+        "{render_name}",
+        "{render_dir_arg}",
+        "{render_dir}"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "gen1_rby_umb_review_first",
+      "name": "Gen 1 RBY UMB Review-First Edit",
+      "description": "Build review artifacts offline, pause for human approval, compile source-time decisions, then launch Resolve once for final assembly with cuts, visual holds, Gen 1 leader intros, BGM, carousel, and validation-ready structure.",
+      "game_versions": [
+        "pokemon_red_blue",
+        "pokemon_yellow"
+      ],
+      "challenge_types": [
+        "ultra_minimum_battles",
+        "minimum_battles"
+      ],
+      "llm_tasks": [
+        "narrative_cut_review",
+        "minimum_battles_classifier",
+        "battle_detection",
+        "battle_type_classification",
+        "rival_starter_classification",
+        "battle_end_refinement",
+        "member_carousel_detection",
+        "bgm_library_classification"
+      ],
+      "tooling": {
+        "battle_gap_mode": "fcpxml_non_boss_only",
+        "leader_intro_mode": "gen1_discrete_v2_2x",
+        "timeline_rebuild_mode": "single_resolve_final_assembly_after_review",
+        "cut_policy": "llm_then_waveform_ngram_artifact_compile_high_whole_section_only_medium_manual_low_pink_marker"
+      },
+      "review_surfaces": [
+        {
+          "id": "fcpxml_segments",
+          "title": "FCPXML Segment Review",
+          "kind": "fcpxml_segments",
+          "decisions_path": "{fcpxml_review_decisions}",
+          "description": "Table review of source-backed FCPXML video segments. Decisions are keep, cut, or manual_fit."
+        }
+      ],
+      "steps": [
+        {
+          "id": "auto-editor",
+          "title": "Run auto-editor dialogue pass",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "run_auto_editor",
+          "artifacts_out": [
+            "raw_autoeditor_fcpxml"
+          ]
+        },
+        {
+          "id": "review-base",
+          "title": "Build lightweight review base",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "review-base"
+          },
+          "depends_on": [
+            "auto-editor"
+          ],
+          "artifacts_in": [
+            {
+              "key": "raw_autoeditor_fcpxml",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "review_fcpxml"
+          ]
+        },
+        {
+          "id": "narrative-prompt",
+          "title": "Build broad narrative LLM prompt",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "narrative-prompt"
+          },
+          "depends_on": [
+            "review-base"
+          ],
+          "artifacts_out": [
+            "narrative_prompt",
+            "narrative_clip_index"
+          ]
+        },
+        {
+          "id": "narrative-llm-review",
+          "title": "Run broad narrative LLM review",
+          "phase": "review",
+          "kind": "llm_prompt",
+          "tool": "llm_prompt_packet",
+          "args": {
+            "task_id": "narrative_cut_review"
+          },
+          "llm_task": "narrative_cut_review",
+          "depends_on": [
+            "narrative-prompt"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_prompt",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "narrative_output"
+          ]
+        },
+        {
+          "id": "programmatic-candidates",
+          "title": "Run waveform, n-gram, and artifact detectors",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "programmatic-candidates"
+          },
+          "depends_on": [
+            "narrative-llm-review"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_output",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "waveform_candidates",
+            "ngram_candidates",
+            "artifact_candidates",
+            "programmatic_candidates",
+            "categories_json"
+          ]
+        },
+        {
+          "id": "compile-cut-candidates",
+          "title": "Compile ranked cut candidates",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "compile-cut-candidates"
+          },
+          "depends_on": [
+            "programmatic-candidates"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_output",
+              "required": true
+            },
+            {
+              "key": "waveform_candidates",
+              "required": true
+            },
+            {
+              "key": "ngram_candidates",
+              "required": true
+            },
+            {
+              "key": "artifact_candidates",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "candidate_manifest",
+            "html_clips",
+            "html_index",
+            "html_segmap"
+          ],
+          "pause_after": true
+        },
+        {
+          "id": "fcpxml-segment-review",
+          "title": "Review FCPXML sections for cut/manual-fit decisions",
+          "phase": "review",
+          "kind": "review",
+          "tool": "fcpxml_segment_review_prepare",
+          "args": {
+            "fcpxml": "{review_fcpxml}",
+            "out": "{fcpxml_review_artifact}"
+          },
+          "review_surface": "fcpxml_segments",
+          "run_in_full": false,
+          "artifacts_out": [
+            "fcpxml_review_artifact",
+            "fcpxml_review_decisions"
+          ]
+        },
+        {
+          "id": "apply-html-decisions",
+          "title": "Apply waveform review decisions to review spine",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "apply-html-decisions"
+          },
+          "depends_on": [
+            "compile-cut-candidates"
+          ],
+          "artifacts_in": [
+            {
+              "key": "candidate_manifest",
+              "required": true
+            },
+            {
+              "key": "html_decisions",
+              "required": false
+            },
+            {
+              "key": "html_clips",
+              "required": true
+            },
+            {
+              "key": "html_segmap",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "native_normalized_ranges"
+          ]
+        },
+        {
+          "id": "compile-approved-cuts",
+          "title": "Compile approved source-time cuts",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "compile-approved-cuts"
+          },
+          "depends_on": [
+            "apply-html-decisions"
+          ],
+          "artifacts_in": [
+            {
+              "key": "candidate_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "approved_source_cuts"
+          ]
+        },
+        {
+          "id": "extract-game-audio",
+          "title": "Extract source game-audio bridge track",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "extract-game-audio"
+          },
+          "depends_on": [
+            "compile-approved-cuts"
+          ],
+          "artifacts_out": [
+            "game_audio"
+          ]
+        },
+        {
+          "id": "final-assembly",
+          "title": "Assemble final Resolve timeline once",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "final-assembly"
+          },
+          "depends_on": [
+            "compile-approved-cuts",
+            "extract-game-audio"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "approved_source_cuts",
+              "required": true
+            },
+            {
+              "key": "game_audio",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "final_manifest"
+          ]
+        },
+        {
+          "id": "clip-colors",
+          "title": "Color final timeline content sections",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "clip-colors"
+          },
+          "depends_on": [
+            "final-assembly"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "clip_color_report"
+          ]
+        },
+        {
+          "id": "validate-order",
+          "title": "Validate finished-stage artifacts",
+          "phase": "validate",
+          "kind": "script",
+          "tool": "profile_pipeline_stage_strict",
+          "args": {
+            "stage": "validate-order"
+          },
+          "depends_on": [
+            "clip-colors"
+          ],
+          "requires_resolve": true,
+          "optional": true,
+          "artifacts_out": [
+            "pipeline_order_report"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "irl_review_first",
+      "name": "IRL / General Video Review-First Edit",
+      "description": "A-roll/story-first workflow for IRL or general videos: dump timeline clips, transcribe, build waveform and LLM review packets, apply approved review cuts, then Fairlight and render.",
+      "game_versions": [
+        "irl_video",
+        "general_video"
+      ],
+      "challenge_types": [
+        "irl_story",
+        "travel",
+        "essay",
+        "general"
+      ],
+      "llm_tasks": [
+        "irl_narrative_cut_review"
+      ],
+      "tooling": {
+        "battle_detection": "disabled",
+        "pokemon_assets": "disabled",
+        "cut_policy": "llm_then_waveform_ngram_artifact_compile_high_whole_section_only_medium_manual_low_pink_marker",
+        "audio_bed": "fairlight_only"
+      },
+      "review_surfaces": [
+        {
+          "id": "fcpxml_segments",
+          "title": "FCPXML Segment Review",
+          "kind": "fcpxml_segments",
+          "decisions_path": "{fcpxml_review_decisions}",
+          "description": "Source-backed FCPXML section review for full-section cuts or manual-fit sections."
+        }
+      ],
+      "steps": [
+        {
+          "id": "dump-clips",
+          "title": "Dump current timeline clips",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "dump_timeline_clips",
+          "args": {
+            "clips_json": "{clips_json}",
+            "video_track": "{video_track}"
+          },
+          "artifacts_out": [
+            "clips_json"
+          ]
+        },
+        {
+          "id": "transcribe",
+          "title": "Transcribe dialogue audio",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "transcribe_audio",
+          "args": {
+            "transcribe_input": "{source_media}",
+            "whisper_model": "{whisper_model}"
+          },
+          "artifacts_out": [
+            "transcript_json"
+          ]
+        },
+        {
+          "id": "auto-editor",
+          "title": "Run auto-editor dialogue pass",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "run_auto_editor",
+          "depends_on": [
+            "transcribe"
+          ],
+          "artifacts_out": [
+            "raw_autoeditor_fcpxml"
+          ]
+        },
+        {
+          "id": "waveform-qa",
+          "title": "Run waveform QA",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "waveform_qa",
+          "args": {
+            "dialogue_audio": "{dialogue_audio}",
+            "clips_json": "{clips_json}",
+            "cut_review_dir": "{cut_review_dir}",
+            "waveform_sr": "{waveform_sr}",
+            "speech_rms": "{speech_rms}",
+            "voiced_zcr": "{voiced_zcr}",
+            "timeline_fps": "{timeline_fps}"
+          },
+          "depends_on": [
+            "dump-clips"
+          ],
+          "artifacts_in": [
+            {
+              "key": "clips_json",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "categories_json"
+          ]
+        },
+        {
+          "id": "html-cut-review",
+          "title": "Build HTML waveform review",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "html_cut_review",
+          "args": {
+            "dialogue_audio": "{dialogue_audio}",
+            "review_clips_json": "{review_clips_json}",
+            "html_review_dir": "{html_review_dir}",
+            "categories_json": "{categories_json}",
+            "review_sr": "{review_sr}",
+            "timeline_fps": "{timeline_fps}"
+          },
+          "depends_on": [
+            "waveform-qa"
+          ],
+          "artifacts_in": [
+            {
+              "key": "categories_json",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "html_segmap",
+            "html_index",
+            "html_clips"
+          ]
+        },
+        {
+          "id": "narrative-llm-review",
+          "title": "Generate IRL narrative LLM packet",
+          "phase": "review",
+          "kind": "llm_prompt",
+          "tool": "llm_prompt_packet",
+          "args": {
+            "task_id": "irl_narrative_cut_review"
+          },
+          "llm_task": "irl_narrative_cut_review",
+          "depends_on": [
+            "transcribe",
+            "dump-clips"
+          ],
+          "pause_after": true,
+          "artifacts_out": [
+            "narrative_output",
+            "approved_narrative"
+          ]
+        },
+        {
+          "id": "fcpxml-segment-review",
+          "title": "Prepare FCPXML segment review",
+          "phase": "review",
+          "kind": "review",
+          "tool": "fcpxml_segment_review_prepare",
+          "args": {
+            "fcpxml": "{review_fcpxml}",
+            "out": "{fcpxml_review_artifact}"
+          },
+          "run_in_full": false,
+          "artifacts_out": [
+            "fcpxml_review_artifact",
+            "fcpxml_review_decisions"
+          ]
+        },
+        {
+          "id": "apply-html-decisions",
+          "title": "Apply approved HTML review decisions",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "apply_native_cut_review",
+          "args": {
+            "html_decisions": "{html_decisions}",
+            "html_clips": "{html_clips}",
+            "html_segmap": "{html_segmap}",
+            "native_review_dir": "{native_review_dir}",
+            "approved_review_timeline": "{approved_review_timeline}"
+          },
+          "artifacts_in": [
+            {
+              "key": "html_decisions",
+              "required": true
+            },
+            {
+              "key": "html_clips",
+              "required": true
+            },
+            {
+              "key": "html_segmap",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "fairlight",
+          "title": "Apply Fairlight preset",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "apply_fairlight_preset",
+          "args": {
+            "fairlight_timeline_arg": "{fairlight_timeline_arg}",
+            "fairlight_timeline": "{fairlight_timeline}"
+          }
+        },
+        {
+          "id": "render",
+          "title": "Render final/QA output",
+          "phase": "deliver",
+          "kind": "script",
+          "tool": "render_timeline",
+          "args": {
+            "render_preset": "{render_preset}",
+            "render_name_arg": "{render_name_arg}",
+            "render_name": "{render_name}",
+            "render_dir_arg": "{render_dir_arg}",
+            "render_dir": "{render_dir}"
+          },
+          "depends_on": [
+            "fairlight"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pokemon_gym_leader_challenge",
+      "name": "Pokemon Gym Leader Challenge Edit",
+      "description": "Standard Pokemon challenge workflow for Crystal/GSC-style gym leader videos: intro/outro assets, battle detection/gaps, rival/gym intro overlays, BGM/battle audio, carousel, Fairlight, and render.",
+      "game_versions": [
+        "pokemon_crystal",
+        "pokemon_gold_silver",
+        "pokemon_heartgold_soulsilver",
+        "pokemon_red_blue",
+        "pokemon_yellow"
+      ],
+      "challenge_types": [
+        "gym_leader_challenge",
+        "standard_challenge",
+        "solo_challenge"
+      ],
+      "llm_tasks": [
+        "minimum_battles_classifier",
+        "battle_detection",
+        "battle_type_classification",
+        "rival_starter_classification",
+        "member_carousel_detection",
+        "narrative_cut_review"
+      ],
+      "tooling": {
+        "battle_gap_mode": "fcpxml_all_detected_battles",
+        "leader_intro_mode": "v2_overlay",
+        "rival_intro_mode": "starter_and_location_specific",
+        "intro_speed": "auto_from_minimum_battles_classifier",
+        "cut_policy": "llm_then_waveform_ngram_artifact_compile_high_whole_section_only_medium_manual_low_pink_marker",
+        "audio_bed": "a2_bgm_plus_battle_audio"
+      },
+      "steps": [
+        {
+          "id": "transcribe",
+          "title": "Transcribe dialogue audio",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "transcribe_audio",
+          "args": {
+            "transcribe_input": "{source_media}",
+            "whisper_model": "{whisper_model}"
+          },
+          "artifacts_out": [
+            "transcript_json"
+          ]
+        },
+        {
+          "id": "minimum-battles",
+          "title": "Classify challenge format for intro speed",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "minimum_battles_detector",
+          "depends_on": [
+            "transcribe"
+          ]
+        },
+        {
+          "id": "auto-editor",
+          "title": "Run auto-editor dialogue pass",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "run_auto_editor",
+          "depends_on": [
+            "transcribe"
+          ],
+          "artifacts_out": [
+            "raw_autoeditor_fcpxml"
+          ]
+        },
+        {
+          "id": "import-shared-assets",
+          "title": "Import shared Pokemon assets",
+          "phase": "assets",
+          "kind": "script",
+          "tool": "import_shared_assets"
+        },
+        {
+          "id": "import-game-assets",
+          "title": "Import game-specific assets",
+          "phase": "assets",
+          "kind": "script",
+          "tool": "import_game_assets",
+          "args": {
+            "game_key": "{game_key}"
+          },
+          "depends_on": [
+            "import-shared-assets"
+          ]
+        },
+        {
+          "id": "intro-outro",
+          "title": "Insert intro/outro timeline",
+          "phase": "build",
+          "kind": "script",
+          "tool": "insert_intro_outro",
+          "args": {
+            "game_key": "{game_key}",
+            "intro_speed_arg": "{intro_speed_arg}",
+            "intro_speed": "{intro_speed}"
+          },
+          "depends_on": [
+            "import-game-assets",
+            "minimum-battles"
+          ]
+        },
+        {
+          "id": "battle-detect",
+          "title": "Detect first-time trainer battles",
+          "phase": "build",
+          "kind": "script",
+          "tool": "detect_battles",
+          "args": {
+            "transcript_json": "{transcript_json}",
+            "battles_json": "{battles_json}"
+          },
+          "depends_on": [
+            "transcribe"
+          ],
+          "artifacts_out": [
+            "battles_json"
+          ]
+        },
+        {
+          "id": "battle-gaps",
+          "title": "Insert battle gaps in FCPXML",
+          "phase": "build",
+          "kind": "script",
+          "tool": "insert_battle_gaps_fcpxml",
+          "args": {
+            "input_fcpxml": "{input_fcpxml}",
+            "battles_json": "{battles_json}",
+            "battle_gap_frames": "{battle_gap_frames}",
+            "battle_gaps_fcpxml": "{battle_gaps_fcpxml}",
+            "gen1_non_boss_flag": "",
+            "import_to_resolve_flag": "{import_to_resolve_flag}"
+          },
+          "depends_on": [
+            "battle-detect"
+          ],
+          "artifacts_in": [
+            {
+              "key": "battles_json",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "battle_gaps_fcpxml"
+          ]
+        },
+        {
+          "id": "battle-types",
+          "title": "Classify battles by role",
+          "phase": "build",
+          "kind": "script",
+          "tool": "classify_battles",
+          "depends_on": [
+            "battle-detect"
+          ]
+        },
+        {
+          "id": "rival-starter",
+          "title": "Classify rival starter/location",
+          "phase": "build",
+          "kind": "script",
+          "tool": "classify_rival_starter",
+          "depends_on": [
+            "battle-types"
+          ]
+        },
+        {
+          "id": "battle-intros",
+          "title": "Place rival/gym intro overlays",
+          "phase": "build",
+          "kind": "script",
+          "tool": "place_battle_intros_overlay",
+          "args": {
+            "battle_intro_overlap_sec": "{battle_intro_overlap_sec}",
+            "include_other_battle_intros_flag": "{include_other_battle_intros_flag}"
+          },
+          "depends_on": [
+            "battle-types",
+            "rival-starter"
+          ]
+        },
+        {
+          "id": "intro-bgm",
+          "title": "Place intro/general BGM",
+          "phase": "audio",
+          "kind": "script",
+          "tool": "place_bgm",
+          "args": {
+            "game_key": "{game_key}"
+          },
+          "depends_on": [
+            "intro-outro"
+          ]
+        },
+        {
+          "id": "battle-bgm",
+          "title": "Place general BGM around battles",
+          "phase": "audio",
+          "kind": "script",
+          "tool": "place_battle_bgm",
+          "args": {
+            "seed_arg": "{seed_arg}",
+            "seed": "{seed}"
+          },
+          "depends_on": [
+            "battle-types",
+            "intro-bgm"
+          ]
+        },
+        {
+          "id": "battle-audio",
+          "title": "Place battle audio themes",
+          "phase": "audio",
+          "kind": "script",
+          "tool": "place_battle_audio",
+          "args": {
+            "rival_track_arg": "{rival_track_arg}",
+            "rival_track": "{rival_track}",
+            "gym_track_arg": "{gym_track_arg}",
+            "gym_track": "{gym_track}",
+            "other_track_arg": "{other_track_arg}",
+            "other_track": "{other_track}"
+          },
+          "depends_on": [
+            "battle-bgm"
+          ]
+        },
+        {
+          "id": "audio-fades",
+          "title": "Apply BGM/battle audio fades",
+          "phase": "audio",
+          "kind": "script",
+          "tool": "apply_audio_fades",
+          "args": {
+            "fade_sec": "{fade_sec}"
+          },
+          "depends_on": [
+            "battle-audio"
+          ]
+        },
+        {
+          "id": "find-carousel",
+          "title": "Find member carousel start",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "member_carousel_finder",
+          "args": {
+            "max_candidates": "{carousel_max_candidates}"
+          },
+          "depends_on": [
+            "audio-fades"
+          ]
+        },
+        {
+          "id": "carousel-dry-run",
+          "title": "Preview carousel layout",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "layout_carousel",
+          "args": {
+            "carousel_marker_names": "{carousel_marker_names}",
+            "carousel_dry_run_flag": "--dry-run"
+          },
+          "depends_on": [
+            "find-carousel"
+          ]
+        },
+        {
+          "id": "carousel",
+          "title": "Apply carousel layout",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "layout_carousel",
+          "args": {
+            "carousel_marker_names": "{carousel_marker_names}",
+            "carousel_dry_run_flag": ""
+          },
+          "depends_on": [
+            "carousel-dry-run"
+          ]
+        },
+        {
+          "id": "fairlight",
+          "title": "Apply Fairlight preset",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "apply_fairlight_preset",
+          "args": {
+            "fairlight_timeline_arg": "{fairlight_timeline_arg}",
+            "fairlight_timeline": "{fairlight_timeline}"
+          },
+          "depends_on": [
+            "carousel"
+          ]
+        },
+        {
+          "id": "render",
+          "title": "Render final/QA output",
+          "phase": "deliver",
+          "kind": "script",
+          "tool": "render_timeline",
+          "args": {
+            "render_preset": "{render_preset}",
+            "render_name_arg": "{render_name_arg}",
+            "render_name": "{render_name}",
+            "render_dir_arg": "{render_dir_arg}",
+            "render_dir": "{render_dir}"
+          },
+          "depends_on": [
+            "fairlight"
+          ]
+        }
+      ]
+    }
+  ],
+  "llm_tasks": [
+    {
+      "id": "irl_narrative_cut_review",
+      "title": "IRL Narrative Cut Review",
+      "task_type": "semantic_cut_review",
+      "why_llm": "IRL/story videos need semantic judgment for false starts, duplicated takes, abandoned tangents, and edit notes while preserving natural conversational cadence and story context.",
+      "prompt_path": "{narrative_prompt}",
+      "output_path": "{narrative_output}",
+      "instructions_path": "{llm_instructions}",
+      "inputs": [
+        "{transcript_json}",
+        "{clips_json}",
+        "{narrative_prompt}"
+      ],
+      "review_policy": "paste_output_into_gui_then_save_approved_cuts",
+      "output_contract": {
+        "type": "json_array",
+        "required_fields": [
+          "start_sec",
+          "end_sec",
+          "confidence",
+          "type",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "narrative_cut_review",
+      "title": "Narrative Cut Review",
+      "task_type": "semantic_cut_review",
+      "why_llm": "False starts, abandoned explanations, stale takes, and self-corrections require transcript-level semantic judgment before deterministic cut application.",
+      "prompt_path": "{narrative_prompt}",
+      "output_path": "{narrative_output}",
+      "instructions_path": "{llm_instructions}",
+      "inputs": [
+        "{narrative_prompt}",
+        "{narrative_clip_index}"
+      ],
+      "review_policy": "paste_output_into_gui_then_save_approved_cuts",
+      "output_contract": {
+        "type": "json_array",
+        "required_fields": [
+          "start_sec",
+          "end_sec",
+          "confidence",
+          "type",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "minimum_battles_classifier",
+      "title": "Minimum Battles Classifier",
+      "task_type": "series_classification",
+      "why_llm": "Challenge format is inferred from transcript intent and repeated trainer attempts, not a single deterministic marker.",
+      "output_path": "{repo}/transcripts/min-battles.json",
+      "inputs": [
+        "transcripts/*.json"
+      ],
+      "output_contract": {
+        "type": "json_object",
+        "required_fields": [
+          "is_minimum_battles",
+          "pokemon_count",
+          "trainers_attempted",
+          "reasoning"
+        ]
+      }
+    },
+    {
+      "id": "battle_detection",
+      "title": "First-Time Trainer Battle Detection",
+      "task_type": "transcript_event_detection",
+      "why_llm": "The battle-start detector needs transcript context to distinguish actual first-time trainer battles from casual mentions, retries, and summary narration.",
+      "inputs": [
+        "transcripts/*.json"
+      ],
+      "output_contract": {
+        "type": "json_array",
+        "required_fields": [
+          "start_sec",
+          "trainer",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "battle_type_classification",
+      "title": "Battle Type Classification",
+      "task_type": "classification",
+      "why_llm": "Rival, gym, Elite Four, champion, and ordinary battles are inferred from team composition and surrounding challenge context.",
+      "output_path": "{repo}/transcripts/battle-types.json",
+      "inputs": [
+        "transcripts/battles.json"
+      ],
+      "output_contract": {
+        "type": "json_array",
+        "required_fields": [
+          "battle_index",
+          "type",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "rival_starter_classification",
+      "title": "Rival Starter Classification",
+      "task_type": "classification",
+      "why_llm": "Rival starter and location depend on battle team composition and game-version rules that are easier to verify semantically than through filename heuristics.",
+      "output_path": "{repo}/transcripts/rival-starter.json",
+      "inputs": [
+        "transcripts/battle-types.json",
+        "transcripts/battles.json"
+      ],
+      "output_contract": {
+        "type": "json_object",
+        "required_fields": [
+          "starter_type",
+          "battles",
+          "reasoning"
+        ]
+      }
+    },
+    {
+      "id": "battle_end_refinement",
+      "title": "Battle End Refinement",
+      "task_type": "visual_frame_selection",
+      "why_llm": "The exact battle-end frame is a visual state transition that varies by win/give-up and is best resolved from sampled frame images.",
+      "inputs": [
+        "plans/prompts/battle-ends-refine-*.in.md"
+      ],
+      "output_contract": {
+        "type": "json_array",
+        "required_fields": [
+          "battle_index",
+          "frame",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "member_carousel_detection",
+      "title": "Member Carousel Detection",
+      "task_type": "visual_frame_classification",
+      "why_llm": "Carousel start is identified by a visual overlay style after the last battle, not by transcript text or timeline metadata.",
+      "inputs": [
+        "plans/prompts/member-carousel-*.in.md"
+      ],
+      "output_contract": {
+        "type": "json_object",
+        "required_fields": [
+          "clip_index",
+          "confidence",
+          "reason"
+        ]
+      }
+    },
+    {
+      "id": "bgm_library_classification",
+      "title": "BGM Library Classification",
+      "task_type": "asset_classification",
+      "why_llm": "BGM intent comes from filenames and project conventions before audio-feature analysis verifies the tags.",
+      "output_path": "{repo}/_data/bgm-tags.json",
+      "inputs": [
+        "assets/bgm/**/*"
+      ],
+      "output_contract": {
+        "type": "json_object",
+        "required_fields": [
+          "tracks"
+        ]
+      }
+    }
+  ]
+}
