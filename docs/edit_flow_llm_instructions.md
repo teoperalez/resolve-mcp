@@ -25,6 +25,8 @@ Find only strong narrative cut candidates:
 - abandoned narrative threads
 - self-corrections where the first phrase is genuinely abandoned
 - mid-clip corrections or repeated fragments with clear boundaries
+- livestream chat replies, stream asides, or off-run clarifications only when
+  the project prompt explicitly enables livestream/chat review
 
 Do not cut:
 
@@ -34,6 +36,11 @@ Do not cut:
 - reset count, battle state, or run-context information
 - ordinary breaths/clicks/silence unless the prompt explicitly asks for audio
   artifacts
+
+If the prompt enables `bypass gameplay narrative cuts`, do not return ordinary
+gameplay false starts, repetitions, abandoned explanations, or self-corrections.
+In that mode, keep only structural/restart rows, explicit edit notes, and any
+livestream/chat candidates explicitly requested by the prompt.
 
 When evidence is weak, leave it out. The GUI is meant to show a small,
 defensible list, not a broad maybe pile.
@@ -84,6 +91,15 @@ Allowed `type` values:
 - `mid_clip_false_start`
 - `mid_clip_repetition`
 - `mid_clip_self_correction`
+- `livestream_chat_interaction`
+- `livestream_chat_clarification`
+- `livestream_chat_aside`
+- `livestream_stream_maintenance`
+- `livestream_meta_response`
+
+For livestream/chat candidates, include `category` and `thread` fields. The
+HTML review groups these into visible narrative threads so the editor can keep
+or cut each aside manually.
 
 Use `confidence: "high"` only when the cut is obvious and safe. Use
 `confidence: "medium"` for true borderline candidates that deserve editor

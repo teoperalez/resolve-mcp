@@ -903,6 +903,7 @@ def build(
     timeline_name: str | None = None,
     manifest_path: Path | None = None,
     extra_source_cuts: Path | None = None,
+    apply_locked_structural_cuts: bool = False,
 ) -> dict:
     CODEX_DIR.mkdir(parents=True, exist_ok=True)
     timeline_name = timeline_name or FINAL_NAME
@@ -922,7 +923,7 @@ def build(
 
     keep_start = source_frame(SOURCE_START_SEC)
     keep_end = min(video_duration_frames(VIDEO_PATH), media_duration_frames(DIALOGUE_PATH))
-    locked_manual_cut_rows = [
+    proposed_structural_cut_rows = [
         {
             "label": "remove_rom_mistake_restart_explanation",
             "start_sec": RESTART_CUT_START_SEC,
@@ -941,6 +942,7 @@ def build(
         },
     ]
     extra_cut_rows = load_extra_source_cuts(extra_source_cuts)
+    locked_manual_cut_rows = proposed_structural_cut_rows if apply_locked_structural_cuts else []
     manual_cut_rows = locked_manual_cut_rows + extra_cut_rows
     manual_cuts = [(int(row["start_frame"]), int(row["end_frame"])) for row in manual_cut_rows]
     raw_intervals = parse_autoeditor_intervals(RAW_AUTOEDITOR_FCPXML)
@@ -1004,8 +1006,10 @@ def build(
                 "reason": "remove setup/explanation and start at Mewtwo intro",
             },
             "cuts": [
-                *locked_manual_cut_rows,
+                *manual_cut_rows,
             ],
+            "proposed_structural_cuts": proposed_structural_cut_rows,
+            "apply_locked_structural_cuts": apply_locked_structural_cuts,
             "extra_source_cuts_file": str(extra_source_cuts) if extra_source_cuts else None,
             "extra_source_cuts": extra_cut_rows,
         },
@@ -1076,6 +1080,8 @@ def main() -> int:
                         help="Override the manifest output path.")
     parser.add_argument("--extra-source-cuts", type=Path, default=None,
                         help="Approved source-time cuts to add before final rebuild.")
+    parser.add_argument("--apply-locked-structural-cuts", action="store_true",
+                        help="Apply the historical default restart cuts without HTML review decisions.")
     args = parser.parse_args()
 
     timeline_name = args.timeline_name
@@ -1087,6 +1093,7 @@ def main() -> int:
         timeline_name=timeline_name,
         manifest_path=args.manifest,
         extra_source_cuts=args.extra_source_cuts,
+        apply_locked_structural_cuts=args.apply_locked_structural_cuts,
     )
     summary = {
         "fcpxml": manifest["fcpxml"]["fcpxml"],

@@ -39,6 +39,27 @@ DEFAULT_MANIFEST = M.CODEX_DIR / f"{M.safe_file_stem(M.REVIEW_NAME)}_manifest.js
 DEFAULT_OUT_DIR = M.CODEX_DIR / "cut_review"
 DEFAULT_TRANSCRIPT = M.CODEX_DIR / "transcripts" / f"{M.DIALOGUE_PATH.stem}.json"
 TL_FPS = 60.0
+STRUCTURAL_CLIP_ID_BASE = 200000
+LIVESTREAM_TYPES = {
+    "livestream_chat_interaction",
+    "livestream_chat_clarification",
+    "livestream_chat_aside",
+    "livestream_stream_maintenance",
+    "livestream_meta_response",
+    "chat_interaction",
+    "chat_clarification",
+    "chat_aside",
+    "stream_maintenance",
+}
+GAMEPLAY_NARRATIVE_TYPES = {
+    "false_start",
+    "repetition",
+    "abandoned_thread",
+    "self_correction",
+    "mid_clip_false_start",
+    "mid_clip_repetition",
+    "mid_clip_self_correction",
+}
 
 
 def norm_path(path: str | Path) -> str:
@@ -55,6 +76,27 @@ def resolve_path(path: str | Path) -> str:
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def is_livestream_candidate(raw: dict) -> bool:
+    values = [
+        raw.get("type"),
+        raw.get("category"),
+        raw.get("kind"),
+        raw.get("source"),
+    ]
+    for value in values:
+        text = str(value or "").strip().lower()
+        if text in LIVESTREAM_TYPES:
+            return True
+        if text.startswith(("livestream_", "chat_", "stream_")):
+            return True
+    return False
+
+
+def is_gameplay_narrative_candidate(raw: dict) -> bool:
+    candidate_type = str(raw.get("type") or "").strip().lower()
+    return candidate_type in GAMEPLAY_NARRATIVE_TYPES
 
 
 def run(cmd: list[str]) -> None:
@@ -346,6 +388,10 @@ def finalized_candidate(raw: dict, rows: list[dict], source: str, proposed_confi
         confidence = "medium"
         downgrade_reasons.append("mid-clip suggestions require manual review")
 
+    if is_livestream_candidate(raw) and confidence == "high":
+        confidence = "medium"
+        downgrade_reasons.append("livestream chat/asides require manual review")
+
     if policy["partial_section"] and confidence == "high":
         confidence = "medium"
         downgrade_reasons.append("high-confidence auto-cuts must remove complete FCPXML sections")
@@ -398,6 +444,22 @@ def dedupe_candidates(candidates: list[dict]) -> list[dict]:
         existing["sources"] = sorted(set(existing.get("sources", []) + [candidate.get("source", "unknown")]))
         if candidate.get("reason"):
             existing.setdefault("reasons", []).append(candidate["reason"])
+        if is_livestream_candidate(existing) or is_livestream_candidate(candidate):
+            keep_sources = existing.get("sources", [])
+            keep_reasons = existing.get("reasons", [])
+            if is_livestream_candidate(candidate):
+                existing.update(candidate)
+            existing["sources"] = keep_sources
+            existing["reasons"] = keep_reasons
+            existing["confidence"] = "medium"
+            existing["disposition"] = DISPOSITION_BY_CONFIDENCE["medium"]
+            existing["auto_apply_allowed"] = False
+            existing["manual_review_required"] = True
+            reason = "livestream chat/asides require manual review"
+            prior = str(existing.get("downgrade_reason") or "")
+            if reason not in prior:
+                existing["downgrade_reason"] = "; ".join(item for item in (prior, reason) if item)
+            continue
         if CONFIDENCE_RANK[candidate["confidence"]] > CONFIDENCE_RANK[existing["confidence"]]:
             keep_sources = existing.get("sources", [])
             keep_reasons = existing.get("reasons", [])
@@ -467,6 +529,55 @@ def locked_manual_cuts() -> list[dict]:
     ]
 
 
+def structural_review_groups() -> list[dict]:
+    raw_intervals = M.parse_autoeditor_intervals(M.RAW_AUTOEDITOR_FCPXML)
+    groups: list[dict] = []
+    next_clip_id = STRUCTURAL_CLIP_ID_BASE
+    for group_index, cut in enumerate(locked_manual_cuts()):
+        cut_start = int(cut["start_frame"])
+        cut_end = int(cut["end_frame"])
+        sections: list[dict] = []
+        for raw_index, clip in enumerate(raw_intervals):
+            start = max(int(clip.start), cut_start)
+            end = min(int(clip.end), cut_end)
+            if end <= start:
+                continue
+            section = {
+                "i": next_clip_id,
+                "timeline_i": next_clip_id,
+                "name": M.VIDEO_PATH.name,
+                # Structural review rows live in source-frame space. Setting
+                # start=left lets the decision normalizer map them directly
+                # back to source cuts while still reusing the same HTML widgets.
+                "start": start,
+                "dur": end - start,
+                "left": start,
+                "fps": TL_FPS,
+                "color": "",
+                "src": resolve_path(M.VIDEO_PATH),
+                "role": "structural_review",
+                "structural_group": group_index,
+                "structural_label": cut["label"],
+                "structural_source_start_frame": cut_start,
+                "structural_source_end_frame": cut_end,
+                "raw_interval_index": raw_index,
+            }
+            sections.append(section)
+            next_clip_id += 1
+        groups.append(
+            {
+                **cut,
+                "group": group_index,
+                "sections": sections,
+                "section_indexes": [section["i"] for section in sections],
+                "section_count": len(sections),
+                "html_review_required": True,
+                "default_decision": "cut",
+            }
+        )
+    return groups
+
+
 def transcript_segment_bounds(segment: dict) -> tuple[float, float]:
     return float(segment.get("start", 0.0)), float(segment.get("end", segment.get("start", 0.0)))
 
@@ -510,28 +621,96 @@ def build_locked_cut_context(transcript_path: Path, manual_cuts: list[dict]) -> 
     return contexts
 
 
-def build_mewtwo_prompt(clips: list[dict], transcript_path: Path, manual_cuts: list[dict]) -> str:
+def build_mewtwo_prompt(clips: list[dict], transcript_path: Path, manual_cuts: list[dict], args: argparse.Namespace) -> str:
     body = "\n".join(MCC.format_clip_line(c) for c in clips)
     locked_context = build_locked_cut_context(transcript_path, manual_cuts)
+    gameplay_cut_guidance = (
+        "Because `bypass gameplay narrative cuts` is enabled, do not return ordinary "
+        "gameplay polish cuts such as false starts, repeated explanations, abandoned "
+        "mechanics thoughts, or self-corrections unless they are also explicit edit "
+        "notes, restart/structural issues, or livestream chat/asides."
+        if args.bypass_gameplay_narrative_cuts
+        else (
+            "Focus on false starts, repetitions, abandoned narrative threads, "
+            "self-corrections, explicit edit notes, and restart explanations."
+        )
+    )
+    livestream_guidance = ""
+    livestream_types = ""
+    livestream_example = ""
+    if args.livestream_edit:
+        if args.livestream_cut_chat_interactions:
+            livestream_guidance = """
+## Livestream/VOD Edit Rules
+
+This run is being reviewed as a livestream edit. In addition to structural
+restart verification, identify sections where Teo is responding to chat,
+clarifying an aside for chat, doing stream/meta maintenance, or discussing a
+tangent that does not advance the main Mewtwo Red/Blue run. Good livestream
+candidates include:
+
+- replies to chat messages or usernames when the exchange does not explain the run
+- stream maintenance, recording/tech checks, moderation/sub/gift callouts, or chat meta
+- side stories, clarifications, or back-and-forth detached from current gameplay
+- chat-driven tangents that interrupt the run's clean VOD narrative
+
+Do not flag chat-aware dialogue that directly explains the current route,
+mechanics, battle plan, reset count, ROM/version behavior, or why a gameplay
+decision matters. For every livestream candidate, include:
+
+- `type`: one of the livestream/chat type values below
+- `category`: a short category such as `chat_reply`, `stream_meta`,
+  `viewer_clarification`, `off_run_aside`, `tech_check`, or `chat_tangent`
+- `thread`: a concise narrative thread label grouping related asides, e.g.
+  `ROM setup clarification`, `chat response about routing`, `stream tech`, `off-topic aside`
+- `reason`: why this exchange can be removed without harming the main run narrative
+
+Livestream/chat cuts are review candidates, not automatic cuts; prefer
+`confidence: "medium"` unless the row is one of the locked structural restarts.
+"""
+            livestream_types = (
+                ", livestream_chat_interaction, livestream_chat_clarification, "
+                "livestream_chat_aside, livestream_stream_maintenance, "
+                "livestream_meta_response"
+            )
+            livestream_example = """  {
+    "start_sec": 456.10,
+    "end_sec": 471.25,
+    "confidence": "medium",
+    "type": "livestream_chat_aside",
+    "category": "off_run_aside",
+    "thread": "chat tangent about setup",
+    "reason": "Teo answers chat on a side topic that does not affect the current run plan."
+  },
+"""
+        else:
+            livestream_guidance = """
+## Livestream/VOD Edit Rules
+
+Livestream mode is enabled, but chat/asides detection is off for this pass. Do
+not add chat-specific cuts unless they also satisfy the ordinary narrative or
+structural cut rules.
+"""
     return f"""You are reviewing a Mewtwo Pokemon Red/Blue Ultra Minimum Battles redo timeline before any heavy rebuild steps.
 
 ## Review Contract
 
 Return only strong cut candidates that should be reviewed or applied before the
-final rebuild. Focus on false starts, repetitions, abandoned narrative threads,
-self-corrections, explicit edit notes, and restart explanations. Do not cut
+final rebuild. {gameplay_cut_guidance} Do not cut
 natural Teo cadence, useful game-mechanic explanation, battle context, reset
 count information, or intentional recap.
 
-The review base already removes these structural restart ranges before the clip
-list below. Verify them using the transcript context and include one JSON record
-for each structural restart cut in your output:
+{livestream_guidance}
+
+These structural restart ranges are proposed separately from ordinary gameplay
+narrative cuts. Verify them using the transcript context and include one JSON
+record for each structural restart cut in your output:
 
 - Use `status: "locked_confirmed"` when the proposed source-time bounds are correct.
 - Use `status: "revision_needed"` and corrected `start_sec` / `end_sec` if the
   transcript shows the structural cut boundaries should move.
-- These structural restart rows document source-time removals for the final
-  rebuild; they are not routed to the HTML partial-section review.
+- These structural restart rows document the proposed source-time boundaries.
+  The HTML review lets the editor cut/restore the underlying FCPXML sections.
 
 {json.dumps(manual_cuts, indent=2)}
 
@@ -561,6 +740,7 @@ Respond with ONLY a raw JSON array. No markdown fences, no prose.
     "type": "repetition",
     "reason": "Earlier failed take is replaced by a cleaner line shortly after."
   }},
+{livestream_example}
   {{
     "label": "remove_full_run_restart_explanation",
     "start_sec": 1818.50,
@@ -574,7 +754,7 @@ Respond with ONLY a raw JSON array. No markdown fences, no prose.
 
 Allowed `type` values: explicit_restart_cut, explicit_edit_note, false_start, repetition,
 abandoned_thread, full_restart, self_correction, mid_clip_false_start,
-mid_clip_repetition, mid_clip_self_correction.
+mid_clip_repetition, mid_clip_self_correction{livestream_types}.
 """
 
 
@@ -604,7 +784,7 @@ def build_narrative_artifacts(rows: list[dict], timeline_start_frame: int, out_d
 
     write_json(index_path, clips)
     prompt_path.write_text(
-        build_mewtwo_prompt(clips, transcript_path, manual_cuts),
+        build_mewtwo_prompt(clips, transcript_path, manual_cuts, args),
         encoding="utf-8",
     )
 
@@ -942,12 +1122,14 @@ def load_narrative_structural_reviews(path: Path) -> list[dict]:
     return reviews
 
 
-def load_narrative_candidates(path: Path, rows: list[dict]) -> list[dict]:
+def load_narrative_candidates(path: Path, rows: list[dict], args: argparse.Namespace) -> list[dict]:
     candidates = []
     for raw in load_narrative_rows(path):
         if is_structural_narrative_review(raw):
             continue
         if raw.get("status") in {"reject", "rejected", "keep"}:
+            continue
+        if args.bypass_gameplay_narrative_cuts and is_gameplay_narrative_candidate(raw) and not is_livestream_candidate(raw):
             continue
         candidates.append(finalized_candidate(raw, rows, "narrative_llm", normalize_confidence(raw.get("confidence"), "medium")))
     return candidates
@@ -956,6 +1138,7 @@ def load_narrative_candidates(path: Path, rows: list[dict]) -> list[dict]:
 def build_compiled_review_html(
     rows: list[dict],
     medium_candidates: list[dict],
+    auto_candidates: list[dict],
     structural_reviews: list[dict],
     out_dir: Path,
     args: argparse.Namespace,
@@ -967,12 +1150,29 @@ def build_compiled_review_html(
         for candidate in medium_candidates
         for index in candidate.get("section_policy", {}).get("covered_section_indexes", [])
     }
+    auto_section_indexes = {
+        int(index)
+        for candidate in auto_candidates
+        for index in candidate.get("section_policy", {}).get("covered_section_indexes", [])
+    }
+    structural_groups = structural_review_groups()
+    structural_reviews_by_label = {str(row.get("label")): row for row in structural_reviews}
+    structural_rows = []
+    for group in structural_groups:
+        review = structural_reviews_by_label.get(str(group.get("label")))
+        if review:
+            group["llm_review"] = review
+            group["status"] = review.get("status") or group.get("status")
+            group["reason"] = review.get("reason") or group.get("reason")
+            group["matches_locked_reference"] = review.get("matches_locked_reference")
+        structural_rows.extend(group.get("sections") or [])
     review_rows = []
     for row in rows:
         review_row = dict(row)
         if int(row["i"]) in review_section_indexes:
             review_row["color"] = "Pink"
         review_rows.append(review_row)
+    review_rows.extend(structural_rows)
 
     review_clips_path = out_dir / "clips_for_review.json"
     write_json(
@@ -982,12 +1182,21 @@ def build_compiled_review_html(
             "dialogue_audio": str(M.DIALOGUE_PATH),
             "structural_cuts": locked_manual_cuts(),
             "structural_restart_reviews": structural_reviews,
+            "structural_review_groups": structural_groups,
+            "manual_review_candidates": medium_candidates,
+            "auto_cut_candidates": auto_candidates,
+            "livestream_review": {
+                "enabled": bool(args.livestream_edit),
+                "cut_chat_interactions": bool(args.livestream_cut_chat_interactions),
+                "bypass_gameplay_narrative_cuts": bool(args.bypass_gameplay_narrative_cuts),
+            },
             "clips": review_rows,
             "candidate_count": len(medium_candidates),
+            "auto_cut_candidate_count": len(auto_candidates),
         },
     )
 
-    if not args.skip_html and review_section_indexes:
+    if not args.skip_html and (review_section_indexes or auto_section_indexes or structural_groups):
         cmd = [
             sys.executable,
             str(SCRIPT_DIR / "build_cut_review.py"),
@@ -1025,6 +1234,8 @@ def build_compiled_review_html(
         "review_clips": str(review_clips_path),
         "review_html": str(review_dir / "index.html"),
         "segmap": str(review_dir / "segmap.json"),
+        "auto_segmap": str(review_dir / "auto_segmap.json"),
+        "structural_segmap": str(review_dir / "structural_segmap.json"),
     }
 
 
@@ -1044,7 +1255,7 @@ def compile_candidate_manifest(
     if missing:
         raise FileNotFoundError("Missing candidate compiler input(s):\n" + "\n".join(f"  - {path}" for path in missing))
 
-    narrative_candidates = load_narrative_candidates(narrative_path, rows)
+    narrative_candidates = load_narrative_candidates(narrative_path, rows, args)
     structural_reviews = load_narrative_structural_reviews(narrative_path)
     programmatic_candidates = []
     for path, source in (
@@ -1059,7 +1270,8 @@ def compile_candidate_manifest(
     high = [candidate for candidate in all_candidates if candidate["confidence"] == "high"]
     medium = [candidate for candidate in all_candidates if candidate["confidence"] == "medium"]
     low = [candidate for candidate in all_candidates if candidate["confidence"] == "low"]
-    review_artifacts = build_compiled_review_html(rows, medium, structural_reviews, out_dir, args)
+    livestream_medium = [candidate for candidate in medium if is_livestream_candidate(candidate)]
+    review_artifacts = build_compiled_review_html(rows, medium, high, structural_reviews, out_dir, args)
 
     report = {
         "schema": "mewtwo_cut_candidates_v2",
@@ -1068,6 +1280,11 @@ def compile_candidate_manifest(
         "timeline": timeline_name,
         "timeline_start_frame": timeline_start_frame,
         "timeline_fps": TL_FPS,
+        "livestream_review": {
+            "enabled": bool(args.livestream_edit),
+            "cut_chat_interactions": bool(args.livestream_cut_chat_interactions),
+            "bypass_gameplay_narrative_cuts": bool(args.bypass_gameplay_narrative_cuts),
+        },
         "locked_manual_cuts": locked_manual_cuts(),
         "review_order": [
             {
@@ -1098,8 +1315,10 @@ def compile_candidate_manifest(
             "v1_clips": len(rows),
             "locked_manual_cuts": len(locked_manual_cuts()),
             "structural_restart_reviews": len(structural_reviews),
+            "structural_review_sections": sum(len(group.get("sections") or []) for group in structural_review_groups()),
             "high_confidence_auto_cuts": len(high),
             "medium_confidence_review_candidates": len(medium),
+            "livestream_review_candidates": len(livestream_medium),
             "low_confidence_mark_only_candidates": len(low),
             "all_candidates": len(all_candidates),
         },
@@ -1113,6 +1332,7 @@ def compile_candidate_manifest(
             **review_artifacts,
         },
         "structural_restart_reviews": structural_reviews,
+        "structural_review_groups": structural_review_groups(),
         "candidates": all_candidates,
         "high_confidence_auto_cuts": high,
         "medium_confidence_review_candidates": medium,
@@ -1163,11 +1383,24 @@ def main() -> int:
     parser.add_argument("--skip-waveform", action="store_true")
     parser.add_argument("--skip-html", action="store_true")
     parser.add_argument("--skip-narrative-prompt", action="store_true")
+    parser.add_argument("--livestream-edit", action="store_true", help="Add livestream/VOD editorial instructions to the narrative LLM prompt.")
+    parser.add_argument(
+        "--livestream-cut-chat-interactions",
+        action="store_true",
+        help="Ask the narrative LLM to find chat replies, stream asides, and off-run clarifications for manual review.",
+    )
+    parser.add_argument(
+        "--bypass-gameplay-narrative-cuts",
+        action="store_true",
+        help="Ignore ordinary gameplay narrative polish cuts from the LLM while keeping structural and livestream candidates.",
+    )
     parser.add_argument("--max-ngram-candidates", type=int, default=80)
     args = parser.parse_args()
 
     args.review_categories = [c.strip() for c in args.review_categories.split(",") if c.strip()]
     args.auto_categories = [c.strip() for c in args.auto_categories.split(",") if c.strip()]
+    if args.livestream_cut_chat_interactions:
+        args.livestream_edit = True
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)

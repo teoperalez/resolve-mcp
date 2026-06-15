@@ -29,6 +29,9 @@
         "llm_open_code_workspace": true,
         "llm_timeout_sec": 3600,
         "llm_model": "",
+        "livestream_edit_mode": true,
+        "livestream_cut_chat_interactions": true,
+        "livestream_bypass_gameplay_narrative_cuts": true,
         "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
         "carousel_max_candidates": 30,
         "review_fcpxml": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo RBY UMB redo review base.fcpxml"

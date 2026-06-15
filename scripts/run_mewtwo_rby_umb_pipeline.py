@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -49,6 +50,8 @@ PROGRAMMATIC_CANDIDATES = CUT_REVIEW_DIR / "programmatic_candidates.json"
 HTML_DECISIONS = CUT_REVIEW_DIR / "review" / "pink_decisions.json"
 HTML_CLIPS = CUT_REVIEW_DIR / "clips_for_review.json"
 HTML_SEGMAP = CUT_REVIEW_DIR / "review" / "segmap.json"
+HTML_AUTO_SEGMAP = CUT_REVIEW_DIR / "review" / "auto_segmap.json"
+HTML_STRUCTURAL_SEGMAP = CUT_REVIEW_DIR / "review" / "structural_segmap.json"
 NATIVE_APPLIED_DIR = M.CODEX_DIR / "review_decisions_native"
 NATIVE_NORMALIZED = NATIVE_APPLIED_DIR / "review_decisions_normalized_ranges.json"
 APPROVED_NARRATIVE = CUT_REVIEW_DIR / "approved_narrative_cuts_mewtwo.json"
@@ -64,6 +67,8 @@ BGM_REPORT = M.CODEX_DIR / "qa-reports" / "mewtwo-rby-umb-bgm.json"
 CLIP_COLOR_REPORT = M.CODEX_DIR / "qa-reports" / "mewtwo-rby-umb-clip-colors.json"
 PIPELINE_STATE = M.CODEX_DIR / "mewtwo_pipeline_state.json"
 PIPELINE_REPORT = M.CODEX_DIR / "mewtwo_pipeline_order_report.json"
+DEFAULT_WORKFLOW_CONFIG = REPO_DIR / "config" / "orchestrator_workflows.json"
+DEFAULT_PROFILE_ID = "mewtwo_rby_umb_redo"
 
 
 ORDER = [
@@ -93,6 +98,40 @@ def read_json(path: Path):
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+
+
+def truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def active_profile_parameters() -> dict:
+    config_path = Path(os.environ.get("ORCHESTRATOR_CONFIG_PATH") or DEFAULT_WORKFLOW_CONFIG)
+    profile_id = os.environ.get("ORCHESTRATOR_PROFILE_ID") or DEFAULT_PROFILE_ID
+    if not config_path.exists():
+        return {}
+    try:
+        data = read_json(config_path)
+    except Exception as exc:
+        print(f"WARN: could not read orchestrator config for profile flags: {config_path}: {exc}")
+        return {}
+    for profile in data.get("profiles", []):
+        if profile.get("id") == profile_id:
+            return dict(profile.get("parameters") or {})
+    return {}
+
+
+def cut_candidate_flags() -> list[str]:
+    params = active_profile_parameters()
+    flags: list[str] = []
+    if truthy(params.get("livestream_edit_mode")):
+        flags.append("--livestream-edit")
+    if truthy(params.get("livestream_cut_chat_interactions")):
+        flags.append("--livestream-cut-chat-interactions")
+    if truthy(params.get("livestream_bypass_gameplay_narrative_cuts")):
+        flags.append("--bypass-gameplay-narrative-cuts")
+    return flags
 
 
 def require(paths: list[Path], stage: str) -> None:
@@ -215,6 +254,8 @@ def artifact_status() -> dict:
         "programmatic_candidates": PROGRAMMATIC_CANDIDATES.exists(),
         "cut_candidates": CUT_CANDIDATES.exists(),
         "html_decisions": HTML_DECISIONS.exists(),
+        "html_auto_segmap": HTML_AUTO_SEGMAP.exists(),
+        "html_structural_segmap": HTML_STRUCTURAL_SEGMAP.exists(),
         "native_normalized_ranges": NATIVE_NORMALIZED.exists(),
         "approved_narrative": APPROVED_NARRATIVE.exists(),
         "approved_source_cuts": APPROVED_SOURCE_CUTS.exists(),
@@ -241,30 +282,34 @@ def stage_review_base(args: argparse.Namespace) -> None:
 
 def stage_narrative_prompt(args: argparse.Namespace) -> None:
     require([REVIEW_MANIFEST], "narrative-prompt")
+    cmd = [
+        sys.executable,
+        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        "--stage",
+        "narrative-prompt",
+        "--manifest",
+        REVIEW_MANIFEST,
+    ]
+    cmd.extend(cut_candidate_flags())
     run(
-        [
-            sys.executable,
-            SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
-            "--stage",
-            "narrative-prompt",
-            "--manifest",
-            REVIEW_MANIFEST,
-        ]
+        cmd
     )
     mark_state("narrative-prompt", "complete", prompt=str(NARRATIVE_PROMPT), clip_index=str(NARRATIVE_CLIP_INDEX))
 
 
 def stage_programmatic_candidates(args: argparse.Namespace) -> None:
     require([REVIEW_MANIFEST, NARRATIVE_OUTPUT], "programmatic-candidates")
+    cmd = [
+        sys.executable,
+        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        "--stage",
+        "programmatic-candidates",
+        "--manifest",
+        REVIEW_MANIFEST,
+    ]
+    cmd.extend(cut_candidate_flags())
     run(
-        [
-            sys.executable,
-            SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
-            "--stage",
-            "programmatic-candidates",
-            "--manifest",
-            REVIEW_MANIFEST,
-        ]
+        cmd
     )
     mark_state(
         "programmatic-candidates",
@@ -281,16 +326,16 @@ def stage_compile_cut_candidates(args: argparse.Namespace) -> None:
         [REVIEW_MANIFEST, NARRATIVE_OUTPUT, WAVEFORM_CANDIDATES, NGRAM_CANDIDATES, ARTIFACT_CANDIDATES, PROGRAMMATIC_CANDIDATES],
         "compile-cut-candidates",
     )
-    run(
-        [
-            sys.executable,
-            SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
-            "--stage",
-            "compile",
-            "--manifest",
-            REVIEW_MANIFEST,
-        ]
-    )
+    cmd = [
+        sys.executable,
+        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        "--stage",
+        "compile",
+        "--manifest",
+        REVIEW_MANIFEST,
+    ]
+    cmd.extend(cut_candidate_flags())
+    run(cmd)
     mark_state("compile-cut-candidates", "complete", manifest=str(CUT_CANDIDATES))
 
 
@@ -312,10 +357,13 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
     if not HTML_DECISIONS.exists():
         manifest = read_json(CUT_CANDIDATES)
         medium = manifest.get("medium_confidence_review_candidates") or manifest.get("review_candidates") or []
-        if medium:
+        auto = manifest.get("high_confidence_auto_cuts") or manifest.get("auto_cut_candidates") or []
+        structural = manifest.get("structural_review_groups") or []
+        if medium or auto or structural:
             raise RuntimeError(
-                "Medium-confidence cut candidates require manual HTML review before this stage can run. "
-                f"Open {CUT_REVIEW_DIR / 'review' / 'index.html'}, save pink_decisions.json, and place it at {HTML_DECISIONS}."
+                "Cut candidates require HTML review before this stage can run. "
+                f"Open {CUT_REVIEW_DIR / 'review' / 'index.html'}, review the Manual, Automatic, and Structural tabs, "
+                f"save pink_decisions.json, and place it at {HTML_DECISIONS}."
             )
         NATIVE_APPLIED_DIR.mkdir(parents=True, exist_ok=True)
         write_json(
@@ -324,9 +372,13 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
                 "schema": "mewtwo_offline_html_review_decisions_v1",
                 "whole_cut_indices": [],
                 "partial_records": [],
+                "auto_whole_restore_indices": [],
+                "auto_restore_records": [],
+                "auto_restore_source_ranges": [],
                 "raw_ranges": [],
                 "merged_ranges": [],
                 "total_cut_frames": 0,
+                "total_auto_restore_frames": 0,
                 "note": "No medium-confidence candidates required HTML review.",
             },
         )
@@ -348,7 +400,9 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
         )
     clips_data = read_json(HTML_CLIPS)
     segmap = read_json(HTML_SEGMAP)
-    _merged, metadata = compile_html_decision_cuts(decisions, clips_data, segmap, 60.0)
+    auto_segmap = read_json(HTML_AUTO_SEGMAP) if HTML_AUTO_SEGMAP.exists() else {}
+    structural_segmap = read_json(HTML_STRUCTURAL_SEGMAP) if HTML_STRUCTURAL_SEGMAP.exists() else {}
+    _merged, metadata = compile_html_decision_cuts(decisions, clips_data, segmap, 60.0, auto_segmap, structural_segmap)
     NATIVE_APPLIED_DIR.mkdir(parents=True, exist_ok=True)
     write_json(NATIVE_NORMALIZED, metadata)
     print(f"Wrote offline normalized HTML review decisions: {NATIVE_NORMALIZED}")
@@ -374,6 +428,34 @@ def merge_timeline_ranges(ranges: list[dict]) -> list[dict]:
     return merged
 
 
+def subtract_timeline_restores(cut: dict, restores: list[dict]) -> list[dict]:
+    fragments = [(int(cut["start"]), int(cut["end"]))]
+    for restore in restores:
+        restore_start = int(restore["start"])
+        restore_end = int(restore["end"])
+        next_fragments: list[tuple[int, int]] = []
+        for start, end in fragments:
+            overlap_start = max(start, restore_start)
+            overlap_end = min(end, restore_end)
+            if overlap_end <= overlap_start:
+                next_fragments.append((start, end))
+                continue
+            if start < overlap_start:
+                next_fragments.append((start, overlap_start))
+            if overlap_end < end:
+                next_fragments.append((overlap_end, end))
+        fragments = next_fragments
+    output = []
+    for index, (start, end) in enumerate(fragments):
+        if end <= start:
+            continue
+        row = {**cut, "start": start, "end": end}
+        if len(fragments) > 1:
+            row["fragment_index"] = index + 1
+        output.append(row)
+    return output
+
+
 def source_seconds_to_timeline_frame(clip: dict, source_sec: float, timeline_fps: float) -> int:
     clip_fps = float(clip.get("fps") or timeline_fps)
     source_frame = int(round(source_sec * clip_fps))
@@ -387,6 +469,8 @@ def compile_html_decision_cuts(
     clips_data: dict,
     segmap: dict,
     timeline_fps: float,
+    auto_segmap: dict | None = None,
+    structural_segmap: dict | None = None,
 ) -> tuple[list[dict], dict]:
     clips_by_i = review_clip_by_index(clips_data)
     raw_ranges: list[dict] = []
@@ -442,15 +526,173 @@ def compile_html_decision_cuts(
                 raw_ranges.append(record)
                 partial_records.append(record)
 
+    auto_segmap = auto_segmap or {}
+    auto_whole_restore_indices = sorted(
+        int(index)
+        for index, value in (decisions.get("auto") or {}).items()
+        if value in {"restore", "keep"}
+    )
+    auto_restore_records: list[dict] = []
+    for clip_i in auto_whole_restore_indices:
+        clip = clips_by_i.get(clip_i)
+        if not clip:
+            raise RuntimeError(f"Auto decision references missing review clip index {clip_i}")
+        auto_restore_records.append({
+            "start": int(clip["start"]),
+            "end": int(clip["start"]) + int(clip["dur"]),
+            "source": "auto_whole_restore",
+            "clip_i": clip_i,
+            "clip": clip,
+        })
+
+    for group, ranges in (decisions.get("restores") or {}).items():
+        segments = auto_segmap.get(str(group), [])
+        for restore_index, pair in enumerate(ranges):
+            snip_start, snip_end = float(pair[0]), float(pair[1])
+            if snip_end <= snip_start:
+                continue
+            for segment in segments:
+                if segment.get("kind") != "auto":
+                    continue
+                overlap_start = max(snip_start, float(segment["snip_start"]))
+                overlap_end = min(snip_end, float(segment["snip_end"]))
+                if overlap_end <= overlap_start:
+                    continue
+                clip_i = int(segment["clip_idx"])
+                clip = clips_by_i.get(clip_i)
+                if not clip:
+                    raise RuntimeError(f"Auto segmap references missing review clip index {clip_i}")
+                source_start = float(segment["src_start"]) + (overlap_start - float(segment["snip_start"]))
+                source_end = float(segment["src_start"]) + (overlap_end - float(segment["snip_start"]))
+                frame_start = source_seconds_to_timeline_frame(clip, source_start, timeline_fps)
+                frame_end = source_seconds_to_timeline_frame(clip, source_end, timeline_fps)
+                if frame_end <= frame_start:
+                    frame_end = frame_start + 1
+                auto_restore_records.append({
+                    "start": frame_start,
+                    "end": frame_end,
+                    "source": "auto_drag_restore",
+                    "group": str(group),
+                    "restore_index": restore_index,
+                    "clip_i": clip_i,
+                    "kind": segment.get("kind"),
+                    "source_start_sec": round(source_start, 4),
+                    "source_end_sec": round(source_end, 4),
+                    "snip_start": overlap_start,
+                    "snip_end": overlap_end,
+                    "clip": clip,
+                })
+
+    structural_segmap = structural_segmap or {}
+    structural_clip_indices = sorted(
+        {
+            int(segment["clip_idx"])
+            for segments in structural_segmap.values()
+            for segment in segments
+            if segment.get("kind") == "structural" and "clip_idx" in segment
+        }
+    )
+    structural_decisions = decisions.get("structural") or {}
+    structural_whole_restore_indices = sorted(
+        int(index)
+        for index, value in structural_decisions.items()
+        if value in {"restore", "keep"}
+    )
+    structural_restore_records: list[dict] = []
+    for clip_i in structural_whole_restore_indices:
+        clip = clips_by_i.get(clip_i)
+        if not clip:
+            raise RuntimeError(f"Structural decision references missing review clip index {clip_i}")
+        structural_restore_records.append({
+            "start": int(clip["start"]),
+            "end": int(clip["start"]) + int(clip["dur"]),
+            "source": "structural_whole_restore",
+            "clip_i": clip_i,
+            "clip": clip,
+        })
+
+    for group, ranges in (decisions.get("structural_restores") or {}).items():
+        segments = structural_segmap.get(str(group), [])
+        for restore_index, pair in enumerate(ranges):
+            snip_start, snip_end = float(pair[0]), float(pair[1])
+            if snip_end <= snip_start:
+                continue
+            for segment in segments:
+                if segment.get("kind") != "structural":
+                    continue
+                overlap_start = max(snip_start, float(segment["snip_start"]))
+                overlap_end = min(snip_end, float(segment["snip_end"]))
+                if overlap_end <= overlap_start:
+                    continue
+                clip_i = int(segment["clip_idx"])
+                clip = clips_by_i.get(clip_i)
+                if not clip:
+                    raise RuntimeError(f"Structural segmap references missing review clip index {clip_i}")
+                source_start = float(segment["src_start"]) + (overlap_start - float(segment["snip_start"]))
+                source_end = float(segment["src_start"]) + (overlap_end - float(segment["snip_start"]))
+                frame_start = source_seconds_to_timeline_frame(clip, source_start, timeline_fps)
+                frame_end = source_seconds_to_timeline_frame(clip, source_end, timeline_fps)
+                if frame_end <= frame_start:
+                    frame_end = frame_start + 1
+                structural_restore_records.append({
+                    "start": frame_start,
+                    "end": frame_end,
+                    "source": "structural_drag_restore",
+                    "group": str(group),
+                    "restore_index": restore_index,
+                    "clip_i": clip_i,
+                    "kind": segment.get("kind"),
+                    "source_start_sec": round(source_start, 4),
+                    "source_end_sec": round(source_end, 4),
+                    "snip_start": overlap_start,
+                    "snip_end": overlap_end,
+                    "clip": clip,
+                })
+
+    structural_cut_records: list[dict] = []
+    for clip_i in structural_clip_indices:
+        if structural_decisions.get(str(clip_i), "cut") in {"restore", "keep"}:
+            continue
+        clip = clips_by_i.get(clip_i)
+        if not clip:
+            raise RuntimeError(f"Structural cut references missing review clip index {clip_i}")
+        cut_record = {
+            "start": int(clip["start"]),
+            "end": int(clip["start"]) + int(clip["dur"]),
+            "source": "structural_whole_cut",
+            "clip_i": clip_i,
+            "clip": clip,
+        }
+        overlapping_restores = [
+            restore
+            for restore in structural_restore_records
+            if int(restore["end"]) > int(cut_record["start"]) and int(restore["start"]) < int(cut_record["end"])
+        ]
+        for fragment in subtract_timeline_restores(cut_record, overlapping_restores):
+            raw_ranges.append(fragment)
+            structural_cut_records.append(fragment)
+
     merged = merge_timeline_ranges(raw_ranges)
+    auto_restore_ranges = [source_cut_from_timeline_range(row, timeline_fps) for row in auto_restore_records if row.get("clip")]
+    structural_restore_ranges = [source_cut_from_timeline_range(row, timeline_fps) for row in structural_restore_records if row.get("clip")]
     metadata = {
         "schema": "mewtwo_offline_html_review_decisions_v1",
         "dry_run_auto_approved": bool(decisions.get("dry_run_auto_approved")),
         "whole_cut_indices": whole_cut_indices,
         "partial_records": partial_records,
+        "auto_whole_restore_indices": auto_whole_restore_indices,
+        "auto_restore_records": auto_restore_records,
+        "auto_restore_source_ranges": auto_restore_ranges,
+        "structural_clip_indices": structural_clip_indices,
+        "structural_whole_restore_indices": structural_whole_restore_indices,
+        "structural_restore_records": structural_restore_records,
+        "structural_restore_source_ranges": structural_restore_ranges,
+        "structural_cut_records": structural_cut_records,
         "raw_ranges": raw_ranges,
         "merged_ranges": merged,
         "total_cut_frames": sum(int(item["end"]) - int(item["start"]) for item in merged),
+        "total_auto_restore_frames": sum(int(item["end_frame"]) - int(item["start_frame"]) for item in auto_restore_ranges),
+        "total_structural_restore_frames": sum(int(item["end_frame"]) - int(item["start_frame"]) for item in structural_restore_ranges),
     }
     return merged, metadata
 
@@ -533,12 +775,53 @@ def normalize_source_cut(row: dict, origin: str) -> dict:
     }
 
 
+def subtract_source_ranges(cut: dict, restores: list[dict]) -> list[dict]:
+    fragments = [(int(cut["start_frame"]), int(cut["end_frame"]))]
+    for restore in restores:
+        restore_start = int(restore["start_frame"])
+        restore_end = int(restore["end_frame"])
+        next_fragments: list[tuple[int, int]] = []
+        for start, end in fragments:
+            overlap_start = max(start, restore_start)
+            overlap_end = min(end, restore_end)
+            if overlap_end <= overlap_start:
+                next_fragments.append((start, end))
+                continue
+            if start < overlap_start:
+                next_fragments.append((start, overlap_start))
+            if overlap_end < end:
+                next_fragments.append((overlap_end, end))
+        fragments = next_fragments
+    output = []
+    for index, (start, end) in enumerate(fragments):
+        if end <= start:
+            continue
+        suffix = "" if len(fragments) == 1 else f"_part_{index + 1}"
+        output.append(
+            {
+                **cut,
+                "label": f"{cut.get('label', 'auto_cut')}{suffix}",
+                "start_frame": start,
+                "end_frame": end,
+                "start_sec": start / M.FPS,
+                "end_sec": end / M.FPS,
+                "auto_restore_subtracted": bool(restores),
+            }
+        )
+    return output
+
+
 def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
     require([CUT_CANDIDATES], "compile-approved-cuts")
     rows: list[dict] = []
     approval_sources: list[str] = []
 
     candidate_manifest = read_json(CUT_CANDIDATES)
+    normalized_metadata = read_json(NATIVE_NORMALIZED) if NATIVE_NORMALIZED.exists() else {}
+    auto_restore_rows = [
+        normalize_source_cut(row, "auto_cut_restore")
+        for row in normalized_metadata.get("auto_restore_source_ranges", [])
+    ]
     auto_rows = candidate_manifest.get("high_confidence_auto_cuts") or candidate_manifest.get("auto_cut_candidates") or []
     if auto_rows:
         approval_sources.append(f"{CUT_CANDIDATES}:high_confidence_auto_cuts")
@@ -548,11 +831,12 @@ def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
             policy = row.get("section_policy") or {}
             if not policy.get("whole_section"):
                 raise RuntimeError(f"High-confidence auto-cut is not FCPXML-section safe: {row!r}")
-            rows.append(normalize_source_cut(row, "high_confidence_auto_cut"))
+            auto_cut = normalize_source_cut(row, "high_confidence_auto_cut")
+            rows.extend(subtract_source_ranges(auto_cut, auto_restore_rows))
 
     if NATIVE_NORMALIZED.exists():
         approval_sources.append(str(NATIVE_NORMALIZED))
-        metadata = read_json(NATIVE_NORMALIZED)
+        metadata = normalized_metadata
         decisions = read_json(HTML_DECISIONS) if HTML_DECISIONS.exists() else {}
         if metadata.get("dry_run_auto_approved") or decisions.get("dry_run_auto_approved"):
             raise RuntimeError(
@@ -587,7 +871,7 @@ def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
         {
             "schema": "mewtwo_approved_source_cuts_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "note": "Locked restart cuts are not repeated here; build_mewtwo_rby_fcpxml.py always applies them.",
+            "note": "Structural restart cuts are included only when approved by the HTML structural review decisions.",
             "approval_sources": approval_sources,
             "source_cuts": merged,
         },

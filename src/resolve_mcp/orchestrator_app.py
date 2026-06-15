@@ -5,6 +5,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -24,9 +25,36 @@ from .orchestrator.runner import OrchestratorRunner, RunEvent, ThreadedRun
 from .orchestrator.status import collect_artifact_status, step_readiness
 
 
+def chrome_executable() -> str | None:
+    candidates = [
+        shutil.which("chrome"),
+        shutil.which("chrome.exe"),
+        os.environ.get("CHROME_PATH"),
+        str(Path(os.environ.get("PROGRAMFILES", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+        str(Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+        str(Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    return None
+
+
+def open_html_in_chrome(path: Path) -> bool:
+    if os.name != "nt" or path.suffix.lower() not in {".html", ".htm"}:
+        return False
+    chrome = chrome_executable()
+    if not chrome:
+        return False
+    subprocess.Popen([chrome, path.resolve().as_uri()])
+    return True
+
+
 def open_path(path: Path) -> None:
     if not path.exists():
         raise FileNotFoundError(path)
+    if open_html_in_chrome(path):
+        return
     if os.name == "nt":
         os.startfile(str(path))  # type: ignore[attr-defined]
         return
@@ -59,6 +87,9 @@ PARAMETER_ORDER = [
     "llm_open_code_workspace",
     "llm_timeout_sec",
     "llm_model",
+    "livestream_edit_mode",
+    "livestream_cut_chat_interactions",
+    "livestream_bypass_gameplay_narrative_cuts",
     "video_track",
     "carousel_max_candidates",
     "review_fcpxml",
@@ -135,6 +166,9 @@ FIELD_LABELS = {
     "llm_model": "LLM Model Override",
     "llm_open_code_workspace": "Open Code Workspace",
     "llm_timeout_sec": "LLM Timeout Seconds",
+    "livestream_bypass_gameplay_narrative_cuts": "Bypass Gameplay Narrative Cuts",
+    "livestream_cut_chat_interactions": "Cut Chat/Aside Interactions",
+    "livestream_edit_mode": "Livestream Edit Mode",
     "narrative_output": "Narrative LLM Output",
     "native_normalized_ranges": "Normalized HTML Review Cuts",
     "narrative_clip_index": "Narrative Clip Index",
@@ -184,6 +218,9 @@ FIELD_HELP = {
     "llm_model": "Optional Codex model name for this profile. Leave blank to use your Codex default.",
     "llm_open_code_workspace": "When true, opens/reuses Code with the prompt and output file for visibility.",
     "llm_timeout_sec": "Maximum time to wait for automatic or Code-workspace LLM feedback.",
+    "livestream_bypass_gameplay_narrative_cuts": "When enabled, the narrative LLM avoids ordinary gameplay polish cuts while still allowing structural and livestream chat/asides review.",
+    "livestream_cut_chat_interactions": "When enabled in livestream mode, the narrative LLM looks for chat replies, stream asides, and clarifications unrelated to the main run.",
+    "livestream_edit_mode": "Adds livestream/VOD editorial rules to the narrative cut prompt and review metadata.",
     "narrative_clip_index": "Source-backed clip list used by the broad narrative LLM prompt and programmatic transcript checks.",
     "native_normalized_ranges": "Offline-normalized HTML review decisions converted to source/timeline ranges.",
     "ngram_candidates": "Programmatic repeated n-gram leads. These are never auto-applied without compiler approval.",
@@ -239,6 +276,14 @@ DIRECTORY_KEYS = {
     "session_dir",
 }
 
+BOOL_SETTING_KEYS = {
+    "auto_editor_preview",
+    "llm_open_code_workspace",
+    "livestream_bypass_gameplay_narrative_cuts",
+    "livestream_cut_chat_interactions",
+    "livestream_edit_mode",
+}
+
 AUTO_EDITOR_FIELDS = [
     "auto_editor_input",
     "raw_autoeditor_fcpxml",
@@ -271,8 +316,8 @@ class OrchestratorApp(tk.Tk):
         self.segment_decisions: dict[str, dict] = {}
         self.generated_prompt_paths: dict[str, Path] = {}
         self.project_fields: dict[str, tk.StringVar] = {}
-        self.parameter_vars: dict[str, tk.StringVar] = {}
-        self.path_vars: dict[str, tk.StringVar] = {}
+        self.parameter_vars: dict[str, tk.Variable] = {}
+        self.path_vars: dict[str, tk.Variable] = {}
         self.auto_editor_vars: dict[str, tk.StringVar] = {}
         self.dependency_checks: list[DependencyCheck] = []
         self.llm_task_thread: threading.Thread | None = None
@@ -751,18 +796,25 @@ class OrchestratorApp(tk.Tk):
         for key, var in self.auto_editor_vars.items():
             source = self.path_vars if key in self.path_vars else self.parameter_vars
             if key in source:
-                var.set(source[key].get())
+                value = source[key].get()
+                if isinstance(value, bool):
+                    var.set("true" if value else "false")
+                else:
+                    var.set(str(value))
 
     def _sync_auto_editor_vars_to_settings(self) -> None:
         for key, var in self.auto_editor_vars.items():
             source = self.path_vars if key in self.path_vars else self.parameter_vars
             if key in source:
-                source[key].set(var.get().strip())
+                if key in BOOL_SETTING_KEYS:
+                    source[key].set(self._coerce_bool(var.get()))
+                else:
+                    source[key].set(var.get().strip())
 
     def _rebuild_setting_list(
         self,
         parent: ttk.Frame,
-        var_map: dict[str, tk.StringVar],
+        var_map: dict[str, tk.Variable],
         values: dict,
         preferred_order: list[str],
     ) -> None:
@@ -782,9 +834,14 @@ class OrchestratorApp(tk.Tk):
             help_text = FIELD_HELP.get(key, "Workflow setting")
             ttk.Label(label_box, text=help_text, style="Muted.TLabel", wraplength=250).grid(row=1, column=0, sticky="w")
 
-            var = tk.StringVar(value="" if value is None else str(value))
-            var_map[key] = var
-            ttk.Entry(item, textvariable=var).grid(row=0, column=1, sticky="ew", pady=(1, 0))
+            if key in BOOL_SETTING_KEYS or isinstance(value, bool):
+                var = tk.BooleanVar(value=self._coerce_bool(value))
+                var_map[key] = var
+                ttk.Checkbutton(item, variable=var).grid(row=0, column=1, sticky="w", pady=(1, 0))
+            else:
+                var = tk.StringVar(value="" if value is None else str(value))
+                var_map[key] = var
+                ttk.Entry(item, textvariable=var).grid(row=0, column=1, sticky="ew", pady=(1, 0))
             if key in FILE_KEYS or key in DIRECTORY_KEYS:
                 ttk.Button(
                     item,
@@ -803,8 +860,8 @@ class OrchestratorApp(tk.Tk):
     def _field_label(self, key: str) -> str:
         return FIELD_LABELS.get(key, key.replace("_", " ").title())
 
-    def _browse_setting_value(self, var_map: dict[str, tk.StringVar], key: str) -> None:
-        current = var_map[key].get().strip()
+    def _browse_setting_value(self, var_map: dict[str, tk.Variable], key: str) -> None:
+        current = str(var_map[key].get()).strip()
         initial = self._initial_browse_dir(current)
         if key in DIRECTORY_KEYS:
             selected = filedialog.askdirectory(initialdir=initial)
@@ -998,12 +1055,22 @@ class OrchestratorApp(tk.Tk):
             return project_dir.get().strip()
         return None
 
-    def _collect_setting_values(self, var_map: dict[str, tk.StringVar], *, coerce: bool) -> dict:
+    def _collect_setting_values(self, var_map: dict[str, tk.Variable], *, coerce: bool) -> dict:
         values = {}
         for key, var in var_map.items():
-            raw = var.get().strip()
+            raw_value = var.get()
+            if isinstance(raw_value, bool):
+                values[key] = raw_value if coerce else ("true" if raw_value else "false")
+                continue
+            raw = str(raw_value).strip()
             values[key] = self._coerce_setting_value(key, raw) if coerce else raw
         return values
+
+    @staticmethod
+    def _coerce_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     def _coerce_setting_value(self, key: str, value: str):
         if value == "":
@@ -1272,6 +1339,9 @@ class OrchestratorApp(tk.Tk):
             "llm_open_code_workspace": True,
             "llm_timeout_sec": 3600,
             "llm_model": "",
+            "livestream_edit_mode": False,
+            "livestream_cut_chat_interactions": False,
+            "livestream_bypass_gameplay_narrative_cuts": False,
             "video_track": 1,
             "source_media": "",
             "dialogue_audio": "",

@@ -5,6 +5,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -43,9 +44,36 @@ def default_python() -> str:
     return sys.executable
 
 
+def chrome_executable() -> str | None:
+    candidates = [
+        shutil.which("chrome"),
+        shutil.which("chrome.exe"),
+        os.environ.get("CHROME_PATH"),
+        str(Path(os.environ.get("PROGRAMFILES", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+        str(Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+        str(Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    return None
+
+
+def open_html_in_chrome(path: Path) -> bool:
+    if os.name != "nt" or path.suffix.lower() not in {".html", ".htm"}:
+        return False
+    chrome = chrome_executable()
+    if not chrome:
+        return False
+    subprocess.Popen([chrome, path.resolve().as_uri()])
+    return True
+
+
 def open_path(path: Path) -> None:
     if not path.exists():
         raise FileNotFoundError(path)
+    if open_html_in_chrome(path):
+        return
     if os.name == "nt":
         os.startfile(str(path))  # type: ignore[attr-defined]
         return

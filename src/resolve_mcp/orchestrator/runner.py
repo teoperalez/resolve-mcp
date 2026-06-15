@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
+import os
 from dataclasses import dataclass
 from collections import deque
 from pathlib import Path
@@ -119,6 +120,16 @@ class OrchestratorRunner:
             result = ensure_resolve_ready(profile, self.repo)
             self.callback(RunEvent("log", f"Resolve ready: {result.summary()}", step.id, "running"))
         self.callback(RunEvent("log", self._format_command(command), step.id, "running"))
+        env = os.environ.copy()
+        env.update(
+            {
+                "ORCHESTRATOR_PROFILE_ID": profile.id,
+                "ORCHESTRATOR_WORKFLOW_ID": profile.workflow_id,
+            }
+        )
+        workflow_config = profile.parameters.get("workflow_config")
+        if workflow_config:
+            env["ORCHESTRATOR_CONFIG_PATH"] = str(expand_templates(str(workflow_config), mapping))
         process = subprocess.Popen(
             command,
             cwd=str(self.repo),
@@ -128,6 +139,7 @@ class OrchestratorRunner:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
         assert process.stdout is not None
         output_tail: deque[str] = deque(maxlen=80)
