@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -132,6 +133,56 @@ def cut_candidate_flags() -> list[str]:
     if truthy(params.get("livestream_bypass_gameplay_narrative_cuts")):
         flags.append("--bypass-gameplay-narrative-cuts")
     return flags
+
+
+def safe_decision_filename_stem(value: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in " ._-" else "_" for ch in value).strip(" ._")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return cleaned or "cut_review"
+
+
+def decision_filename_for_clips(clips_data: dict) -> str:
+    source_video = clips_data.get("source_video") if isinstance(clips_data, dict) else ""
+    stem = Path(source_video).stem if source_video else "cut_review"
+    return f"{safe_decision_filename_stem(stem)}_cut_review_decisions.json"
+
+
+def html_decision_file_candidates() -> list[Path]:
+    candidates = [HTML_DECISIONS]
+    if not HTML_CLIPS.exists():
+        return candidates
+    try:
+        clips_data = read_json(HTML_CLIPS)
+    except Exception:
+        return candidates
+    filename = decision_filename_for_clips(clips_data)
+    candidates.append(HTML_DECISIONS.parent / filename)
+    source_video = clips_data.get("source_video") if isinstance(clips_data, dict) else ""
+    if source_video:
+        source_path = Path(source_video)
+        candidates.append(source_path.parent / filename)
+        candidates.append(source_path.parent / "pink_decisions.json")
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key not in seen:
+            deduped.append(candidate)
+            seen.add(key)
+    return deduped
+
+
+def resolve_html_decisions_path() -> Path | None:
+    existing = [path for path in html_decision_file_candidates() if path.exists()]
+    if not existing:
+        return None
+    chosen = max(existing, key=lambda path: path.stat().st_mtime)
+    if chosen.resolve() != HTML_DECISIONS.resolve():
+        HTML_DECISIONS.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(chosen, HTML_DECISIONS)
+        print(f"Using review decisions from {chosen}; copied to {HTML_DECISIONS}")
+    return HTML_DECISIONS
 
 
 def require(paths: list[Path], stage: str) -> None:
@@ -354,16 +405,19 @@ def stage_cut_candidates(args: argparse.Namespace) -> None:
 
 def stage_apply_html_decisions(args: argparse.Namespace) -> None:
     require([CUT_CANDIDATES, HTML_CLIPS, HTML_SEGMAP], "apply-html-decisions")
-    if not HTML_DECISIONS.exists():
+    decisions_path = resolve_html_decisions_path()
+    if not decisions_path:
         manifest = read_json(CUT_CANDIDATES)
         medium = manifest.get("medium_confidence_review_candidates") or manifest.get("review_candidates") or []
         auto = manifest.get("high_confidence_auto_cuts") or manifest.get("auto_cut_candidates") or []
         structural = manifest.get("structural_review_groups") or []
+        clips_data = read_json(HTML_CLIPS)
+        suggested_name = decision_filename_for_clips(clips_data)
         if medium or auto or structural:
             raise RuntimeError(
                 "Cut candidates require HTML review before this stage can run. "
                 f"Open {CUT_REVIEW_DIR / 'review' / 'index.html'}, review the Manual, Automatic, and Structural tabs, "
-                f"save pink_decisions.json, and place it at {HTML_DECISIONS}."
+                f"save {suggested_name} beside the source video or place a copy at {HTML_DECISIONS}."
             )
         NATIVE_APPLIED_DIR.mkdir(parents=True, exist_ok=True)
         write_json(
@@ -385,7 +439,7 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
         print(f"No medium-confidence review candidates; wrote empty HTML-decision normalization: {NATIVE_NORMALIZED}")
         mark_state("apply-html-decisions", "complete", normalized=str(NATIVE_NORMALIZED), offline=True, empty=True)
         return
-    decisions = read_json(HTML_DECISIONS)
+    decisions = read_json(decisions_path)
     if decisions.get("dry_run_auto_approved") and (
         any(value == "cut" for value in (decisions.get("pink") or {}).values())
         or any((decisions.get("cuts") or {}).values())

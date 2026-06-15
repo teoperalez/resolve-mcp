@@ -81,7 +81,7 @@ on every cut so those global decisions still apply to the correct FCPXML.
 | 5. Artifact + short-clip detection | project wrapper / deterministic detectors | artifact candidate JSON |
 | 6. Compile ranked candidates | project wrapper section-safety compiler | high auto-cuts, medium review items, low mark-only items |
 | 7. Build review UI | `scripts/build_cut_review.py` | small HTML review containing only medium-confidence unresolved cases |
-| 8. *(editor reviews in browser)* | — | `pink_decisions.json` (downloaded) |
+| 8. *(editor reviews in browser)* | — | project-specific `*_cut_review_decisions.json` (saved beside source video when possible) |
 | 9. Compile approved source cuts | project wrapper | high auto-cuts + approved medium cuts |
 | 10. Apply in final Resolve build + 4K | one deterministic final rebuild + `scripts/render_timeline.py --preset 4k` | final |
 
@@ -125,9 +125,11 @@ should already be resolved before this stage. Each card has:
 - **drag** on the waveform to mark a precise cut; **drag the box** to move it,
   **drag its edges** to resize, **×** to delete one, **right-click** to clear all;
 - a **Preview result** button that plays the snippet with the cuts removed;
-- a **Save** button → downloads `pink_decisions.json`
-  (`{pink:{idx:keep|cut}, cuts:{group:[[snip_start,snip_end]...]}}`); the tool
-  **pre-loads** the last saved decisions on rebuild.
+- a **Save** button → writes a project-specific `*_cut_review_decisions.json`
+  (`{pink:{idx:keep|cut}, cuts:{group:[[snip_start,snip_end]...]}, ...}`).
+  Chrome prompts for a save location when direct local-file access is required;
+  choose the source-video folder when available. The pipeline also keeps
+  `review/pink_decisions.json` as the internal preload/canonical copy.
 
 `segmap.json` maps snippet-time → source-time per clip so the saved (snippet-time)
 cuts translate to exact source trims in steps 5 and 7.
@@ -135,8 +137,8 @@ cuts translate to exact source trims in steps 5 and 7.
 ## Notes / gotchas
 
 - Open `index.html` from `file://` — everything works offline (audio/img by
-  relative path, Save via Blob download). Hard-refresh (`Ctrl+Shift+R`) after a
-  rebuild to bust the browser cache.
+  relative path, Save via File System Access or Blob download fallback).
+  Hard-refresh (`Ctrl+Shift+R`) after a rebuild to bust the browser cache.
 - The waveform "voiced" test is energy **and** low zero-crossing (a vowel), so
   breaths/fricatives don't register as words. Keep thresholds conservative.
 - Do not promote raw duplicate-word or immediate-phrase-repeat heuristics to
