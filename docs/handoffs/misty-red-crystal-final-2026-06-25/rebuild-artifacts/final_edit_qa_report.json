@@ -1,0 +1,108 @@
+{
+  "project": "New Project 3",
+  "timeline": "Misty decision rebuild from saved cut decisions (edit)",
+  "page": "edit",
+  "start": 216000,
+  "end": 325191,
+  "fps": 60.0,
+  "resolution": [
+    "3840",
+    "2160"
+  ],
+  "markers": 17,
+  "tracks": [
+    {
+      "kind": "video",
+      "track": 1,
+      "clips": 544,
+      "name": "Video 1",
+      "locked": false
+    },
+    {
+      "kind": "video",
+      "track": 2,
+      "clips": 45,
+      "name": "Video 2",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 1,
+      "clips": 580,
+      "name": "Dialogue 1",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 2,
+      "clips": 29,
+      "name": "Music 1",
+      "locked": true
+    },
+    {
+      "kind": "audio",
+      "track": 3,
+      "clips": 1,
+      "name": "Music 2",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 4,
+      "clips": 0,
+      "name": "9 1",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 5,
+      "clips": 0,
+      "name": "Audio 3 Copy",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 6,
+      "clips": 0,
+      "name": "Audio 6",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 7,
+      "clips": 0,
+      "name": "Audio 7",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 8,
+      "clips": 0,
+      "name": "Audio 8",
+      "locked": false
+    },
+    {
+      "kind": "audio",
+      "track": 9,
+      "clips": 0,
+      "name": "Audio 9",
+      "locked": false
+    }
+  ],
+  "missing_media_count": 0,
+  "missing_media_sample": [],
+  "v2_battle_intro_count": 6,
+  "v2_carousel_count": 39,
+  "a2_clips": 29,
+  "a2_overlaps": [],
+  "a2_overlap_count": 0,
+  "gameplay_v1_missing_a1_count": 1,
+  "gameplay_v1_missing_a1_sample": [
+    {
+      "name": "Misty Red and Blue Crystal Gym Leader Challenge.mp4",
+      "start": 317663,
+      "duration": 6325
+    }
+  ],
+  "save_project": true
+}

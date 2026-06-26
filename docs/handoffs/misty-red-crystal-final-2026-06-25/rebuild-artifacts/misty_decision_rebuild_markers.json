@@ -1,0 +1,192 @@
+{
+  "source": "handoff_manifest_old_all_cut_markers_translated_to_decision_rebuild",
+  "markers": [
+    {
+      "rel_frame": 12603,
+      "abs_frame": 228574,
+      "color": "Sand",
+      "name": "Battle: Rival 1",
+      "note": "The first rival fight begins when the speaker says 'let's take on Rival number one' and Rival 1 leads with Chikorita.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 12574,
+      "source_pre_cut_rel_frame": 13064
+    },
+    {
+      "rel_frame": 14267,
+      "abs_frame": 230238,
+      "color": "Green",
+      "name": "Rival 1 Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle overworld with finalized overlay; true transition occurred before this refine window.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 14238,
+      "source_pre_cut_rel_frame": 14728
+    },
+    {
+      "rel_frame": 18042,
+      "abs_frame": 234013,
+      "color": "Sand",
+      "name": "Battle: Honest Abe",
+      "note": "The Violet gym trainer battle begins as Honest Abe leads with level 9 Spearow.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 18013,
+      "source_pre_cut_rel_frame": 18503
+    },
+    {
+      "rel_frame": 19824,
+      "abs_frame": 235795,
+      "color": "Green",
+      "name": "Honest Abe Battle End (Win)",
+      "note": "Sampled post-battle save/menu sequence; 534.10s maps cleanly through the edited V1 layout after nearby earlier samples fell in a cut region.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 19795,
+      "source_pre_cut_rel_frame": 20285
+    },
+    {
+      "rel_frame": 19921,
+      "abs_frame": 235892,
+      "color": "Sand",
+      "name": "Battle: Falkner",
+      "note": "The Falkner gym leader battle starts with 'straight to Falkner' and Falkner sending out his first bird.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 19892,
+      "source_pre_cut_rel_frame": 20382
+    },
+    {
+      "rel_frame": 21492,
+      "abs_frame": 237463,
+      "color": "Green",
+      "name": "Falkner Battle End (Win)",
+      "note": "Earliest sampled frame already shows the defeated trainer/post-battle dialogue with finalized overlay.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 21463,
+      "source_pre_cut_rel_frame": 21953
+    },
+    {
+      "rel_frame": 28239,
+      "abs_frame": 244189,
+      "color": "Sand",
+      "name": "Battle: Jamesy Proton",
+      "note": "The Slowpoke Well Rocket Executive battle begins at 'Jamesy Proton attempt number one.'",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 28189,
+      "source_pre_cut_rel_frame": 28700
+    },
+    {
+      "rel_frame": 29715,
+      "abs_frame": 245665,
+      "color": "Green",
+      "name": "Jamesy Proton Battle End (Win)",
+      "note": "First sampled frame after the defeat text where the full Rocket portrait is visible, replacing the active battle UI.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 29665,
+      "source_pre_cut_rel_frame": 30176
+    },
+    {
+      "rel_frame": 33810,
+      "abs_frame": 249760,
+      "color": "Sand",
+      "name": "Battle: Bugsy",
+      "note": "The Bugsy gym leader battle begins when Bugsy attempt one starts and he leads with Metapod.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 33760,
+      "source_pre_cut_rel_frame": 34271
+    },
+    {
+      "rel_frame": 38553,
+      "abs_frame": 254503,
+      "color": "Green",
+      "name": "Bugsy Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle gym traversal with finalized overlay; true transition occurred before this refine window.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 38503,
+      "source_pre_cut_rel_frame": 39014
+    },
+    {
+      "rel_frame": 39956,
+      "abs_frame": 255906,
+      "color": "Sand",
+      "name": "Battle: Rival 2",
+      "note": "The second rival fight starts at 'rival two attempt number one' against Gastly and Bayleaf.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 39906,
+      "source_pre_cut_rel_frame": 40417
+    },
+    {
+      "rel_frame": 52381,
+      "abs_frame": 268284,
+      "color": "Green",
+      "name": "Rival 2 Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle overworld/progression; true transition occurred before this refine window.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 52284,
+      "source_pre_cut_rel_frame": 52842
+    },
+    {
+      "rel_frame": 59138,
+      "abs_frame": 274987,
+      "color": "Sand",
+      "name": "Battle: Whitney",
+      "note": "The Whitney gym leader battle begins when Whitney leads with Clefairy against Staryu.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 58987,
+      "source_pre_cut_rel_frame": 59601
+    },
+    {
+      "rel_frame": 62984,
+      "abs_frame": 278780,
+      "color": "Green",
+      "name": "Whitney Battle End (Win)",
+      "note": "Earliest sampled frame shows Whitney's post-loss dialogue and the finalized overlay.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 62780,
+      "source_pre_cut_rel_frame": 63447
+    },
+    {
+      "rel_frame": 75030,
+      "abs_frame": 290826,
+      "color": "Sand",
+      "name": "Battle: Rival 3",
+      "note": "The third rival battle starts at 'Rival 3 attempt number one' with Haunter.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 74826,
+      "source_pre_cut_rel_frame": 75493
+    },
+    {
+      "rel_frame": 98373,
+      "abs_frame": 314076,
+      "color": "Green",
+      "name": "Rival 3 Battle End (Gave Up)",
+      "note": "Earliest sampled frame is already out of battle in overworld/cave state after the give-up transition; true transition occurred before this refine window.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 98076,
+      "source_pre_cut_rel_frame": 98836
+    },
+    {
+      "rel_frame": 101358,
+      "abs_frame": 317061,
+      "color": "Yellow",
+      "name": "Member Carousel Start",
+      "note": "Candidate 12 first frame is the first with the member carousel bottom strip: Ponyta sprite at lower left, LAVENDAR REGARDS name text, and a badge at lower right. Candidate 12 prev_last is normal gameplay without that overlay, so the carousel starts at V1 clip 525.",
+      "duration": 1,
+      "customData": "",
+      "old_rel_frame": 101061,
+      "source_pre_cut_rel_frame": 101821
+    }
+  ]
+}

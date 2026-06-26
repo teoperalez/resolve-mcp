@@ -1,0 +1,35 @@
+{
+ "pink": {},
+ "cuts": {},
+ "auto": {
+  "0": "cut",
+  "1": "cut",
+  "2": "cut",
+  "3": "cut",
+  "4": "cut",
+  "5": "cut",
+  "62": "cut",
+  "63": "restore",
+  "123": "restore",
+  "238": "restore",
+  "250": "restore",
+  "297": "restore",
+  "301": "cut",
+  "332": "restore",
+  "343": "restore",
+  "469": "restore",
+  "481": "restore",
+  "516": "restore",
+  "527": "restore"
+ },
+ "restores": {
+  "6": [
+   [
+    0.02,
+    2.268
+   ]
+  ]
+ },
+ "structural": {},
+ "structural_restores": {}
+}

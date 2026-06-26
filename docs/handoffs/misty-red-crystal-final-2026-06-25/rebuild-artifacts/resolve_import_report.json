@@ -1,0 +1,82 @@
+{
+  "method": "ImportTimelineFromFile",
+  "import_result": "<BlackmagicFusion.PyRemoteObject object at 0x000002E4484C5930>",
+  "project": "New Project 3",
+  "timeline_name": "Misty decision rebuild from saved cut decisions",
+  "timeline_count_before": 18,
+  "timeline_count_after": 19,
+  "new_timeline_names": [
+    [
+      19,
+      "Misty decision rebuild from saved cut decisions"
+    ]
+  ],
+  "timeline_start_frame": 0,
+  "timeline_end_frame": 107728,
+  "duration_frames": 107728,
+  "fps": 60.0,
+  "page": "edit",
+  "v_tracks": 1,
+  "a_tracks": 1,
+  "v1_clips": 580,
+  "a1_clips": 580,
+  "markers_requested": 17,
+  "markers_added": 17,
+  "markers_failed": 0,
+  "markers_now": 17,
+  "save_result": "True",
+  "first_markers": [
+    {
+      "frame": 12603,
+      "color": "Sand",
+      "name": "Battle: Rival 1"
+    },
+    {
+      "frame": 14267,
+      "color": "Green",
+      "name": "Rival 1 Battle End (Win)"
+    },
+    {
+      "frame": 18042,
+      "color": "Sand",
+      "name": "Battle: Honest Abe"
+    },
+    {
+      "frame": 19824,
+      "color": "Green",
+      "name": "Honest Abe Battle End (Win)"
+    },
+    {
+      "frame": 19921,
+      "color": "Sand",
+      "name": "Battle: Falkner"
+    }
+  ],
+  "last_markers": [
+    {
+      "frame": 59138,
+      "color": "Sand",
+      "name": "Battle: Whitney"
+    },
+    {
+      "frame": 62984,
+      "color": "Green",
+      "name": "Whitney Battle End (Win)"
+    },
+    {
+      "frame": 75030,
+      "color": "Sand",
+      "name": "Battle: Rival 3"
+    },
+    {
+      "frame": 98373,
+      "color": "Green",
+      "name": "Rival 3 Battle End (Gave Up)"
+    },
+    {
+      "frame": 101358,
+      "color": "Yellow",
+      "name": "Member Carousel Start"
+    }
+  ]
+}

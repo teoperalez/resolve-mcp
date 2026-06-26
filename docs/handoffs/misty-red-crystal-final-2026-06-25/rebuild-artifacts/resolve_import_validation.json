@@ -1,0 +1,103 @@
+{
+  "timeline": "Misty decision rebuild from saved cut decisions",
+  "timeline_start": 0,
+  "timeline_end": 107728,
+  "duration_frames": 107728,
+  "expected_sections": 580,
+  "v1_clips": 580,
+  "a1_clips": 580,
+  "v1_mismatch_count": 0,
+  "a1_mismatch_count": 0,
+  "v1_mismatches_sample": [],
+  "a1_mismatches_sample": [],
+  "missing_a1_coverage_count": 0,
+  "missing_a1_coverage_sample": [],
+  "marker_count": 17,
+  "marker_names": [
+    [
+      12603,
+      "Sand",
+      "Battle: Rival 1"
+    ],
+    [
+      14267,
+      "Green",
+      "Rival 1 Battle End (Win)"
+    ],
+    [
+      18042,
+      "Sand",
+      "Battle: Honest Abe"
+    ],
+    [
+      19824,
+      "Green",
+      "Honest Abe Battle End (Win)"
+    ],
+    [
+      19921,
+      "Sand",
+      "Battle: Falkner"
+    ],
+    [
+      21492,
+      "Green",
+      "Falkner Battle End (Win)"
+    ],
+    [
+      28239,
+      "Sand",
+      "Battle: Jamesy Proton"
+    ],
+    [
+      29715,
+      "Green",
+      "Jamesy Proton Battle End (Win)"
+    ],
+    [
+      33810,
+      "Sand",
+      "Battle: Bugsy"
+    ],
+    [
+      38553,
+      "Green",
+      "Bugsy Battle End (Win)"
+    ],
+    [
+      39956,
+      "Sand",
+      "Battle: Rival 2"
+    ],
+    [
+      52381,
+      "Green",
+      "Rival 2 Battle End (Win)"
+    ],
+    [
+      59138,
+      "Sand",
+      "Battle: Whitney"
+    ],
+    [
+      62984,
+      "Green",
+      "Whitney Battle End (Win)"
+    ],
+    [
+      75030,
+      "Sand",
+      "Battle: Rival 3"
+    ],
+    [
+      98373,
+      "Green",
+      "Rival 3 Battle End (Gave Up)"
+    ],
+    [
+      101358,
+      "Yellow",
+      "Member Carousel Start"
+    ]
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "timeline": "Misty decision rebuild from saved cut decisions (edit)",
+  "track_index": 2,
+  "placements": [
+    {
+      "battle_index": 0,
+      "type": "rival",
+      "filename": "silver-cherrygrove-grass-battle-intro.mov",
+      "record_frame": 228397,
+      "end_frame": 228697,
+      "duration_frames": 300,
+      "reason": "rival @ 'cherrygrove' with 'grass' starter"
+    },
+    {
+      "battle_index": 2,
+      "type": "gym",
+      "filename": "falkner-battle-intro.mov",
+      "record_frame": 235853,
+      "end_frame": 236153,
+      "duration_frames": 300,
+      "reason": "gym → 'falkner'"
+    },
+    {
+      "battle_index": 4,
+      "type": "gym",
+      "filename": "bugsy-battle-intro.mov",
+      "record_frame": 249830,
+      "end_frame": 250130,
+      "duration_frames": 300,
+      "reason": "gym → 'bugsy'"
+    },
+    {
+      "battle_index": 5,
+      "type": "rival",
+      "filename": "silver-azalea-grass-battle-intro.mov",
+      "record_frame": 255732,
+      "end_frame": 256032,
+      "duration_frames": 300,
+      "reason": "rival @ 'azalea' with 'grass' starter"
+    },
+    {
+      "battle_index": 6,
+      "type": "gym",
+      "filename": "whitney-battle-intro.mov",
+      "record_frame": 274979,
+      "end_frame": 275279,
+      "duration_frames": 300,
+      "reason": "gym → 'whitney'"
+    },
+    {
+      "battle_index": 7,
+      "type": "rival",
+      "filename": "silver-burnedtower-grass-battle-intro.mov",
+      "record_frame": 290982,
+      "end_frame": 291282,
+      "duration_frames": 300,
+      "reason": "rival @ 'burnedtower' with 'grass' starter"
+    }
+  ]
+}

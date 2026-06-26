@@ -1,0 +1,249 @@
+{
+  "created_at": "2026-06-25",
+  "project_name": "New Project 3",
+  "final_timeline_name": "Misty decision rebuild from saved cut decisions (edit)",
+  "timeline_start_frame": 216000,
+  "timeline_end_frame": 325191,
+  "duration_frames": 109191,
+  "fps": 60.0,
+  "resolution": {
+    "width": 3840,
+    "height": 2160
+  },
+  "markers_count": 17,
+  "markers": [
+    {
+      "frame_relative": 12863,
+      "frame_absolute": 228863,
+      "color": "Sand",
+      "name": "Battle: Rival 1",
+      "note": "The first rival fight begins when the speaker says 'let's take on Rival number one' and Rival 1 leads with Chikorita."
+    },
+    {
+      "frame_relative": 14527,
+      "frame_absolute": 230527,
+      "color": "Green",
+      "name": "Rival 1 Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle overworld with finalized overlay; true transition occurred before this refine window."
+    },
+    {
+      "frame_relative": 18302,
+      "frame_absolute": 234302,
+      "color": "Sand",
+      "name": "Battle: Honest Abe",
+      "note": "The Violet gym trainer battle begins as Honest Abe leads with level 9 Spearow."
+    },
+    {
+      "frame_relative": 20084,
+      "frame_absolute": 236084,
+      "color": "Green",
+      "name": "Honest Abe Battle End (Win)",
+      "note": "Sampled post-battle save/menu sequence; 534.10s maps cleanly through the edited V1 layout after nearby earlier samples fell in a cut region."
+    },
+    {
+      "frame_relative": 20181,
+      "frame_absolute": 236181,
+      "color": "Sand",
+      "name": "Battle: Falkner",
+      "note": "The Falkner gym leader battle starts with 'straight to Falkner' and Falkner sending out his first bird."
+    },
+    {
+      "frame_relative": 21752,
+      "frame_absolute": 237752,
+      "color": "Green",
+      "name": "Falkner Battle End (Win)",
+      "note": "Earliest sampled frame already shows the defeated trainer/post-battle dialogue with finalized overlay."
+    },
+    {
+      "frame_relative": 28499,
+      "frame_absolute": 244499,
+      "color": "Sand",
+      "name": "Battle: Jamesy Proton",
+      "note": "The Slowpoke Well Rocket Executive battle begins at 'Jamesy Proton attempt number one.'"
+    },
+    {
+      "frame_relative": 29975,
+      "frame_absolute": 245975,
+      "color": "Green",
+      "name": "Jamesy Proton Battle End (Win)",
+      "note": "First sampled frame after the defeat text where the full Rocket portrait is visible, replacing the active battle UI."
+    },
+    {
+      "frame_relative": 34070,
+      "frame_absolute": 250070,
+      "color": "Sand",
+      "name": "Battle: Bugsy",
+      "note": "The Bugsy gym leader battle begins when Bugsy attempt one starts and he leads with Metapod."
+    },
+    {
+      "frame_relative": 38813,
+      "frame_absolute": 254813,
+      "color": "Green",
+      "name": "Bugsy Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle gym traversal with finalized overlay; true transition occurred before this refine window."
+    },
+    {
+      "frame_relative": 40216,
+      "frame_absolute": 256216,
+      "color": "Sand",
+      "name": "Battle: Rival 2",
+      "note": "The second rival fight starts at 'rival two attempt number one' against Gastly and Bayleaf."
+    },
+    {
+      "frame_relative": 52641,
+      "frame_absolute": 268641,
+      "color": "Green",
+      "name": "Rival 2 Battle End (Win)",
+      "note": "Earliest sampled frame is already post-battle overworld/progression; true transition occurred before this refine window."
+    },
+    {
+      "frame_relative": 59398,
+      "frame_absolute": 275398,
+      "color": "Sand",
+      "name": "Battle: Whitney",
+      "note": "The Whitney gym leader battle begins when Whitney leads with Clefairy against Staryu."
+    },
+    {
+      "frame_relative": 63244,
+      "frame_absolute": 279244,
+      "color": "Green",
+      "name": "Whitney Battle End (Win)",
+      "note": "Earliest sampled frame shows Whitney's post-loss dialogue and the finalized overlay."
+    },
+    {
+      "frame_relative": 75290,
+      "frame_absolute": 291290,
+      "color": "Sand",
+      "name": "Battle: Rival 3",
+      "note": "The third rival battle starts at 'Rival 3 attempt number one' with Haunter."
+    },
+    {
+      "frame_relative": 98633,
+      "frame_absolute": 314633,
+      "color": "Green",
+      "name": "Rival 3 Battle End (Gave Up)",
+      "note": "Earliest sampled frame is already out of battle in overworld/cave state after the give-up transition; true transition occurred before this refine window."
+    },
+    {
+      "frame_relative": 101618,
+      "frame_absolute": 317618,
+      "color": "Yellow",
+      "name": "Member Carousel Start",
+      "note": "Candidate 12 first frame is the first with the member carousel bottom strip: Ponyta sprite at lower left, LAVENDAR REGARDS name text, and a badge at lower right. Candidate 12 prev_last is normal gameplay without that overlay, so the carousel starts at V1 clip 525."
+    }
+  ],
+  "tracks": [
+    {
+      "kind": "video",
+      "index": 1,
+      "name": "Video 1",
+      "locked": false,
+      "clips": 544
+    },
+    {
+      "kind": "video",
+      "index": 2,
+      "name": "Video 2",
+      "locked": false,
+      "clips": 45
+    },
+    {
+      "kind": "audio",
+      "index": 1,
+      "name": "Dialogue 1",
+      "locked": false,
+      "clips": 580
+    },
+    {
+      "kind": "audio",
+      "index": 2,
+      "name": "Music 1",
+      "locked": true,
+      "clips": 29
+    },
+    {
+      "kind": "audio",
+      "index": 3,
+      "name": "Music 2",
+      "locked": false,
+      "clips": 1
+    },
+    {
+      "kind": "audio",
+      "index": 4,
+      "name": "9 1",
+      "locked": false,
+      "clips": 0
+    },
+    {
+      "kind": "audio",
+      "index": 5,
+      "name": "Audio 3 Copy",
+      "locked": false,
+      "clips": 0
+    },
+    {
+      "kind": "audio",
+      "index": 6,
+      "name": "Audio 6",
+      "locked": false,
+      "clips": 0
+    },
+    {
+      "kind": "audio",
+      "index": 7,
+      "name": "Audio 7",
+      "locked": false,
+      "clips": 0
+    },
+    {
+      "kind": "audio",
+      "index": 8,
+      "name": "Audio 8",
+      "locked": false,
+      "clips": 0
+    },
+    {
+      "kind": "audio",
+      "index": 9,
+      "name": "Audio 9",
+      "locked": false,
+      "clips": 0
+    }
+  ],
+  "render": {
+    "path": "E:\\Misty Red\\Misty decision rebuild from saved cut decisions (edit)_FINAL_4K.mp4",
+    "exists": true,
+    "size_bytes": 2531091876
+  },
+  "project_handoff_dir": "E:\\Misty Red\\CODEx\\final-timeline-handoff",
+  "repo_handoff_dir": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25",
+  "project_exports": {
+    "drt": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\Misty decision rebuild from saved cut decisions (edit) - FINAL - 2026-06-25.drt",
+    "fcpxml": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\misty_final_timeline_2026-06-25_fcpxml_1_10_Info.fcpxml",
+    "drp": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\New Project 3 - Misty decision rebuild final - 2026-06-25.drp",
+    "fcpxml_1_10_info": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\misty_final_timeline_2026-06-25_fcpxml_1_10_Info.fcpxml",
+    "fcpxml_1_9": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\misty_final_timeline_2026-06-25_fcpxml_1_9.fcpxml",
+    "fcp7_xml": "E:\\Misty Red\\CODEx\\final-timeline-handoff\\misty_final_timeline_2026-06-25_fcp7.xml"
+  },
+  "repo_exports": {
+    "drt": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\Misty decision rebuild from saved cut decisions (edit) - FINAL - 2026-06-25.drt",
+    "fcpxml": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\misty_final_timeline_2026-06-25_fcpxml_1_10_Info.fcpxml",
+    "drp": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\New Project 3 - Misty decision rebuild final - 2026-06-25.drp",
+    "fcpxml_1_10_info": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\misty_final_timeline_2026-06-25_fcpxml_1_10_Info.fcpxml",
+    "fcpxml_1_9": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\misty_final_timeline_2026-06-25_fcpxml_1_9.fcpxml",
+    "fcp7_xml": "C:\\Programming\\resolve-mcp\\docs\\handoffs\\misty-red-crystal-final-2026-06-25\\misty_final_timeline_2026-06-25_fcp7.xml"
+  },
+  "export_results": {
+    "save_project": true,
+    "export_drt": true,
+    "export_fcpxml_1_10": true,
+    "export_project_drp": true,
+    "export_fcpxml_1_10_package_info_extracted": true,
+    "export_fcpxml_1_9": true,
+    "export_fcp7_xml": true
+  },
+  "notes": [
+    "Resolve FCPXML 1.10 export creates a package directory containing Info.fcpxml; the extracted plain file is *_fcpxml_1_10_Info.fcpxml. FCPXML 1.9 also exported as a normal plain file."
+  ]
+}

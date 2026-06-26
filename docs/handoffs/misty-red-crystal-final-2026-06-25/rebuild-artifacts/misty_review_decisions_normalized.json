@@ -1,0 +1,140 @@
+{
+  "schema": "misty_html_review_decisions_v1",
+  "generated_at": "2026-06-21T04:38:21.137914+00:00",
+  "decisions": "C:\\Users\\teope\\Downloads\\Misty Red and Blue Crystal Gym Leader Challenge_cut_review_decisions.json",
+  "clips_for_review": "E:\\Misty Red\\CODEx\\cut_review\\clips_for_review.json",
+  "safe_cuts": "E:\\Misty Red\\CODEx\\cut_review\\misty_section_safe_cuts.json",
+  "counts": {
+    "auto_candidates": 19,
+    "whole_auto_cut_sections": 8,
+    "whole_auto_restored_sections": 11,
+    "drag_restore_ranges": 1,
+    "final_cut_fragments": 8,
+    "manual_cut_fragments": 0
+  },
+  "whole_restore_clip_indexes": [
+    63,
+    123,
+    238,
+    250,
+    297,
+    332,
+    343,
+    469,
+    481,
+    516,
+    527
+  ],
+  "whole_cut_clip_indexes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    62,
+    301
+  ],
+  "drag_restores": [
+    {
+      "clip_i": 301,
+      "group": "6",
+      "restore_index": 0,
+      "start_frame": 80557,
+      "end_frame": 80586,
+      "start_sec": 1342.6167,
+      "end_sec": 1343.1014
+    }
+  ],
+  "approved_cuts": [
+    {
+      "start_sec": 10.866666666666667,
+      "end_sec": 12.116666666666667,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 1 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; empty pre-roll noise.",
+      "clip_i": 0,
+      "source_start_frame": 652,
+      "source_end_frame": 727,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 12.15,
+      "end_sec": 12.766666666666667,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 2 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; empty pre-roll noise.",
+      "clip_i": 1,
+      "source_start_frame": 729,
+      "source_end_frame": 766,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 13.033333333333333,
+      "end_sec": 13.433333333333334,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 3 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; empty pre-roll noise.",
+      "clip_i": 2,
+      "source_start_frame": 782,
+      "source_end_frame": 806,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 45.28333333333333,
+      "end_sec": 46.4,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 4 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; setup noise without narrative content.",
+      "clip_i": 3,
+      "source_start_frame": 2717,
+      "source_end_frame": 2784,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 46.583333333333336,
+      "end_sec": 49.53333333333333,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 5 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; setup noise without narrative content.",
+      "clip_i": 4,
+      "source_start_frame": 2795,
+      "source_end_frame": 2972,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 51.86666666666667,
+      "end_sec": 52.86666666666667,
+      "confidence": "high",
+      "type": "pre_roll",
+      "reason": "Clip 6 has WORDS_IN_CLIP(0) and no Whisper transcript before the real intro; setup noise without narrative content.",
+      "clip_i": 5,
+      "source_start_frame": 3112,
+      "source_end_frame": 3172,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 293.03333333333336,
+      "end_sec": 293.3833333333333,
+      "confidence": "high",
+      "type": "artifact",
+      "reason": "Clip 63 has WORDS_IN_CLIP(0) and no Whisper transcript between complete rules/setup thoughts; likely breath or mic noise.",
+      "clip_i": 62,
+      "source_start_frame": 17582,
+      "source_end_frame": 17603,
+      "decision_source": "html_auto_cut_decision"
+    },
+    {
+      "start_sec": 1343.1,
+      "end_sec": 1343.1333333333334,
+      "confidence": "high",
+      "type": "artifact",
+      "reason": "Clip 302 is explicitly flagged DUP_TEXT_CLUSTER_ARTIFACT with WORDS_IN_CLIP(0); short runt in the same Whitney/Morty transition cluster. (with dragged restore subtracted)",
+      "clip_i": 301,
+      "source_start_frame": 80586,
+      "source_end_frame": 80588,
+      "decision_source": "html_auto_cut_decision",
+      "fragment_index": 0
+    }
+  ]
+}
