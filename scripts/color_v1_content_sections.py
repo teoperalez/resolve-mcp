@@ -348,7 +348,7 @@ def find_v1_outro_start(v1_items: list[Any], start_frame: int, fallback_rel: int
 
 def is_intro_outro_asset(item) -> bool:
     name = clip_name(item).lower()
-    return "intro" in name or "-battle-intro" in name or "__2x_resolve" in name
+    return "intro" in name or "outro" in name or "-battle-intro" in name or "__2x_resolve" in name
 
 
 def rebuild_report_for_timeline(timeline_name: str) -> Path | None:

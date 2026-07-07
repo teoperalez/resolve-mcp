@@ -81,6 +81,9 @@
         "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "review_manifest": "{codex_dir}/review_base_manifest.json",
         "final_manifest": "{codex_dir}/final_rebuild_manifest.json",
+        "intro_outro_report": "{codex_dir}/qa-reports/rby-umb-intro-outro.json",
+        "gen1_intros_report": "{codex_dir}/qa-reports/battle-intros-placements.json",
+        "bgm_report": "{codex_dir}/qa-reports/rby-umb-bgm.json",
         "clip_color_report": "{codex_dir}/qa-reports/rby-umb-clip-colors.json"
       }
     },
@@ -170,6 +173,9 @@
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
         "game_audio": "{project_dir}/{source_name}_tracks/{source_name}_3.wav",
         "final_manifest": "{codex_dir}/final_rebuild_manifest.json",
+        "intro_outro_report": "{codex_dir}/qa-reports/rby-umb-intro-outro.json",
+        "gen1_intros_report": "{codex_dir}/qa-reports/battle-intros-placements.json",
+        "bgm_report": "{codex_dir}/qa-reports/rby-umb-bgm.json",
         "clip_color_report": "{codex_dir}/qa-reports/section_color_report.json",
         "session_dir": "{session_dir}",
         "session_events": "{session_events}",
@@ -196,6 +202,9 @@
         "resolve_project_name": "Celebi UMB Red Blue",
         "gen1_intro_root": "F:/Programming/RBYNewLayout/gymLeaders/LeaderIntros",
         "bgm_dir": "F:/Programming/RBYNewLayout/audio/bgm",
+        "intro_speed_pct": 400,
+        "gen1_intro_speed": 2,
+        "opening_bgm_offset_sec": 13,
         "source_audio_offset_part1": "Celebi UMB Red Blue part 1.mkv=0",
         "source_audio_offset_part2": "Celebi UMB Red Blue part 2.mkv=36646"
       },
@@ -215,12 +224,16 @@
         "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
         "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
         "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "review_manifest": "{codex_dir}/cut_review/review_base_manifest.json",
         "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "raw_autoeditor_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
         "game_audio": "{codex_dir}/cut_review/celebi_game_audio_combined_p1p2_track3.wav",
         "final_manifest": "{codex_dir}/Celebi RBY UMB CODEx orchestrator final base_manifest.json",
+        "intro_outro_report": "{codex_dir}/qa-reports/celebi-rby-umb-intro-outro.json",
+        "gen1_intros_report": "{codex_dir}/qa-reports/celebi-rby-umb-battle-intros.json",
+        "bgm_report": "{codex_dir}/qa-reports/celebi-rby-umb-bgm-final.json",
         "clip_color_report": "{codex_dir}/qa-reports/celebi-rby-umb-clip-colors.json",
         "pipeline_order_report": "{codex_dir}/celebi_pipeline_order_report.json",
         "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md"
@@ -887,7 +900,11 @@
             }
           ],
           "artifacts_out": [
-            "final_manifest"
+            "final_manifest",
+            "intro_outro_report",
+            "gen1_intros_report",
+            "bgm_report",
+            "clip_color_report"
           ]
         },
         {

@@ -5,10 +5,11 @@ major-boss battle on the current Resolve timeline.
 For Gen 1 Red/Blue/Yellow projects, pass `--gen1-insert`. Those leader intros
 are discrete video + audio files (e.g. Brock.mp4 + audio/Brock.mp3), not silent
 overlays. In that mode this script creates a derived timeline, splits clips at
-each leader intro point, inserts the intro video on V1 and original-speed audio
-on the selected audio track, and ripples all later timeline content to the
-right. `--gen1-speed` retimes only the video; matching audio is not sped up and
-is truncated to the inserted video duration.
+each leader intro point, leaves an empty V1/A1 gap, inserts the intro video on
+the selected Gen 1 video track (V2 by default), inserts original-speed audio on
+the selected audio track, and ripples all later timeline content to the right.
+`--gen1-speed` retimes only the video; matching audio starts on A3 under the
+intro and can continue on A2 through the battle window.
 For repeated Gen 1 leader/E4/champion attempts after a give-up or loss, the
 script inserts only a one-second source-backed pre-battle gap instead of
 repeating the leader intro. Only the first attempt against each trainer gets
@@ -230,6 +231,18 @@ def media_duration_native_frames(mpi, fallback_tl_frames: int) -> int:
     return fallback_tl_frames
 
 
+def media_pool_item_fps(mpi, fallback: float) -> float:
+    props = mpi.GetClipProperty() or {}
+    for key in ('FPS', 'Video Frame Rate', 'Frame Rate'):
+        try:
+            value = float(props.get(key) or 0)
+            if value > 0:
+                return value
+        except Exception:
+            pass
+    return fallback
+
+
 def gen1_leader_name(battle: dict) -> str | None:
     raw = (battle.get('trainer_name') or battle.get('leader') or '').strip()
     raw = re.sub(r'^(START|RESUME)\s+\d+\s+', '', raw, flags=re.IGNORECASE).strip()
@@ -331,19 +344,59 @@ def battle_inputs_from_markers(tl) -> tuple[list[dict], dict]:
     transcript guesses and should drive intro placement. If no markers exist,
     callers fall back to transcripts/battles.json + battle-types.json.
     """
+    starts = []
+    finishes_by_ordinal = {}
+    finishes = []
+    for frame_rel, marker in sorted((tl.GetMarkers() or {}).items()):
+        rel = int(round(float(frame_rel)))
+        name = marker.get('name') or ''
+        start_match = re.search(r'\b(?:START|RESUME)\s+(\d+)\s+(.+?)\s+Battle Start$', name, re.I)
+        finish_match = re.search(r'\bEND\??\s+(\d+)\s+(.+?)\s+Battle Finish', name, re.I)
+        if start_match:
+            starts.append({
+                'rel': rel,
+                'ordinal': int(start_match.group(1)),
+                'trainer': start_match.group(2).strip(),
+                'name': name,
+            })
+            continue
+        if finish_match:
+            row = {
+                'rel': rel,
+                'ordinal': int(finish_match.group(1)),
+                'trainer': finish_match.group(2).strip(),
+                'name': name,
+            }
+            finishes_by_ordinal[row['ordinal']] = row
+            finishes.append(row)
+            continue
+        if name.endswith(' Battle Start'):
+            starts.append({
+                'rel': rel,
+                'ordinal': None,
+                'trainer': name.removesuffix(' Battle Start').strip(),
+                'name': name,
+            })
+
     battles = []
     types = {}
-    for frame_rel, marker in sorted((tl.GetMarkers() or {}).items()):
-        name = marker.get('name') or ''
-        if not name.endswith(' Battle Start'):
-            continue
-        trainer = name.removesuffix(' Battle Start')
+    for idx, start in enumerate(starts):
+        trainer = start['name'].removesuffix(' Battle Start')
         trainer_for_type = re.sub(r'^(START|RESUME)\s+\d+\s+', '', trainer, flags=re.IGNORECASE).strip()
-        idx = len(battles)
+        finish = finishes_by_ordinal.get(start['ordinal'])
+        finish_rel = finish['rel'] if finish else None
+        finish_source = finish['name'] if finish else ''
+        if finish_rel is None:
+            next_start = starts[idx + 1]['rel'] if idx + 1 < len(starts) else None
+            if next_start and next_start > start['rel']:
+                finish_rel = next_start
+                finish_source = 'next Battle Start fallback'
         battles.append({
             'trainer_name': trainer,
-            'description': f'from timeline marker at frame {frame_rel}',
-            'marker_frame_rel': int(frame_rel),
+            'description': f'from timeline marker at frame {start["rel"]}',
+            'marker_frame_rel': start['rel'],
+            'battle_end_marker_frame_rel': finish_rel,
+            'battle_end_marker_source': finish_source,
             'first_time': True,
         })
         types[str(idx)] = {
@@ -353,7 +406,7 @@ def battle_inputs_from_markers(tl) -> tuple[list[dict], dict]:
     return battles, types
 
 
-def collect_timeline_clip_specs(tl):
+def collect_timeline_clip_specs(tl, fps: float):
     """Collect source slices from the current timeline with exclusive endFrame."""
     tl_start = tl.GetStartFrame()
     specs = []
@@ -363,16 +416,21 @@ def collect_timeline_clip_specs(tl):
                 mpi = item.GetMediaPoolItem()
                 if mpi is None:
                     continue
+                source_frames_per_tl_frame = 1.0
+                if media_type == 1:
+                    source_frames_per_tl_frame = media_pool_item_fps(mpi, fps) / fps
+                source_duration = max(1, int(round(item.GetDuration() * source_frames_per_tl_frame)))
                 specs.append({
                     'mediaPoolItem': mpi,
                     'name': item.GetName() or '',
                     'startFrame': item.GetLeftOffset(),
-                    'endFrame': item.GetLeftOffset() + item.GetDuration(),
+                    'endFrame': item.GetLeftOffset() + source_duration,
                     'relRecord': item.GetStart() - tl_start,
                     'duration': item.GetDuration(),
                     'trackIndex': track,
                     'mediaType': media_type,
                     'clipColor': item.GetClipColor() or '',
+                    'source_frames_per_tl_frame': source_frames_per_tl_frame,
                 })
     return specs
 
@@ -394,6 +452,14 @@ def cumulative_shift(frame_rel: int, insertions: list[dict]) -> int:
     return sum(p['duration_frames'] for p in insertions if frame_rel >= p['record_rel'])
 
 
+def cumulative_shift_before(frame_rel: int, insertions: list[dict]) -> int:
+    return sum(p['duration_frames'] for p in insertions if frame_rel > p['record_rel'])
+
+
+def ranges_overlap(start_a: int, end_a: int, start_b: int, end_b: int) -> bool:
+    return start_a < end_b and start_b < end_a
+
+
 def split_shift_specs(existing: list[dict], insertions: list[dict]) -> list[dict]:
     shifted = []
     for spec in existing:
@@ -406,10 +472,11 @@ def split_shift_specs(existing: list[dict], insertions: list[dict]) -> list[dict
             if b <= a:
                 continue
             base_record = spec['relRecord'] + a
+            ratio = float(spec.get('source_frames_per_tl_frame') or 1.0)
             shifted.append({
                 'mediaPoolItem': spec['mediaPoolItem'],
-                'startFrame': spec['startFrame'] + a,
-                'endFrame': spec['startFrame'] + b,
+                'startFrame': spec['startFrame'] + int(round(a * ratio)),
+                'endFrame': spec['startFrame'] + int(round(b * ratio)),
                 'recordRel': base_record + cumulative_shift(base_record, insertions),
                 'trackIndex': spec['trackIndex'],
                 'mediaType': spec['mediaType'],
@@ -503,8 +570,9 @@ def add_shifted_markers(src_tl, dst_tl, insertions: list[dict]) -> tuple[int, in
 
 
 def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
-                    audio_track: int, dry_run: bool) -> int:
-    existing = collect_timeline_clip_specs(tl)
+                    video_track: int, audio_track: int, battle_audio_track: int,
+                    dry_run: bool, report_path: Path) -> int:
+    existing = collect_timeline_clip_specs(tl, fps)
     insertions = sorted(placements, key=lambda p: p['record_rel'])
     for p in insertions:
         if p.get('kind') == 'repeat_gap':
@@ -537,9 +605,9 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
         print('ERROR: failed to create derived Gen 1 intro timeline', file=sys.stderr)
         return 1
     project.SetCurrentTimeline(new_tl)
-    while new_tl.GetTrackCount('video') < tl.GetTrackCount('video'):
+    while new_tl.GetTrackCount('video') < max(tl.GetTrackCount('video'), video_track):
         new_tl.AddTrack('video')
-    while new_tl.GetTrackCount('audio') < max(tl.GetTrackCount('audio'), audio_track):
+    while new_tl.GetTrackCount('audio') < max(tl.GetTrackCount('audio'), audio_track, battle_audio_track):
         new_tl.AddTrack('audio', 'stereo')
     new_start = new_tl.GetStartFrame()
 
@@ -574,21 +642,61 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
             'startFrame': 0,
             'endFrame': p.get('duration_native_frames') or p['duration_frames'],
             'recordFrame': record,
-            'trackIndex': 1,
+            'trackIndex': video_track,
             'mediaType': 1,
         })
         colors.append('')
         if p.get('audio_mpi') is not None:
             audio_dur = p.get('audio_duration_frames') or p['duration_frames']
+            intro_audio_dur = min(audio_dur, p['duration_frames'])
             payload.append({
                 'mediaPoolItem': p['audio_mpi'],
                 'startFrame': 0,
-                'endFrame': audio_dur,
+                'endFrame': intro_audio_dur,
                 'recordFrame': record,
                 'trackIndex': audio_track,
                 'mediaType': 2,
             })
             colors.append('')
+            p['intro_audio_duration_frames'] = intro_audio_dur
+
+            battle_end_rel = p.get('battle_end_marker_frame_rel')
+            if battle_end_rel is not None:
+                battle_start_record = record + p['duration_frames']
+                battle_end_record = new_start + int(battle_end_rel) + cumulative_shift_before(int(battle_end_rel), insertions)
+                battle_audio_needed = max(0, battle_end_record - battle_start_record)
+                source_start = intro_audio_dur
+                remaining = battle_audio_needed
+                chunk_record = battle_start_record
+                chunks = []
+                while remaining > 0 and audio_dur > 0:
+                    if source_start >= audio_dur:
+                        source_start = 0
+                    chunk = min(remaining, audio_dur - source_start)
+                    if chunk <= 0:
+                        break
+                    payload.append({
+                        'mediaPoolItem': p['audio_mpi'],
+                        'startFrame': source_start,
+                        'endFrame': source_start + chunk,
+                        'recordFrame': chunk_record,
+                        'trackIndex': battle_audio_track,
+                        'mediaType': 2,
+                    })
+                    colors.append('')
+                    chunks.append({
+                        'record_frame': chunk_record,
+                        'start_frame': source_start,
+                        'end_frame': source_start + chunk,
+                        'duration_frames': chunk,
+                    })
+                    remaining -= chunk
+                    chunk_record += chunk
+                    source_start = 0
+                p['battle_audio_track'] = battle_audio_track
+                p['battle_audio_duration_frames'] = battle_audio_needed - remaining
+                p['battle_audio_requested_frames'] = battle_audio_needed
+                p['battle_audio_chunks'] = chunks
 
     payload.sort(key=lambda s: (s['mediaType'], s['trackIndex'], s['recordFrame']))
     placed = []
@@ -602,8 +710,10 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
     added_markers, expected_markers = add_shifted_markers(tl, new_tl, insertions)
     print(f'Reapplied ruler markers: {added_markers}/{expected_markers}')
 
-    track_after = new_tl.GetItemListInTrack('video', 1) or []
+    track_after = new_tl.GetItemListInTrack('video', video_track) or []
+    a1_after = new_tl.GetItemListInTrack('audio', 1) or []
     missing = []
+    a1_overlaps = []
     intro_insertions = [p for p in insertions if p.get('kind') != 'repeat_gap']
     for p in intro_insertions:
         shifted_rel = p['record_rel'] + cumulative_shift(p['record_rel'], [i for i in insertions if i is not p])
@@ -615,18 +725,45 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
                     and abs(c.GetEnd() - expected_end) <= 1), None)
         if hit is None:
             missing.append(p)
+            continue
+        for a1 in a1_after:
+            a_start = a1.GetStart()
+            a_end = a_start + a1.GetDuration()
+            if ranges_overlap(hit.GetStart(), hit.GetEnd(), a_start, a_end):
+                a1_overlaps.append({
+                    'leader': p['leader'],
+                    'video': hit.GetName() or '',
+                    'video_start': hit.GetStart(),
+                    'video_end': hit.GetEnd(),
+                    'audio': a1.GetName() or '',
+                    'audio_start': a_start,
+                    'audio_end': a_end,
+                })
     if missing:
         print('ERROR: API verification failed for Gen 1 inserted intros:', file=sys.stderr)
         for p in missing:
             print(f'  - {p["leader"]} at rel {p["record_rel"]}', file=sys.stderr)
         return 1
+    if a1_overlaps:
+        print('ERROR: Gen 1 intro video overlaps A1 source audio:', file=sys.stderr)
+        for row in a1_overlaps:
+            print(
+                f'  - {row["leader"]}: {row["video"]} '
+                f'[{row["video_start"]},{row["video_end"]}) overlaps '
+                f'{row["audio"]} [{row["audio_start"]},{row["audio_end"]})',
+                file=sys.stderr,
+            )
+        return 1
 
-    manifest = Path('_data') / 'qa-reports' / 'battle-intros-placements.json'
+    manifest = report_path
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps({
         'timeline': new_tl.GetName(),
         'mode': 'gen1_insert',
+        'video_track': video_track,
         'audio_track': audio_track,
+        'battle_audio_track': battle_audio_track,
+        'intro_a1_overlap_count': len(a1_overlaps),
         'placements': [
             {
                 'kind': p.get('kind', 'intro'),
@@ -636,6 +773,12 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
                 'audio': p['audio_mpi'].GetName() if p.get('audio_mpi') else None,
                 'record_frame_rel': p['record_rel'],
                 'duration_frames': p['duration_frames'],
+                'battle_end_marker_frame_rel': p.get('battle_end_marker_frame_rel'),
+                'battle_end_marker_source': p.get('battle_end_marker_source'),
+                'intro_audio_duration_frames': p.get('intro_audio_duration_frames'),
+                'battle_audio_duration_frames': p.get('battle_audio_duration_frames'),
+                'battle_audio_requested_frames': p.get('battle_audio_requested_frames'),
+                'battle_audio_chunks': p.get('battle_audio_chunks') or [],
                 'gap_sources': [
                     {
                         'name': spec.get('source_clip_name', ''),
@@ -706,8 +849,12 @@ def main() -> int:
     ap.add_argument('--gen1-root', default=str(GEN1_LEADER_INTROS_DIR),
                     help='Folder containing Gen 1 leader intro MP4s and audio/ '
                          f'(default: {GEN1_LEADER_INTROS_DIR})')
+    ap.add_argument('--gen1-video-track', type=int, default=2,
+                    help='Video track for Gen 1 leader intro videos (default: V2)')
     ap.add_argument('--gen1-audio-track', type=int, default=3,
                     help='Audio track for Gen 1 leader intro audio (default: A3)')
+    ap.add_argument('--gen1-battle-audio-track', type=int, default=2,
+                    help='Audio track for Gen 1 leader audio continuation after the intro (default: A2)')
     ap.add_argument('--gen1-speed', type=float, default=2.0,
                     help='Playback speed for Gen 1 discrete leader intro video only; audio stays 1x (default: 2.0)')
     ap.add_argument('--gen1-repeat-gap-frames', type=int, default=60,
@@ -716,6 +863,9 @@ def main() -> int:
                     help='In --gen1-insert mode, do not prefer LeaderBlue.mp4 variants.')
     ap.add_argument('--dry-run', action='store_true',
                     help='Report what would be placed without modifying Resolve')
+    ap.add_argument('--report', type=Path,
+                    default=Path('_data') / 'qa-reports' / 'battle-intros-placements.json',
+                    help='Write a JSON placement report (default: _data/qa-reports/battle-intros-placements.json)')
     args = ap.parse_args()
 
     if not BATTLES_JSON.exists() and not args.gen1_insert:
@@ -859,9 +1009,11 @@ def main() -> int:
                 'audio_mpi': audio_mpi,
                 'tl_frame': tl_frame,
                 'record_rel': int(tl_frame - tl.GetStartFrame()),
+                'battle_end_marker_frame_rel': b.get('battle_end_marker_frame_rel'),
+                'battle_end_marker_source': b.get('battle_end_marker_source'),
                 'duration_frames': duration_frames,
                 'duration_native_frames': duration_native_frames,
-                'audio_duration_frames': min(audio_duration_frames, duration_frames),
+                'audio_duration_frames': audio_duration_frames,
                 'reason': (
                     f'Gen 1 insert video @ {args.gen1_speed:g}x, audio @ 1x → '
                     f'{video_path.name} + {audio_path.name}'
@@ -957,7 +1109,11 @@ def main() -> int:
 
     if args.gen1_insert:
         return run_gen1_insert(project, pool, tl, fps, placements,
-                               args.gen1_audio_track, args.dry_run)
+                               args.gen1_video_track,
+                               args.gen1_audio_track,
+                               args.gen1_battle_audio_track,
+                               args.dry_run,
+                               args.report)
 
     while tl.GetTrackCount('video') < args.track_index:
         tl.AddTrack('video')

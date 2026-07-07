@@ -289,7 +289,9 @@ def media_duration_frames(path: Path) -> int:
 
 
 def video_duration_frames(path: Path) -> int:
-    return B.video_duration_frames(path)
+    if hasattr(B, "video_duration_frames"):
+        return B.video_duration_frames(path)
+    return B.media_duration_frames(path)
 
 
 def path_to_uri_localhost(path: Path) -> str:
@@ -338,11 +340,35 @@ def load_extra_source_cuts(path: Path | None) -> list[dict]:
     for index, row in enumerate(rows, start=1):
         if row.get("status") in {"reject", "rejected", "keep"}:
             continue
-        start_frame = row.get("start_frame", row.get("source_start_frame"))
-        end_frame = row.get("end_frame", row.get("source_end_frame"))
+        start_frame = row.get(
+            "start_frame",
+            row.get(
+                "source_start_frame",
+                row.get("combined_source_start_frame", row.get("part_source_start_frame")),
+            ),
+        )
+        end_frame = row.get(
+            "end_frame",
+            row.get(
+                "source_end_frame",
+                row.get("combined_source_end_frame", row.get("part_source_end_frame")),
+            ),
+        )
         if start_frame is None or end_frame is None:
-            start_sec = row.get("start_sec", row.get("source_start_sec"))
-            end_sec = row.get("end_sec", row.get("source_end_sec"))
+            start_sec = row.get(
+                "start_sec",
+                row.get(
+                    "source_start_sec",
+                    row.get("combined_source_start_sec", row.get("part_source_start_sec")),
+                ),
+            )
+            end_sec = row.get(
+                "end_sec",
+                row.get(
+                    "source_end_sec",
+                    row.get("combined_source_end_sec", row.get("part_source_end_sec")),
+                ),
+            )
             if start_sec is None or end_sec is None:
                 raise RuntimeError(f"Extra cut #{index} lacks frame/sec bounds: {row!r}")
             start_frame = source_frame(float(start_sec))

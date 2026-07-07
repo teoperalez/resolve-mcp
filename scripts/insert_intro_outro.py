@@ -197,6 +197,31 @@ def cleanup_duplicate_gameplay_audio(tl, gameplay_name: str,
     return len(to_delete)
 
 
+def ranges_overlap(start_a: int, end_a: int, start_b: int, end_b: int) -> bool:
+    return start_a < end_b and start_b < end_a
+
+
+def verify_video_clear_of_a1(tl, video_item, label: str) -> list[dict]:
+    """Return A1 overlaps for a structural intro-like video item."""
+    v_start = video_item.GetStart()
+    v_end = v_start + video_item.GetDuration()
+    overlaps = []
+    for audio in tl.GetItemListInTrack('audio', 1) or []:
+        a_start = audio.GetStart()
+        a_end = a_start + audio.GetDuration()
+        if ranges_overlap(v_start, v_end, a_start, a_end):
+            overlaps.append({
+                'label': label,
+                'video': video_item.GetName() or '',
+                'video_start': v_start,
+                'video_end': v_end,
+                'audio': audio.GetName() or '',
+                'audio_start': a_start,
+                'audio_end': a_end,
+            })
+    return overlaps
+
+
 # ── retime helpers ─────────────────────────────────────────────────────────────
 
 def auto_detect_intro_speed(default_fast: int = 400) -> tuple[int, str]:
@@ -300,7 +325,7 @@ def prepare_retimed_intro(intro_mpi, speed_pct: int, pool, assets_bin):
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
-        intro_speed: int | None = None) -> int:
+        intro_speed: int | None = None, report_path: Path | None = None) -> int:
     # Resolve intro speed: explicit CLI value wins, otherwise auto-detect from
     # transcripts/min-battles.json (default 100% if no cache).
     if intro_speed is None:
@@ -462,6 +487,7 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
         print('ERROR: Intro was not placed on V1.', file=sys.stderr)
         return 1
     intro_tl_frames = intro_items[0].GetDuration()
+    intro_item = intro_items[0]
     print(f'Intro placed: {intro_tl_frames} TL frames '
           f'({intro_tl_frames/fps:.2f}s @ {intro_speed}%)')
 
@@ -533,6 +559,43 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
                     placed_markers += 1
                     break
         print(f'Reapplied ruler markers: {placed_markers}/{len(orig_markers)}.')
+    else:
+        placed_markers = 0
+
+    intro_a1_overlaps = verify_video_clear_of_a1(new_tl, intro_item, 'structural_intro')
+    if intro_a1_overlaps:
+        print('ERROR: structural intro video overlaps A1 audio:', file=sys.stderr)
+        for row in intro_a1_overlaps:
+            print(
+                f'  - {row["video"]} [{row["video_start"]},{row["video_end"]}) '
+                f'overlaps {row["audio"]} [{row["audio_start"]},{row["audio_end"]})',
+                file=sys.stderr,
+            )
+        return 1
+
+    if report_path:
+        report = {
+            'schema': 'rby_umb_intro_outro_report_v1',
+            'game_key': game_key,
+            'source_timeline': orig_name,
+            'timeline': new_name,
+            'fps': fps,
+            'intro_speed_pct': intro_speed,
+            'intro_clip': intro_item.GetName() or '',
+            'intro_duration_frames': intro_tl_frames,
+            'intro_a1_overlap_count': len(intro_a1_overlaps),
+            'original_clip_count': len(existing),
+            'original_start_frame': orig_start,
+            'original_end_frame': orig_end,
+            'outro_record_frame': outro_abs,
+            'outro_video': outro_vid_mpi.GetName() if outro_vid_mpi else None,
+            'outro_audio': outro_aud_mpi.GetName() if outro_aud_mpi else None,
+            'markers_reapplied': placed_markers,
+            'markers_expected': len(orig_markers),
+        }
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
+        print(f'Wrote intro/outro report: {report_path}')
 
     print(f'\nDone. New timeline: "{new_name}"  (original "{orig_name}" preserved)')
     return 0
@@ -550,9 +613,11 @@ def main() -> int:
                              '100%% for Minimum Battles Series, 400%% otherwise.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print what would happen without touching Resolve')
+    parser.add_argument('--report', type=Path,
+                        help='Write a JSON report for orchestrator cache/validation')
     args = parser.parse_args()
     return run(args.game, args.dry_run, args.source_timeline,
-               intro_speed=args.intro_speed)
+               intro_speed=args.intro_speed, report_path=args.report)
 
 
 if __name__ == '__main__':

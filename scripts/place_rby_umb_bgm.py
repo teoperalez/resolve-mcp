@@ -169,6 +169,8 @@ def protected_a2_clip(item, extra_regex: re.Pattern | None) -> bool:
         return True
     if "/victreebel-battle-audio/" in path:
         return True
+    if "/gymleaders/leaderintros/audio/" in path:
+        return True
     return bool(extra_regex and extra_regex.search(name))
 
 
@@ -640,6 +642,8 @@ def main() -> int:
         "fps": fps,
         "game_audio": str(args.game_audio),
         "dominant_v1_source": dominant,
+        "opening_first_source_offset_sec": args.opening_first_source_offset_sec,
+        "source_audio_offsets": args.source_audio_offset,
         "end_mode": "timeline_end" if args.end_at_timeline_end else "last_v1_as_outro",
         "outro_start_abs": outro_start,
         "opening_end_abs": opening_end,

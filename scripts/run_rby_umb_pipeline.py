@@ -62,6 +62,8 @@ FINAL_MANIFEST = M.profile_path("final_manifest", M.CODEX_DIR / f"{M.safe_file_s
 GAME_AUDIO = M.profile_path("game_audio", M.PROJECT_DIR / f"{M.source_name()}_tracks" / f"{M.source_name()}_3.wav")
 GAME_AUDIO_STREAM = M.profile_text("game_audio_stream", "0:a:2")
 BGM_REPORT = M.profile_path("bgm_report", M.CODEX_DIR / "qa-reports" / "rby-umb-bgm.json")
+INTRO_OUTRO_REPORT = M.profile_path("intro_outro_report", M.CODEX_DIR / "qa-reports" / "rby-umb-intro-outro.json")
+GEN1_INTROS_REPORT = M.profile_path("gen1_intros_report", M.CODEX_DIR / "qa-reports" / "battle-intros-placements.json")
 CLIP_COLOR_REPORT = M.profile_path("clip_color_report", M.CODEX_DIR / "qa-reports" / "rby-umb-clip-colors.json")
 PIPELINE_STATE = M.profile_path("pipeline_state", M.CODEX_DIR / "rby_umb_pipeline_state.json")
 PIPELINE_REPORT = M.profile_path("pipeline_order_report", M.CODEX_DIR / "rby_umb_pipeline_order_report.json")
@@ -69,6 +71,24 @@ PIPELINE_CACHE_DIR = M.profile_path("pipeline_cache_dir", M.CODEX_DIR / "orchest
 PIPELINE_STOP_REPORT = M.profile_path("pipeline_stop_report", M.CODEX_DIR / "orchestrator_stop.json")
 DEFAULT_WORKFLOW_CONFIG = REPO_DIR / "config" / "orchestrator_workflows.json"
 DEFAULT_PROFILE_ID = ""
+
+
+def profile_float_default(key: str, default: float) -> float:
+    try:
+        return M.profile_float(key, default)
+    except (TypeError, ValueError):
+        return default
+
+
+GAME_KEY = M.profile_text("game_key") or M.profile_text("game_version") or "pokemon_red_blue"
+STRUCTURAL_INTRO_SPEED = int(profile_float_default("intro_speed_pct", profile_float_default("intro_speed", 400.0)))
+GEN1_INTRO_SPEED = profile_float_default("gen1_intro_speed", 2.0)
+GEN1_INTRO_ROOT = M.profile_path("gen1_intro_root", Path(r"C:\Programming\RBYNewLayout\gymLeaders\LeaderIntros"))
+BGM_DIR = M.profile_path("bgm_dir", Path(r"C:\Programming\RBYNewLayout\audio\bgm"))
+OPENING_BGM_OFFSET_SEC = profile_float_default(
+    "opening_bgm_offset_sec",
+    profile_float_default("opening_first_source_offset_sec", 13.0),
+)
 
 
 ORDER = [
@@ -95,12 +115,14 @@ STAGE_OUTPUTS: dict[str, list[Path]] = {
     "compile-approved-cuts": [APPROVED_SOURCE_CUTS],
     "extract-game-audio": [GAME_AUDIO],
     "final-base": [FINAL_MANIFEST],
+    "structural-intro-outro": [INTRO_OUTRO_REPORT],
+    "gen1-intros": [GEN1_INTROS_REPORT],
     "bgm": [BGM_REPORT],
     "clip-colors": [CLIP_COLOR_REPORT],
-    "final-assembly": [FINAL_MANIFEST, BGM_REPORT, CLIP_COLOR_REPORT],
+    "final-assembly": [FINAL_MANIFEST, INTRO_OUTRO_REPORT, GEN1_INTROS_REPORT, BGM_REPORT, CLIP_COLOR_REPORT],
     "validate-order": [PIPELINE_REPORT],
 }
-CACHE_ONLY_STAGES = {"gen1-intros", "find-member-carousel", "carousel", "carousel-dry-run"}
+CACHE_ONLY_STAGES = {"find-member-carousel", "carousel", "carousel-dry-run"}
 
 
 class PipelineStop(RuntimeError):
@@ -196,6 +218,44 @@ def active_profile_parameters() -> dict:
         if profile.get("id") == profile_id:
             return dict(profile.get("parameters") or {})
     return {}
+
+
+def profile_source_audio_offset_args() -> list[str]:
+    """Return --source-audio-offset values from profile parameters.
+
+    Split source captures are combined into one game-audio bridge WAV. The BGM
+    pass needs the original V1 source file -> combined-WAV frame offset map so
+    gameplay bridges stay sample-aligned after the final rebuild.
+    """
+    rows: list[str] = []
+    raw_offsets = M.PROFILE.get("source_audio_offsets")
+    if isinstance(raw_offsets, list):
+        rows.extend(str(item) for item in raw_offsets if str(item).strip())
+    elif isinstance(raw_offsets, str) and raw_offsets.strip():
+        try:
+            parsed = json.loads(raw_offsets)
+        except json.JSONDecodeError:
+            parsed = [part.strip() for part in raw_offsets.split(";") if part.strip()]
+        if isinstance(parsed, list):
+            rows.extend(str(item) for item in parsed if str(item).strip())
+        else:
+            rows.append(str(parsed))
+
+    for key, value in sorted(M.PROFILE.items()):
+        if key.startswith("source_audio_offset_") and value:
+            rows.append(str(value))
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        row = row.strip()
+        if not row or "=" not in row:
+            continue
+        if row.lower() in seen:
+            continue
+        deduped.append(row)
+        seen.add(row.lower())
+    return deduped
 
 
 def cut_candidate_flags() -> list[str]:
@@ -303,11 +363,106 @@ def timeline_from_manifest(path: Path, fallback: str) -> str:
     return data.get("resolve_import", {}).get("timeline") or data.get("timeline_name") or fallback
 
 
+def select_base_timeline(preferred_name: str, fallback_name: str):
+    _resolve, project = connect()
+    names_to_try = [preferred_name, fallback_name]
+    for name in list(names_to_try):
+        if "orchestrator final base" in name:
+            names_to_try.append(name.replace("orchestrator final base", "final rebuild base"))
+        if "CODEx final rebuild base" in name and "RBY UMB" not in name:
+            names_to_try.append(name.replace("CODEx final rebuild base", "RBY UMB CODEx final rebuild base"))
+
+    seen: set[str] = set()
+    for name in names_to_try:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        for i in range(1, int(project.GetTimelineCount() or 0) + 1):
+            timeline = project.GetTimelineByIndex(i)
+            if timeline and (timeline.GetName() or "") == name:
+                project.SetCurrentTimeline(timeline)
+                return timeline
+
+    candidates = []
+    for i in range(1, int(project.GetTimelineCount() or 0) + 1):
+        timeline = project.GetTimelineByIndex(i)
+        if not timeline:
+            continue
+        name = timeline.GetName() or ""
+        if "(edit)" in name or "(gen1 intros)" in name:
+            continue
+        if "final rebuild base" in name or "final base" in name:
+            candidates.append(timeline)
+    if candidates:
+        candidates.sort(key=lambda tl: tl.GetName() or "")
+        selected = candidates[-1]
+        project.SetCurrentTimeline(selected)
+        return selected
+
+    raise RuntimeError(
+        "Timeline not found in Resolve. Tried: "
+        + ", ".join(repr(name) for name in seen)
+    )
+
+
+def timeline_shape_score(name: str, base_name: str) -> tuple[int, str]:
+    """Prefer the deterministic finished shape over earlier faulty rebuilds."""
+    if name == base_name:
+        return (0, name)
+    if not name.startswith(base_name):
+        return (-1, name)
+    has_structural = "(edit)" in name
+    has_gen1 = "(gen1 intros)" in name
+    structural_before_gen1 = name.find("(edit)") != -1 and (
+        name.find("(gen1 intros)") == -1 or name.find("(edit)") < name.find("(gen1 intros)")
+    )
+    gen1_before_structural = name.find("(gen1 intros)") != -1 and (
+        name.find("(edit)") == -1 or name.find("(gen1 intros)") < name.find("(edit)")
+    )
+    score = 1
+    if has_structural:
+        score += 10
+    if has_gen1:
+        score += 20
+    if structural_before_gen1:
+        score += 30
+    if gen1_before_structural:
+        score -= 30
+    return (score, name)
+
+
+def select_structural_timeline(base_name: str):
+    _resolve, project = connect()
+    current = project.GetCurrentTimeline()
+    if current:
+        current_name = current.GetName() or ""
+        if current_name.startswith(base_name) and "(edit)" in current_name and "(gen1 intros)" not in current_name:
+            return current
+
+    candidates = []
+    for i in range(1, int(project.GetTimelineCount() or 0) + 1):
+        timeline = project.GetTimelineByIndex(i)
+        if not timeline:
+            continue
+        name = timeline.GetName() or ""
+        if name.startswith(base_name) and "(edit)" in name and "(gen1 intros)" not in name:
+            candidates.append(timeline)
+    if candidates:
+        candidates.sort(key=lambda tl: timeline_shape_score(tl.GetName() or "", base_name))
+        selected = candidates[-1]
+        project.SetCurrentTimeline(selected)
+        return selected
+    return set_current_timeline(base_name)
+
+
 def select_finished_timeline(base_name: str):
     _resolve, project = connect()
     current = project.GetCurrentTimeline()
-    if current and (current.GetName() or "").startswith(base_name) and "(gen1 intros)" in (current.GetName() or ""):
-        return current
+    if current:
+        current_name = current.GetName() or ""
+        if current_name.startswith(base_name) and "(edit)" in current_name and "(gen1 intros)" in current_name:
+            if current_name.find("(edit)") < current_name.find("(gen1 intros)"):
+                return current
 
     candidates = []
     for i in range(1, int(project.GetTimelineCount() or 0) + 1):
@@ -319,10 +474,61 @@ def select_finished_timeline(base_name: str):
             candidates.append(timeline)
     if not candidates:
         raise RuntimeError(f"No final timeline found with base name: {base_name}")
-    candidates.sort(key=lambda tl: ("(gen1 intros)" in (tl.GetName() or ""), tl.GetName() or ""))
+    candidates.sort(key=lambda tl: timeline_shape_score(tl.GetName() or "", base_name))
     selected = candidates[-1]
     project.SetCurrentTimeline(selected)
     return selected
+
+
+def resolve_clip_source_path(item) -> str:
+    try:
+        mpi = item.GetMediaPoolItem()
+    except Exception:
+        mpi = None
+    if mpi is None:
+        return ""
+    try:
+        return mpi.GetClipProperty("File Path") or ""
+    except Exception:
+        return ""
+
+
+def is_intro_like_video(item) -> bool:
+    name = (item.GetName() or "").lower()
+    path = resolve_clip_source_path(item).replace("\\", "/").lower()
+    return (
+        "intro" in name
+        or "__2x_resolve" in name
+        or "retimed-gen1-intros" in path
+        or "/gymleaders/leaderintros/" in path
+    )
+
+
+def intro_video_a1_overlaps(timeline) -> list[dict]:
+    videos = []
+    for track in range(1, int(timeline.GetTrackCount("video") or 0) + 1):
+        for item in timeline.GetItemListInTrack("video", track) or []:
+            if is_intro_like_video(item):
+                videos.append((track, item))
+    a1_items = timeline.GetItemListInTrack("audio", 1) or []
+    overlaps = []
+    for track, video in videos:
+        v0 = video.GetStart()
+        v1 = v0 + video.GetDuration()
+        for audio in a1_items:
+            a0 = audio.GetStart()
+            a1 = a0 + audio.GetDuration()
+            if v0 < a1 and a0 < v1:
+                overlaps.append({
+                    "video_track": track,
+                    "video": video.GetName() or "",
+                    "video_start": v0,
+                    "video_end": v1,
+                    "audio": audio.GetName() or "",
+                    "audio_start": a0,
+                    "audio_end": a1,
+                })
+    return overlaps
 
 
 def mark_state(stage: str, status: str, **extra) -> None:
@@ -351,6 +557,7 @@ def mark_state(stage: str, status: str, **extra) -> None:
 
 def artifact_status() -> dict:
     carousel_marker = None
+    intro_overlap_count = None
     current_timeline = None
     track_counts = None
     try:
@@ -365,6 +572,7 @@ def artifact_status() -> dict:
                 "a2": len(timeline.GetItemListInTrack("audio", 2) or []),
                 "a3": len(timeline.GetItemListInTrack("audio", 3) or []),
             }
+            intro_overlap_count = len(intro_video_a1_overlaps(timeline))
             for _rel, data in (timeline.GetMarkers() or {}).items():
                 marker_parts = {
                     part.strip().lower()
@@ -394,11 +602,14 @@ def artifact_status() -> dict:
         "approved_narrative": APPROVED_NARRATIVE.exists(),
         "approved_source_cuts": APPROVED_SOURCE_CUTS.exists(),
         "final_manifest": FINAL_MANIFEST.exists(),
+        "intro_outro_report": INTRO_OUTRO_REPORT.exists(),
+        "gen1_intros_report": GEN1_INTROS_REPORT.exists(),
         "game_audio": GAME_AUDIO.exists(),
         "bgm_report": BGM_REPORT.exists(),
         "clip_color_report": CLIP_COLOR_REPORT.exists(),
         "current_timeline": current_timeline,
         "track_counts": track_counts,
+        "intro_video_a1_overlap_count": intro_overlap_count,
         "carousel_marker_on_current_timeline": carousel_marker,
     }
 
@@ -1070,19 +1281,54 @@ def stage_final_base(args: argparse.Namespace) -> None:
     mark_state("final-base", "complete", manifest=str(FINAL_MANIFEST))
 
 
+def stage_structural_intro_outro(args: argparse.Namespace) -> None:
+    require([FINAL_MANIFEST], "structural-intro-outro")
+    base_timeline = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    run(
+        [
+            sys.executable,
+            SCRIPT_DIR / "insert_intro_outro.py",
+            "--game",
+            GAME_KEY,
+            "--source-timeline",
+            base_timeline,
+            "--intro-speed",
+            str(STRUCTURAL_INTRO_SPEED),
+            "--report",
+            INTRO_OUTRO_REPORT,
+        ]
+    )
+    mark_state(
+        "structural-intro-outro",
+        "complete",
+        report=str(INTRO_OUTRO_REPORT),
+        game_key=GAME_KEY,
+        intro_speed=STRUCTURAL_INTRO_SPEED,
+    )
+
+
 def stage_gen1_intros(args: argparse.Namespace) -> None:
-    require([FINAL_MANIFEST], "gen1-intros")
-    set_current_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME))
+    require([FINAL_MANIFEST, INTRO_OUTRO_REPORT], "gen1-intros")
+    base_timeline = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    select_structural_timeline(base_timeline)
     run(
         [
             sys.executable,
             SCRIPT_DIR / "place_battle_intros.py",
             "--gen1-insert",
-            "--gen1-speed",
+            "--gen1-root",
+            GEN1_INTRO_ROOT,
+            "--gen1-video-track",
             "2",
+            "--gen1-speed",
+            str(GEN1_INTRO_SPEED),
+            "--gen1-battle-audio-track",
+            "2",
+            "--report",
+            GEN1_INTROS_REPORT,
         ]
     )
-    mark_state("gen1-intros", "complete")
+    mark_state("gen1-intros", "complete", report=str(GEN1_INTROS_REPORT), speed=GEN1_INTRO_SPEED)
 
 
 def stage_extract_game_audio(args: argparse.Namespace) -> None:
@@ -1111,19 +1357,32 @@ def stage_extract_game_audio(args: argparse.Namespace) -> None:
 
 def stage_bgm(args: argparse.Namespace, dry_run: bool) -> None:
     require([CUT_CANDIDATES, APPROVED_SOURCE_CUTS, GAME_AUDIO], "bgm")
+    base_timeline = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    selected = select_finished_timeline(base_timeline)
     cmd = [
         sys.executable,
         SCRIPT_DIR / "place_rby_umb_bgm.py",
         "--game-audio",
         GAME_AUDIO,
-        "--end-at-timeline-end",
+        "--bgm-dir",
+        BGM_DIR,
+        "--opening-first-source-offset-sec",
+        str(OPENING_BGM_OFFSET_SEC),
         "--report",
         BGM_REPORT,
     ]
+    for offset in profile_source_audio_offset_args():
+        cmd.extend(["--source-audio-offset", offset])
     if dry_run:
         cmd.append("--dry-run")
     run(cmd)
-    mark_state("bgm-dry-run" if dry_run else "bgm", "complete", report=str(BGM_REPORT))
+    mark_state(
+        "bgm-dry-run" if dry_run else "bgm",
+        "complete",
+        report=str(BGM_REPORT),
+        timeline=selected.GetName(),
+        opening_first_source_offset_sec=OPENING_BGM_OFFSET_SEC,
+    )
 
 
 def stage_carousel(args: argparse.Namespace, dry_run: bool) -> None:
@@ -1148,7 +1407,7 @@ def stage_find_member_carousel(args: argparse.Namespace) -> None:
 
 def stage_clip_colors(args: argparse.Namespace, dry_run: bool = False) -> None:
     require([FINAL_MANIFEST], "clip-colors")
-    timeline_name = timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME)
+    timeline_name = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
     current = select_finished_timeline(timeline_name)
     cmd = [
         sys.executable,
@@ -1185,6 +1444,7 @@ def stage_clip_colors(args: argparse.Namespace, dry_run: bool = False) -> None:
 def stage_final_assembly(args: argparse.Namespace) -> None:
     require([APPROVED_SOURCE_CUTS, GAME_AUDIO], "final-assembly")
     run_cached_stage(args, "final-base", stage_final_base)
+    run_cached_stage(args, "structural-intro-outro", stage_structural_intro_outro)
     run_cached_stage(args, "gen1-intros", stage_gen1_intros)
     run_cached_stage(args, "bgm", lambda ns: stage_bgm(ns, dry_run=False))
     run_cached_stage(args, "find-member-carousel", stage_find_member_carousel)
@@ -1194,6 +1454,8 @@ def stage_final_assembly(args: argparse.Namespace) -> None:
         "final-assembly",
         "complete",
         manifest=str(FINAL_MANIFEST),
+        intro_outro_report=str(INTRO_OUTRO_REPORT),
+        gen1_intros_report=str(GEN1_INTROS_REPORT),
         bgm_report=str(BGM_REPORT),
         clip_color_report=str(CLIP_COLOR_REPORT),
     )
@@ -1210,6 +1472,8 @@ def stage_validate_order(args: argparse.Namespace) -> int:
         "cut_candidates",
         "approved_source_cuts",
         "final_manifest",
+        "intro_outro_report",
+        "gen1_intros_report",
         "game_audio",
         "bgm_report",
         "clip_color_report",
@@ -1218,6 +1482,8 @@ def stage_validate_order(args: argparse.Namespace) -> int:
             missing.append(key)
     if not status.get("carousel_marker_on_current_timeline"):
         missing.append("carousel_marker_on_current_timeline")
+    if status.get("intro_video_a1_overlap_count"):
+        missing.append("intro_video_a1_overlap_count_must_be_zero")
     report = {
         "schema": "rby_umb_pipeline_order_report_v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -1241,6 +1507,10 @@ def stage_plan(args: argparse.Namespace) -> None:
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "apply-html-decisions"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "compile-approved-cuts"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "extract-game-audio"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "structural-intro-outro"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "gen1-intros"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "bgm"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "carousel"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "final-assembly"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "clip-colors"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "validate-order", "--strict"],
@@ -1272,6 +1542,7 @@ def main() -> int:
             "apply-html-decisions",
             "compile-approved-cuts",
             "final-base",
+            "structural-intro-outro",
             "gen1-intros",
             "extract-game-audio",
             "bgm-dry-run",
@@ -1329,6 +1600,9 @@ def main() -> int:
         return 0
     if args.stage == "final-base":
         run_cached_stage(args, "final-base", stage_final_base)
+        return 0
+    if args.stage == "structural-intro-outro":
+        run_cached_stage(args, "structural-intro-outro", stage_structural_intro_outro)
         return 0
     if args.stage == "gen1-intros":
         run_cached_stage(args, "gen1-intros", stage_gen1_intros)
