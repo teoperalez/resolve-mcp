@@ -299,12 +299,27 @@ AUTO_EDITOR_FIELDS = [
 
 
 class OrchestratorApp(tk.Tk):
+    @staticmethod
+    def _default_profile(catalog: WorkflowCatalog) -> ProjectProfile | None:
+        if not catalog.profiles:
+            return None
+        env_profile = os.environ.get("ORCHESTRATOR_PROFILE_ID")
+        if env_profile:
+            match = next((profile for profile in catalog.profiles if profile.id == env_profile), None)
+            if match:
+                return match
+        for profile in reversed(catalog.profiles):
+            project_dir = str(profile.project_dir or "")
+            if "{" not in project_dir and Path(project_dir).exists():
+                return profile
+        return catalog.profiles[0]
+
     def __init__(self, catalog: WorkflowCatalog, config_path: Path) -> None:
         super().__init__()
         self.config_path = config_path
         self.catalog = catalog
         self.raw_config = self._read_config()
-        self.profile: ProjectProfile | None = catalog.profiles[0] if catalog.profiles else None
+        self.profile: ProjectProfile | None = self._default_profile(catalog)
         self.workflow: WorkflowDefinition | None = None
         self.events: queue.Queue[RunEvent] = queue.Queue()
         self.prompt_engine = PromptEngine(catalog.repo)
@@ -1146,8 +1161,8 @@ class OrchestratorApp(tk.Tk):
         self.profile_combo["values"] = [profile.name for profile in self.catalog.profiles]
         self.workflow_id_combo["values"] = [workflow.id for workflow in self.catalog.workflows]
         self.profile = next((profile for profile in self.catalog.profiles if profile.id == selected_id), None)
-        if self.profile is None and self.catalog.profiles:
-            self.profile = self.catalog.profiles[0]
+        if self.profile is None:
+            self.profile = self._default_profile(self.catalog)
         self._load_profile()
         self._log(f"Reloaded project config: {self.config_path}")
 
@@ -1368,7 +1383,7 @@ class OrchestratorApp(tk.Tk):
         }
         if workflow_id == "gen1_rby_umb_review_first":
             common.update({
-                "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+                "pipeline_script": "scripts/run_rby_umb_pipeline.py",
                 "carousel_max_candidates": 30,
                 "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
             })
@@ -1422,7 +1437,7 @@ class OrchestratorApp(tk.Tk):
             "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
             "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
             "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
-            "pipeline_order_report": "{codex_dir}/mewtwo_pipeline_order_report.json",
+            "pipeline_order_report": "{codex_dir}/rby_umb_pipeline_order_report.json",
             "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
             "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
         }
@@ -1547,7 +1562,7 @@ class OrchestratorApp(tk.Tk):
             return
         steps = [step for step in self.workflow.steps if step.run_in_full]
         try:
-            self.threaded_run.start(self.profile, self.workflow, steps)
+            self.threaded_run.start(self.profile, self.workflow, steps, skip_completed=True)
         except Exception as exc:
             messagebox.showerror("Resolve Orchestrator", str(exc))
 

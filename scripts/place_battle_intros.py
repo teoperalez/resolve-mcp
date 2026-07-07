@@ -5,8 +5,14 @@ major-boss battle on the current Resolve timeline.
 For Gen 1 Red/Blue/Yellow projects, pass `--gen1-insert`. Those leader intros
 are discrete video + audio files (e.g. Brock.mp4 + audio/Brock.mp3), not silent
 overlays. In that mode this script creates a derived timeline, splits clips at
-each leader intro point, inserts the intro video on V1 and audio on the selected
-audio track, and ripples all later timeline content to the right.
+each leader intro point, inserts the intro video on V1 and original-speed audio
+on the selected audio track, and ripples all later timeline content to the
+right. `--gen1-speed` retimes only the video; matching audio is not sped up and
+is truncated to the inserted video duration.
+For repeated Gen 1 leader/E4/champion attempts after a give-up or loss, the
+script inserts only a one-second source-backed pre-battle gap instead of
+repeating the leader intro. Only the first attempt against each trainer gets
+the discrete intro.
 
 For each battle in `transcripts/battles.json` classified as `rival` or `gym`
 (in `transcripts/battle-types.json`):
@@ -226,6 +232,8 @@ def media_duration_native_frames(mpi, fallback_tl_frames: int) -> int:
 
 def gen1_leader_name(battle: dict) -> str | None:
     raw = (battle.get('trainer_name') or battle.get('leader') or '').strip()
+    raw = re.sub(r'^(START|RESUME)\s+\d+\s+', '', raw, flags=re.IGNORECASE).strip()
+    raw = re.sub(r'\bBlue$', '', raw, flags=re.IGNORECASE).strip()
     key = raw.lower().replace(' battle start', '').replace(' battle', '')
     key = re.sub(r'\s+', ' ', key).strip()
     if key in ('rival', 'rival 1', 'rival 2'):
@@ -330,6 +338,7 @@ def battle_inputs_from_markers(tl) -> tuple[list[dict], dict]:
         if not name.endswith(' Battle Start'):
             continue
         trainer = name.removesuffix(' Battle Start')
+        trainer_for_type = re.sub(r'^(START|RESUME)\s+\d+\s+', '', trainer, flags=re.IGNORECASE).strip()
         idx = len(battles)
         battles.append({
             'trainer_name': trainer,
@@ -338,7 +347,7 @@ def battle_inputs_from_markers(tl) -> tuple[list[dict], dict]:
             'first_time': True,
         })
         types[str(idx)] = {
-            'type': 'rival' if trainer.lower().startswith('rival') else 'gym',
+            'type': 'rival' if trainer_for_type.lower().startswith('rival') else 'gym',
             'reasoning': 'derived from canonical timeline Battle Start marker',
         }
     return battles, types
@@ -409,6 +418,69 @@ def split_shift_specs(existing: list[dict], insertions: list[dict]) -> list[dict
     return sorted(shifted, key=lambda s: (s['mediaType'], s['trackIndex'], s['recordRel']))
 
 
+def source_gap_specs(existing: list[dict], record_rel: int, duration_frames: int) -> list[dict]:
+    """Build V1/A1 source slices for a one-second pre-battle gap.
+
+    Duplicate Gen 1 leader attempts should not get the full leader intro again,
+    but they still need a short source-backed pre-battle gap. Use the clip at
+    the battle marker when possible; when the marker is exactly on a cut, use
+    the next clip's source in-point and pull the requested handle before it.
+    """
+    specs = []
+    for media_type, track_index in ((1, 1), (2, 1)):
+        candidates = sorted(
+            [
+                s for s in existing
+                if int(s['mediaType']) == media_type and int(s['trackIndex']) == track_index
+            ],
+            key=lambda s: (int(s['relRecord']), int(s['startFrame'])),
+        )
+        hit = None
+        source_at = None
+        for spec in candidates:
+            rel = int(spec['relRecord'])
+            dur = int(spec['duration'])
+            if rel <= record_rel < rel + dur:
+                hit = spec
+                source_at = int(spec['startFrame']) + (record_rel - rel)
+                break
+        if hit is None:
+            next_spec = next((s for s in candidates if int(s['relRecord']) >= record_rel), None)
+            if next_spec is not None:
+                hit = next_spec
+                source_at = int(next_spec['startFrame'])
+        if hit is None:
+            prev_spec = next(
+                (
+                    s for s in reversed(candidates)
+                    if int(s['relRecord']) + int(s['duration']) <= record_rel
+                ),
+                None,
+            )
+            if prev_spec is not None:
+                hit = prev_spec
+                source_at = int(prev_spec['startFrame']) + int(prev_spec['duration'])
+        if hit is None or source_at is None:
+            raise RuntimeError(
+                f'Could not find V1/A1 source clip for duplicate Gen 1 gap at rel {record_rel}'
+            )
+        start = source_at - int(duration_frames)
+        if start < 0:
+            raise RuntimeError(
+                f'Not enough source handle for duplicate Gen 1 gap at rel {record_rel}: '
+                f'source_at={source_at}, requested={duration_frames}'
+            )
+        specs.append({
+            'mediaPoolItem': hit['mediaPoolItem'],
+            'startFrame': start,
+            'endFrame': source_at,
+            'trackIndex': track_index,
+            'mediaType': media_type,
+            'source_clip_name': hit.get('name', ''),
+        })
+    return specs
+
+
 def add_shifted_markers(src_tl, dst_tl, insertions: list[dict]) -> tuple[int, int]:
     markers = src_tl.GetMarkers() or {}
     used = set()
@@ -434,6 +506,21 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
                     audio_track: int, dry_run: bool) -> int:
     existing = collect_timeline_clip_specs(tl)
     insertions = sorted(placements, key=lambda p: p['record_rel'])
+    for p in insertions:
+        if p.get('kind') == 'repeat_gap':
+            try:
+                p['gap_specs'] = source_gap_specs(
+                    existing,
+                    int(p['record_rel']),
+                    int(p['duration_frames']),
+                )
+            except Exception as exc:
+                print(
+                    f'ERROR: failed to prepare duplicate Gen 1 pre-battle gap '
+                    f'for {p.get("leader", "?")}: {exc}',
+                    file=sys.stderr,
+                )
+                return 1
     shifted = split_shift_specs(existing, insertions)
     new_name = unique_timeline_name(project, tl.GetName() + ' (gen1 intros)')
 
@@ -470,6 +557,18 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
         colors.append(spec.get('clipColor', ''))
     for p in insertions:
         record = new_start + p['record_rel'] + cumulative_shift(p['record_rel'], [i for i in insertions if i is not p])
+        if p.get('kind') == 'repeat_gap':
+            for gap_spec in p.get('gap_specs') or []:
+                payload.append({
+                    'mediaPoolItem': gap_spec['mediaPoolItem'],
+                    'startFrame': gap_spec['startFrame'],
+                    'endFrame': gap_spec['endFrame'],
+                    'recordFrame': record,
+                    'trackIndex': gap_spec['trackIndex'],
+                    'mediaType': gap_spec['mediaType'],
+                })
+                colors.append('')
+            continue
         payload.append({
             'mediaPoolItem': p['video_mpi'],
             'startFrame': 0,
@@ -505,7 +604,8 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
 
     track_after = new_tl.GetItemListInTrack('video', 1) or []
     missing = []
-    for p in insertions:
+    intro_insertions = [p for p in insertions if p.get('kind') != 'repeat_gap']
+    for p in intro_insertions:
         shifted_rel = p['record_rel'] + cumulative_shift(p['record_rel'], [i for i in insertions if i is not p])
         expected_start = new_start + shifted_rel
         expected_end = expected_start + p['duration_frames']
@@ -529,17 +629,28 @@ def run_gen1_insert(project, pool, tl, fps: float, placements: list[dict],
         'audio_track': audio_track,
         'placements': [
             {
+                'kind': p.get('kind', 'intro'),
                 'battle_index': p['battle_index'],
                 'leader': p['leader'],
-                'video': p['video_mpi'].GetName(),
+                'video': p['video_mpi'].GetName() if p.get('video_mpi') else None,
                 'audio': p['audio_mpi'].GetName() if p.get('audio_mpi') else None,
                 'record_frame_rel': p['record_rel'],
                 'duration_frames': p['duration_frames'],
+                'gap_sources': [
+                    {
+                        'name': spec.get('source_clip_name', ''),
+                        'start_frame': spec.get('startFrame'),
+                        'end_frame': spec.get('endFrame'),
+                        'track_index': spec.get('trackIndex'),
+                        'media_type': spec.get('mediaType'),
+                    }
+                    for spec in (p.get('gap_specs') or [])
+                ],
             }
             for p in insertions
         ],
     }, indent=2, ensure_ascii=False), encoding='utf-8')
-    print(f'API verification passed: {len(insertions)}/{len(insertions)} Gen 1 intro clips found.')
+    print(f'API verification passed: {len(intro_insertions)}/{len(intro_insertions)} Gen 1 intro clips found.')
     print(f'Wrote placement manifest: {manifest}')
     return 0
 
@@ -598,7 +709,9 @@ def main() -> int:
     ap.add_argument('--gen1-audio-track', type=int, default=3,
                     help='Audio track for Gen 1 leader intro audio (default: A3)')
     ap.add_argument('--gen1-speed', type=float, default=2.0,
-                    help='Playback speed for Gen 1 discrete leader intro video/audio (default: 2.0)')
+                    help='Playback speed for Gen 1 discrete leader intro video only; audio stays 1x (default: 2.0)')
+    ap.add_argument('--gen1-repeat-gap-frames', type=int, default=60,
+                    help='For repeated Gen 1 leader/champion attempts, insert this many source-backed pre-battle frames instead of another intro (default: 60).')
     ap.add_argument('--no-blue-variants', action='store_true',
                     help='In --gen1-insert mode, do not prefer LeaderBlue.mp4 variants.')
     ap.add_argument('--dry-run', action='store_true',
@@ -662,6 +775,7 @@ def main() -> int:
 
     placements = []
     skipped    = []
+    gen1_intro_leaders_seen = set()
 
     for battle_index, b in enumerate(battles):
         t_entry = types.get(str(battle_index)) or types.get(battle_index)
@@ -688,6 +802,28 @@ def main() -> int:
             if not leader:
                 skipped.append((b, f'[{btype}] no Gen 1 discrete intro for this trainer'))
                 continue
+            leader_key = leader.lower()
+            if leader_key in gen1_intro_leaders_seen:
+                gap_frames = max(0, int(args.gen1_repeat_gap_frames))
+                if gap_frames <= 0:
+                    skipped.append((b, f'[{btype}] duplicate Gen 1 attempt for {leader}; repeat gap disabled'))
+                    continue
+                placements.append({
+                    'kind': 'repeat_gap',
+                    'battle': b,
+                    'battle_index': battle_index,
+                    'type': btype,
+                    'leader': leader,
+                    'tl_frame': tl_frame,
+                    'record_rel': int(tl_frame - tl.GetStartFrame()),
+                    'duration_frames': gap_frames,
+                    'reason': (
+                        f'Duplicate Gen 1 {leader} attempt: no repeated leader intro; '
+                        f'insert {gap_frames} source-backed pre-battle frames'
+                    ),
+                })
+                continue
+            gen1_intro_leaders_seen.add(leader_key)
             video_path, audio_path = gen1_intro_paths(
                 leader,
                 Path(args.gen1_root),
@@ -702,9 +838,8 @@ def main() -> int:
             if abs(args.gen1_speed - 1.0) >= 0.001:
                 try:
                     video_path = retime_gen1_media(video_path, args.gen1_speed, 'video')
-                    audio_path = retime_gen1_media(audio_path, args.gen1_speed, 'audio')
                 except Exception as exc:
-                    skipped.append((b, f'[{btype}] failed to retime Gen 1 intro for {leader}: {exc}'))
+                    skipped.append((b, f'[{btype}] failed to retime Gen 1 intro video for {leader}: {exc}'))
                     continue
             video_mpi = item_for_path(pool, video_path, mpi_by_path)
             audio_mpi = item_for_path(pool, audio_path, mpi_by_path)
@@ -715,6 +850,7 @@ def main() -> int:
             duration_native_frames = media_duration_native_frames(video_mpi, duration_frames)
             audio_duration_frames = media_duration_tl_frames(audio_mpi, fps)
             placements.append({
+                'kind': 'intro',
                 'battle': b,
                 'battle_index': battle_index,
                 'type': btype,
@@ -726,7 +862,10 @@ def main() -> int:
                 'duration_frames': duration_frames,
                 'duration_native_frames': duration_native_frames,
                 'audio_duration_frames': min(audio_duration_frames, duration_frames),
-                'reason': f'Gen 1 insert @ {args.gen1_speed:g}x → {video_path.name} + {audio_path.name}',
+                'reason': (
+                    f'Gen 1 insert video @ {args.gen1_speed:g}x, audio @ 1x → '
+                    f'{video_path.name} + {audio_path.name}'
+                ),
             })
             continue
 
@@ -792,7 +931,8 @@ def main() -> int:
     print(f'\nPlanned placements: {len(placements)}')
     for p in placements:
         if args.gen1_insert:
-            print(f'  battle[{p["battle_index"]}] {p["type"]:5s}  '
+            kind = 'gap' if p.get('kind') == 'repeat_gap' else 'intro'
+            print(f'  battle[{p["battle_index"]}] {p["type"]:5s}  {kind:5s} '
                   f'tl={p["record_rel"]/fps:7.1f}s  dur={p["duration_frames"]/fps:4.1f}s  '
                   f'{p["leader"]}  ({p["reason"]})')
         else:

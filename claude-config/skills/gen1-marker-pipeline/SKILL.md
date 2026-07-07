@@ -136,7 +136,7 @@ The `battle-start` and `battle-end` events for the same trainer use the same col
 ## What this skill does NOT do
 
 - **Cut analysis** — chapter markers ≠ false-start cuts. Run the cut-analysis pipeline (or `final-render-cut-qa` after rendering) separately.
-- **Edit timeline construction** — no intro/outro, no V2 battle intros, no carousel layout. That's `/edittimeline` Steps 8+ for Gen 2; for Gen 1, the equivalent pipeline lives in `RBYNewLayout` (separate project).
+- **Edit timeline construction** — no intro/outro, no V2 battle intros, no carousel layout. That belongs to the orchestrator workflow; for Gen 1, the equivalent marker pipeline lives in `RBYNewLayout` (separate project).
 - **Audio mix** — no Fairlight, no A2 BGM, no fades. The chapter markers are reference points for downstream editing; they don't drive audio decisions.
 - **Rendering** — exit when phase 2 finishes; user renders manually or via `render_timeline.py` separately.
 

@@ -55,6 +55,6 @@ From `C:\Programming\IRLPC Hyperframes\scripts\resolve_set_markers.py`:
 - For clip-level mirror: `clip_frame = leftOffset + (timeline_frame - clip_start)`. If the resulting frame is at `lo` or `lo+1`, Resolve hides it under the clip-edge chrome — nudge to `lo + 2` minimum, and if `TimelineItem.AddMarker` returns False (collision with an existing source-media marker), retry nudging forward by 1, up to 30 attempts.
 - When clearing markers: also walk every V1 clip's `GetMarkers()` and `DeleteMarkerAtFrame` so re-runs don't silently no-op.
 
-## Why this matters for the resolve-mcp /edittimeline pipeline
+## Why this matters for the resolve-mcp orchestrator pipeline
 
 The previous `insert_battle_gaps.py` silently appended all 8 "gap" clips to the END of the timeline because it omitted `recordFrame`. Adding `recordFrame` doesn't actually insert — Resolve returns a hollow TimelineItem object that never makes it onto the timeline. The only working approach is delete-and-rebuild (or FCPXML round-trip). Never claim "8 extended" again without verifying V1 clip count went up by 8 AND the inserts are at the expected timeline positions.

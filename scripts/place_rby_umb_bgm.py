@@ -251,18 +251,59 @@ def dominant_v1_source(v1) -> str:
     return max(counts.items(), key=lambda kv: kv[1])[0] if counts else ""
 
 
-def build_v1_map(v1, dominant_name: str, fps: float) -> list[dict]:
+def norm_source_key(path: str | Path) -> str:
+    return str(path).replace("\\", "/").lower()
+
+
+def parse_source_offsets(rows: list[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for row in rows:
+        if "=" not in row:
+            raise SystemExit(f"Invalid --source-audio-offset value {row!r}; expected SOURCE=FRAMES")
+        key, value = row.split("=", 1)
+        key = norm_source_key(key.strip())
+        try:
+            frames = int(value.strip())
+        except ValueError as exc:
+            raise SystemExit(f"Invalid frame offset in --source-audio-offset {row!r}") from exc
+        if not key:
+            raise SystemExit(f"Invalid empty source key in --source-audio-offset {row!r}")
+        out[key] = frames
+    return out
+
+
+def offset_for_source(source_path: str, offsets: dict[str, int]) -> int | None:
+    if not offsets:
+        return 0
+    full = norm_source_key(source_path)
+    name = Path(source_path).name.lower()
+    stem = Path(source_path).stem.lower()
+    for key, frames in offsets.items():
+        if key in {full, name, stem} or key in full:
+            return frames
+    return None
+
+
+def build_v1_map(v1, dominant_name: str, fps: float,
+                 source_offsets: dict[str, int] | None = None) -> list[dict]:
     out = []
     for item in v1:
-        src_name = Path(clip_source_path(item)).name
-        if src_name != dominant_name:
+        src_path = clip_source_path(item)
+        src_name = Path(src_path).name
+        source_offset = offset_for_source(src_path, source_offsets or {})
+        if source_offsets:
+            if source_offset is None:
+                continue
+        elif src_name != dominant_name:
             continue
         out.append({
             "record_start": item.GetStart(),
             "record_end": item.GetStart() + item.GetDuration(),
-            "source_start": item.GetLeftOffset(),
-            "source_end": item.GetLeftOffset() + item.GetDuration(),
+            "source_start": item.GetLeftOffset() + int(source_offset or 0),
+            "source_end": item.GetLeftOffset() + item.GetDuration() + int(source_offset or 0),
             "name": item.GetName() or "",
+            "source_path": src_path,
+            "source_offset": int(source_offset or 0),
         })
     return sorted(out, key=lambda r: r["record_start"])
 
@@ -411,6 +452,10 @@ def parse_sequence(text: str) -> list[str]:
     return [part.strip() for part in text.split(",") if part.strip()]
 
 
+def marker_name_has(name: str, text: str) -> bool:
+    return text.lower() in (name or "").lower()
+
+
 def segment_report(seg: Segment) -> dict:
     row = asdict(seg)
     row["source"] = str(seg.source)
@@ -426,6 +471,12 @@ def main() -> int:
     ap.add_argument("--ending-sequence", default=",".join(DEFAULT_ENDING))
     ap.add_argument("--opening-first-source-offset-sec", type=float, default=0.0,
                     help="trim the first opening BGM source by this many seconds")
+    ap.add_argument("--source-audio-offset", action="append", default=[],
+                    help=(
+                        "Map a V1 source into a combined --game-audio file, as "
+                        "SOURCE=FRAMES. SOURCE may be a filename, stem, or path "
+                        "substring. Repeat for split recordings."
+                    ))
     ap.add_argument("--fade-sec", type=float, default=1.0)
     ap.add_argument("--track-index", type=int, default=2)
     ap.add_argument("--protect-name-regex", default=None,
@@ -473,9 +524,16 @@ def main() -> int:
         outro_start = v1[-1].GetStart()
         print(f"Fill end: last V1/outro start {outro_start}")
     dominant = dominant_v1_source(v1)
-    v1_map = build_v1_map(v1, dominant, fps)
+    source_offsets = parse_source_offsets(args.source_audio_offset)
+    if source_offsets:
+        print("Source offsets into combined game audio:")
+        for key, frames in sorted(source_offsets.items()):
+            print(f"  {key} -> {frames}f ({frames / fps:.3f}s)")
+    v1_map = build_v1_map(v1, dominant, fps, source_offsets)
     if not v1_map:
         raise RuntimeError("Could not build dominant V1 source map")
+    mapped_sources = sorted({Path(row["source_path"]).name for row in v1_map})
+    print("Mapped V1 source(s): " + ", ".join(mapped_sources))
 
     extra_re = re.compile(args.protect_name_regex, re.I) if args.protect_name_regex else None
     a2_items = sorted(timeline.GetItemListInTrack("audio", args.track_index) or [], key=lambda c: c.GetStart())
@@ -484,8 +542,8 @@ def main() -> int:
     a3_items = sorted(timeline.GetItemListInTrack("audio", 3) or [], key=lambda c: c.GetStart())
 
     markers = marker_abs_frames(timeline)
-    first_battle = first_marker(markers, lambda name, _note: name.endswith("Battle Start"))
-    last_battle_finish = last_marker(markers, lambda name, _note: name.endswith("Battle Finish"))
+    first_battle = first_marker(markers, lambda name, _note: marker_name_has(name, "Battle Start"))
+    last_battle_finish = last_marker(markers, lambda name, _note: marker_name_has(name, "Battle Finish"))
 
     blocked = merge_blocked(
         collect_ranges(protected_a2)

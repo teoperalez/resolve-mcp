@@ -95,9 +95,10 @@ Result: APPLIED_AND_SAVED | APPLIED_BUT_UNSAVED | MISSING_NOW_APPLIED | MISSING_
 
 `render_timeline.py` should call this skill BEFORE `AddRenderJob`. If verify returns MISSING_CANNOT_APPLY or APPLIED_BUT_UNSAVED, refuse to render and surface the diagnostic. Pass `--auto-fix-fairlight` to render_timeline.py to enable auto-apply.
 
-### With `/edittimeline` (Step 14.5)
+### With the orchestrator workflow
 
-After Step 14 (`apply_fairlight_preset.py`), insert a Step 14.5 invocation of this skill to guarantee the apply persisted. This prevents the Brock Red v3 silent-failure pattern from recurring.
+Run this as the Fairlight verification gate before render. This prevents the
+Brock Red v3 silent-failure pattern from recurring.
 
 ### Standalone use
 

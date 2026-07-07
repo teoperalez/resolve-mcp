@@ -21,7 +21,7 @@ verdict to codex-final-render-review.md, then reply 'codex done'.
 
 The skill polls for `codex-final-render-review.md` (60s intervals, max 30 min). The user manually copies the brief into Codex, Codex writes the response, the skill resumes.
 
-This works for human-in-the-loop use but blocks `/edittimeline`'s Step 18 from running fully unattended.
+This works for human-in-the-loop use but blocks the orchestrator render-QA gate from running fully unattended.
 
 ## Fix paths (in order of preference)
 

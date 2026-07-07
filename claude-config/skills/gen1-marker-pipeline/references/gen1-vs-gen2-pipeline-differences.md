@@ -1,6 +1,6 @@
 # Gen 1 (RBY) vs Gen 2 (GSC) pipeline differences
 
-The `/edittimeline` skill at `C:\Programming\resolve-mcp\.claude\commands\edittimeline.md` is built for Gen 2 challenges. Gen 1 challenges differ in several material ways. When building a Gen 1 edit-timeline skill (parallel to `/edittimeline`), apply these overrides.
+The orchestrator workflow for Gen 2 challenges differs from Gen 1 in several material ways. When configuring a Gen 1 edit timeline workflow, apply these overrides.
 
 This doc grounds: ✅ what was verified from on-disk assets · ⚠ what needs implementation when the Gen 1 edit-timeline skill is built · 📝 where it lives now (this skill's scope is only marker labelling)
 
@@ -8,7 +8,7 @@ This doc grounds: ✅ what was verified from on-disk assets · ⚠ what needs im
 
 ## 1. Gym leader intros are V1, not V2
 
-### Gen 2 behavior (current `/edittimeline` Step 10c)
+### Gen 2 behavior (current orchestrator battle-intro stage)
 Battle intros are short (~5s) graphics placed on V2 with their tail aligned to the battle start frame. Video-only (mediaType=1) — audio is dropped to avoid conflict with A2 BGM. Source: `_all-battle-intros` and `_all-silver-battle-intros` shared bins.
 
 ### Gen 1 behavior (NEW)
@@ -95,7 +95,7 @@ If a leader doesn't have a `-Blue` variant (Agatha, Brock, Bruno, Lance, Lorelei
 
 ## 3. Battle audio: per-leader, not random BGM
 
-### Gen 2 behavior (current `/edittimeline` Step 13d-e)
+### Gen 2 behavior (current orchestrator battle-audio stage)
 - General BGM (`general`-tagged from `~/.resolve-mcp/bgm-tags.json`) chained randomly between battles
 - Battle audio: one canonical track per battle type (rival/gym/other)
   - Rival: "Take them down!.mp3"
@@ -218,7 +218,7 @@ def place_gen1_battle_audio(timeline, battle, leader, version, is_first_appearan
 
 ## 5. Summary table — Gen 1 vs Gen 2 pipeline diffs
 
-| Step | Gen 2 (`/edittimeline`) | Gen 1 (TODO: separate skill) |
+| Step | Gen 2 orchestrator | Gen 1 orchestrator |
 |---|---|---|
 | Marker source | Whisper transcript + battle detection LLM relay | OBS chapter markers + RBY session log (this skill) |
 | Battle intros | V2 overlay, 5s, video-only | **V1 insert, 2× retime, first-appearance only, video+audio** |
@@ -238,7 +238,7 @@ def place_gen1_battle_audio(timeline, battle, leader, version, is_first_appearan
 - ✅ Phase 1: auto-editor + track rename + FCPXML marker injection
 - ✅ Phase 2: in-Resolve marker labelling via session log
 
-**NOT implemented yet** (for a future `gen1-edittimeline` skill):
+**NOT implemented yet** (for a future Gen 1 orchestrator workflow):
 - ⚠ Gym leader intro V1 insertion (§1 + §2 + §4)
 - ⚠ Per-leader battle audio routing across A3 + A2 with crossfade (§4)
 - ⚠ Version detection + -Blue variant selection (§2)

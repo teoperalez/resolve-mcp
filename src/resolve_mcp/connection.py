@@ -55,6 +55,7 @@ class ResolveConnection:
 
     def __init__(self):
         self.resolve = None
+        self.last_error = ""
         self._lock = threading.RLock()  # RLock so nested calls don't deadlock
 
     def connect(self) -> bool:
@@ -67,37 +68,109 @@ class ResolveConnection:
                 import DaVinciResolveScript as dvr_script
                 self.resolve = dvr_script.scriptapp("Resolve")
                 if self.resolve is None:
-                    logger.error("scriptapp('Resolve') returned None — is DaVinci Resolve running?")
+                    self.last_error = "scriptapp('Resolve') returned None - is DaVinci Resolve running?"
+                    logger.error(self.last_error)
                     return False
                 version = self._safe_call(self.resolve.GetVersionString)
                 logger.info("Connected to DaVinci Resolve: %s", version or "unknown version")
                 return True
-            except ImportError as e:
-                logger.error("Failed to import DaVinciResolveScript: %s", e)
+            except (ImportError, SystemError) as e:
+                self.last_error = f"Failed to import DaVinciResolveScript: {e}"
+                logger.exception("Failed to import DaVinciResolveScript")
                 logger.error(
-                    "Make sure RESOLVE_SCRIPT_API and RESOLVE_SCRIPT_LIB environment variables are set, "
-                    "or DaVinci Resolve is installed at the default location."
+                    "Resolve scripting environment: python=%s executable=%s "
+                    "RESOLVE_SCRIPT_API=%s RESOLVE_SCRIPT_LIB=%s PYTHON3HOME=%s",
+                    sys.version.split()[0],
+                    sys.executable,
+                    os.getenv("RESOLVE_SCRIPT_API", ""),
+                    os.getenv("RESOLVE_SCRIPT_LIB", ""),
+                    os.getenv("PYTHON3HOME", ""),
                 )
+                if _get_platform_key() == "win32":
+                    logger.error(
+                        "On Windows with Resolve 21, recreate this repo's venv with Python 3.13 "
+                        "if the import still fails."
+                    )
                 return False
             except Exception as e:
-                logger.error("Failed to connect to DaVinci Resolve: %s", e)
+                self.last_error = f"Failed to connect to DaVinci Resolve: {e}"
+                logger.exception("Failed to connect to DaVinci Resolve")
                 return False
 
     def _setup_environment(self):
         platform_key = _get_platform_key()
         defaults = _PLATFORM_DEFAULTS.get(platform_key, _PLATFORM_DEFAULTS["linux"])
 
-        if not os.getenv("RESOLVE_SCRIPT_LIB"):
-            lib_path = defaults["script_lib"]
-            if os.path.exists(lib_path):
-                os.environ["RESOLVE_SCRIPT_LIB"] = lib_path
-                logger.info("Auto-set RESOLVE_SCRIPT_LIB=%s", lib_path)
+        script_lib = os.getenv("RESOLVE_SCRIPT_LIB") or defaults["script_lib"]
+        if script_lib and os.path.exists(script_lib):
+            os.environ.setdefault("RESOLVE_SCRIPT_LIB", script_lib)
+            logger.info("Using RESOLVE_SCRIPT_LIB=%s", os.environ["RESOLVE_SCRIPT_LIB"])
+        else:
+            logger.warning("Resolve scripting library not found: %s", script_lib)
 
-        script_api = os.getenv("RESOLVE_SCRIPT_API", defaults["script_api"])
+        script_api = os.getenv("RESOLVE_SCRIPT_API") or defaults["script_api"]
+        if script_api and os.path.isdir(script_api):
+            os.environ.setdefault("RESOLVE_SCRIPT_API", script_api)
+            logger.info("Using RESOLVE_SCRIPT_API=%s", os.environ["RESOLVE_SCRIPT_API"])
+        else:
+            logger.warning("Resolve scripting API directory not found: %s", script_api)
+
         modules_path = os.path.join(script_api, "Modules")
-        if modules_path not in sys.path:
+        if os.path.isdir(modules_path) and modules_path not in sys.path:
             sys.path.insert(0, modules_path)
             logger.info("Added to sys.path: %s", modules_path)
+
+        if platform_key == "win32":
+            self._setup_windows_dll_environment(script_lib)
+
+    def _setup_windows_dll_environment(self, script_lib: str):
+        """Prepare DLL search paths for Resolve 21's fusionscript.dll."""
+        if sys.version_info[:2] < (3, 13):
+            logger.warning(
+                "Resolve 21 fusionscript.dll expects Python 3.13; current interpreter is %s at %s",
+                sys.version.split()[0],
+                sys.executable,
+            )
+
+        pyhome = sys.base_prefix or sys.prefix
+        if pyhome and os.path.isdir(pyhome):
+            os.environ.setdefault("PYTHON3HOME", pyhome)
+            logger.info("Using PYTHON3HOME=%s", os.environ["PYTHON3HOME"])
+
+        candidates = []
+        if script_lib:
+            candidates.append(os.path.dirname(script_lib))
+        for root in (sys.base_prefix, sys.prefix):
+            if root:
+                candidates.append(root)
+                candidates.append(os.path.join(root, "DLLs"))
+
+        seen = set()
+        for path in candidates:
+            if not path or not os.path.isdir(path):
+                continue
+            norm = os.path.normcase(os.path.abspath(path))
+            if norm in seen:
+                continue
+            seen.add(norm)
+            if hasattr(os, "add_dll_directory"):
+                try:
+                    os.add_dll_directory(path)
+                    logger.debug("Added DLL directory: %s", path)
+                except OSError as exc:
+                    logger.debug("Could not add DLL directory %s: %s", path, exc)
+            self._prepend_to_path(path)
+
+    @staticmethod
+    def _prepend_to_path(path: str):
+        if not path or not os.path.isdir(path):
+            return
+        current = os.environ.get("PATH", "")
+        entries = [entry for entry in current.split(os.pathsep) if entry]
+        norm = os.path.normcase(os.path.abspath(path))
+        if norm in {os.path.normcase(os.path.abspath(entry)) for entry in entries}:
+            return
+        os.environ["PATH"] = path + (os.pathsep + current if current else "")
 
     def disconnect(self):
         with self._lock:
@@ -267,10 +340,12 @@ def get_resolve_connection() -> ResolveConnection:
 
     conn = ResolveConnection()
     if not conn.connect():
+        detail = f" Detail: {conn.last_error}" if conn.last_error else ""
         _resolve_connection = None
         raise ConnectionError(
             "Could not connect to DaVinci Resolve. "
             "Make sure Resolve is running and scripting is enabled in Preferences."
+            f"{detail}"
         )
 
     _resolve_connection = conn

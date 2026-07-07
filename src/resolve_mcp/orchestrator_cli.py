@@ -169,7 +169,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print_event,
         llm_step_handler=llm_handler_factory(catalog),
     )
-    runner.run(profile, workflow, steps)
+    runner.run(profile, workflow, steps, skip_completed=args.full and not args.no_resume)
     return 0
 
 
@@ -213,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--full", action="store_true")
     p.add_argument("--phase", action="append", default=[])
     p.add_argument("--step", action="append", default=[])
+    p.add_argument("--no-resume", action="store_true", help="Do not skip completed output-producing steps during --full runs.")
     p.set_defaults(func=cmd_run)
 
     args = parser.parse_args(argv)

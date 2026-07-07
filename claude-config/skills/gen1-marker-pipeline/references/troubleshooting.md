@@ -97,7 +97,7 @@ The original `resolve_map_fcpxml_markers.py` in `C:\Programming\FileOrganizer\` 
 On Windows this is `C:\Users\<user>\AppData\Roaming\rbypc-frontend\logs\`. The folder is created by the Electron app on first launch. If empty, no sessions have been recorded. If the user has multiple installations, sessions may also exist under `C:\Users\<user>\AppData\Roaming\RBY New Layout\logs\` — `session_marker_labels.default_logs_root()` returns the first form; pass `--session <abs_path>` to override.
 
 ### Resolve Python version
-External Resolve scripting requires Python 3.10 (the version that ships with the fusionscript.dll). If running phase2.py directly fails with import errors, try invoking via `py -3.10 phase2.py` instead of the default `python`.
+Resolve 21 external scripting requires Python 3.13 and a `PYTHON3HOME` that points at that Python install. If running `phase2.py` directly fails with import errors, invoke it from the repo venv after `uv sync --python 3.13.14`.
 
 ## Verifying the skill end-to-end
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-"""Build the Mewtwo RBY Ultra Minimum Battles redo editorial base.
+"""Build a Gen 1 RBY Ultra Minimum Battles editorial base.
 
-This is a single-source adaptation of the Victreebel RBY UMB rebuild path. It
-uses the auto-editor dialogue spine from the selected OBS audio stream, removes
-the pre-run explanation, removes the spoken ROM-mistake restart explanation,
-maps RBYNewLayout markers through the edited source spine, and optionally
-imports the resulting FCPXML into Resolve.
+This is the generic, profile-driven RBY UMB builder.
+It uses the active orchestrator profile to find the source video, dialogue WAV,
+raw auto-editor FCPXML, session log, cut-review artifacts, and any locked
+structural source cuts. It maps RBYNewLayout markers through the edited source
+spine and optionally imports the resulting FCPXML into Resolve.
 
 The review pipeline should call this first with --review-base. That creates a
 minimal V1/A1 timeline for cut review before any heavy visual holds, battle
@@ -15,6 +15,7 @@ intros, BGM, carousel layout, or color passes are allowed to run.
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -49,53 +50,199 @@ def first_existing_path(*paths: Path) -> Path:
     return paths[0]
 
 
-PROJECT_DIR = first_existing_path(
-    Path(r"C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
-    Path(r"E:\Mewtwo Red and Blue Ultra Minimum Battles Redo"),
-)
-CODEX_DIR = PROJECT_DIR / "CODEx"
-SESSION_DIR = first_existing_path(
+class SafeFormat(dict[str, str]):
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def expand_templates(value: str, mapping: dict[str, str]) -> str:
+    previous = str(value)
+    for _ in range(8):
+        current = previous.format_map(SafeFormat(mapping))
+        if current == previous:
+            return current
+        previous = current
+    return previous
+
+
+def load_json_optional(path: Path) -> dict | list | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def active_profile_mapping() -> tuple[str, dict[str, object]]:
+    config_path = Path(os.environ.get("ORCHESTRATOR_CONFIG_PATH") or REPO_DIR / "config" / "orchestrator_workflows.json")
+    profile_id = os.environ.get("ORCHESTRATOR_PROFILE_ID") or ""
+    if not profile_id or not config_path.exists():
+        return profile_id, {}
+    data = load_json_optional(config_path)
+    if not isinstance(data, dict):
+        return profile_id, {}
+    profile = next((item for item in data.get("profiles", []) if item.get("id") == profile_id), None)
+    if not profile:
+        return profile_id, {}
+    mapping: dict[str, object] = {
+        "repo": str(REPO_DIR),
+        "profile_id": str(profile.get("id") or ""),
+        "profile_name": str(profile.get("name") or profile.get("id") or ""),
+        "workflow_id": str(profile.get("workflow_id") or ""),
+        "project_dir": str(profile.get("project_dir") or ""),
+        "codex_dir": str(profile.get("codex_dir") or ""),
+        "game_version": str(profile.get("game_version") or ""),
+        "challenge_type": str(profile.get("challenge_type") or ""),
+    }
+    for source in (profile.get("parameters") or {}, profile.get("paths") or {}):
+        for key, value in source.items():
+            if isinstance(value, str):
+                mapping[str(key)] = expand_templates(value, {k: str(v) for k, v in mapping.items()})
+            elif isinstance(value, (int, float, bool, list, dict)):
+                mapping[str(key)] = value
+    for _ in range(8):
+        changed = False
+        for key, value in list(mapping.items()):
+            if not isinstance(value, str):
+                continue
+            expanded = expand_templates(value, {k: str(v) for k, v in mapping.items()})
+            if expanded != value:
+                mapping[key] = expanded
+                changed = True
+        if not changed:
+            break
+    return profile_id, mapping
+
+
+ACTIVE_PROFILE_ID, PROFILE = active_profile_mapping()
+DEFAULT_PROJECT_DIR = Path.cwd()
+
+
+def profile_text(key: str, default: str = "") -> str:
+    value = PROFILE.get(key, default)
+    return str(value).strip() if value is not None else default
+
+
+def profile_path(key: str, default: Path) -> Path:
+    value = profile_text(key)
+    return Path(value) if value else default
+
+
+def profile_float(key: str, default: float) -> float:
+    value = profile_text(key)
+    return float(value) if value else default
+
+
+def profile_bool(key: str, default: bool = False) -> bool:
+    value = profile_text(key)
+    if not value:
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
+def safe_file_stem_text(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_. -]+", "_", text).strip(" .") or "rby_umb_timeline"
+
+
+def source_name() -> str:
+    configured = profile_text("source_name")
+    if configured:
+        return configured
+    source_media = profile_text("source_media")
+    if source_media:
+        return Path(source_media).stem
+    return "rby_umb_source"
+
+
+PROJECT_DIR = profile_path("project_dir", DEFAULT_PROJECT_DIR)
+CODEX_DIR = profile_path("codex_dir", PROJECT_DIR / "CODEx")
+SESSION_DIR = profile_path(
+    "session_dir",
     CODEX_DIR / "session-log",
-    Path(
-        r"C:\Users\teope\AppData\Roaming\rbypc-frontend\logs"
-        r"\2026-06-04T05_39_57_738__Mewtwo__Ultra_Minimum_Battles"
-    ),
 )
-VIDEO_PATH = PROJECT_DIR / "Mewtwo Red and Blue Ultra Minimum Battles Redo.mp4"
-DIALOGUE_PATH = (
-    PROJECT_DIR
-    / "Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks"
-    / "Mewtwo Red and Blue Ultra Minimum Battles Redo_4.wav"
+SESSION_EVENTS = profile_path("session_events", SESSION_DIR / "events.json")
+SESSION_META = profile_path("session_meta", SESSION_DIR / "meta.json")
+VIDEO_PATH = profile_path("source_media", PROJECT_DIR / f"{source_name()}.mp4")
+DIALOGUE_PATH = profile_path(
+    "dialogue_audio",
+    PROJECT_DIR / f"{source_name()}_tracks" / f"{source_name()}_dialogue.wav",
 )
-RAW_AUTOEDITOR_FCPXML = PROJECT_DIR / "Mewtwo Red and Blue Ultra Minimum Battles Redo_4_AUTOEDITOR_RAW.fcpxml"
-HOLD_REGIONS_PATH = CODEX_DIR / "mewtwo_hold_regions.json"
-CUT_CANDIDATES_PATH = CODEX_DIR / "cut_review" / "cut_candidates_mewtwo.json"
-VISUAL_HOLD_RELAY_PROMPT = CODEX_DIR / "cut_review" / "visual_hold_relay.in.md"
-VISUAL_HOLD_RELAY_OUTPUT = CODEX_DIR / "cut_review" / "visual_hold_relay.out.json"
+RAW_AUTOEDITOR_FCPXML = profile_path(
+    "raw_autoeditor_fcpxml",
+    PROJECT_DIR / f"{source_name()}_AUTOEDITOR_RAW.fcpxml",
+)
+HOLD_REGIONS_PATH = profile_path("hold_regions", CODEX_DIR / "cut_review" / "hold_regions.json")
+CUT_CANDIDATES_PATH = profile_path("candidate_manifest", CODEX_DIR / "cut_review" / "cut_candidates.json")
+HOLD_REGION_STOP_REPORT = CODEX_DIR / "cut_review" / "hold_region_stop.json"
+HOLD_REGION_OVERRIDE = profile_path("hold_regions_override", CODEX_DIR / "cut_review" / "hold_regions_override.json")
 VISUAL_HOLD_KINDS = {
     "intro_stats",
     "intro_moveset",
     "intro_card",
     "post_battle_data_card",
     "post_battle_card_phase",
-    "post_battle_card_visual_relay",
+    "post_battle_card_manual_override",
     "champion_post_battle_tier_card",
     "final_tierlist",
 }
 
-FINAL_NAME = "Mewtwo RBY UMB redo CODEx editorial base"
-REVIEW_NAME = "Mewtwo RBY UMB redo review base"
-MANIFEST_PATH = CODEX_DIR / "Mewtwo_RBY_UMB_redo_CODEx_manifest.json"
+FINAL_NAME = profile_text("final_timeline_name") or f"{source_name()} CODEx final rebuild base"
+REVIEW_NAME = profile_text("review_timeline_name") or profile_path("review_fcpxml", CODEX_DIR / "cut_review" / "review_base.fcpxml").stem
+MANIFEST_PATH = profile_path("final_manifest", CODEX_DIR / f"{safe_file_stem_text(FINAL_NAME)}_manifest.json")
 OUT_FCPXML = PROJECT_DIR / f"{FINAL_NAME}.fcpxml"
 
-# Source-time editorial decisions, in 60 fps source seconds.
-# The source MP4 starts 1710.262s after the session log. These values are
-# source-relative, not OBS/session timecode.
-SOURCE_START_SEC = 608.412  # view:intro-started; starts at Mewtwo intro, not setup explanation.
-RESTART_CUT_START_SEC = 827.70  # after "...final top three."
-RESTART_CUT_END_SEC = 887.62  # clean retake: "So today as we step outside..."
-FULL_RESTART_CUT_START_SEC = 1818.50  # after "big issue, let's try this again"
-FULL_RESTART_CUT_END_SEC = 2080.53  # clean continuation: "go ahead and fight Brock..."
+SOURCE_START_SEC = profile_float("source_start_sec", 0.0)
+SOURCE_START_REASON = profile_text(
+    "source_start_reason",
+    "start at source beginning",
+)
+
+
+def parse_profile_json(key: str, default):
+    raw = PROFILE.get(key)
+    if raw in (None, ""):
+        return default
+    if isinstance(raw, (list, dict)):
+        return raw
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return default
+
+
+def configured_structural_source_cuts() -> list[dict]:
+    rows = parse_profile_json("structural_source_cuts", None)
+    normalized: list[dict] = []
+    for index, row in enumerate(rows or [], start=1):
+        if not isinstance(row, dict):
+            raise RuntimeError(f"structural_source_cuts[{index}] must be an object")
+        start_sec = row.get("start_sec", row.get("source_start_sec"))
+        end_sec = row.get("end_sec", row.get("source_end_sec"))
+        start_frame = row.get("start_frame", row.get("source_start_frame"))
+        end_frame = row.get("end_frame", row.get("source_end_frame"))
+        if start_frame is None or end_frame is None:
+            if start_sec is None or end_sec is None:
+                raise RuntimeError(f"structural_source_cuts[{index}] needs start/end seconds or frames")
+            start_frame = int(round(float(start_sec) * FPS))
+            end_frame = int(round(float(end_sec) * FPS))
+        start_i = int(round(float(start_frame)))
+        end_i = int(round(float(end_frame)))
+        if end_i <= start_i:
+            raise RuntimeError(f"structural_source_cuts[{index}] has invalid bounds: {row!r}")
+        normalized.append(
+            {
+                **row,
+                "label": row.get("label") or f"structural_source_cut_{index}",
+                "start_sec": start_i / FPS,
+                "end_sec": end_i / FPS,
+                "start_frame": start_i,
+                "end_frame": end_i,
+                "confidence": row.get("confidence") or "locked",
+                "type": row.get("type") or "explicit_structural_cut",
+                "reason": row.get("reason") or "profile-configured structural source cut",
+            }
+        )
+    return normalized
+
+
+STRUCTURAL_SOURCE_CUTS = configured_structural_source_cuts()
 
 
 @dataclass
@@ -151,7 +298,9 @@ def path_to_uri_localhost(path: Path) -> str:
 
 
 def source_start_elapsed() -> float:
-    meta = H.load_json(SESSION_DIR / "meta.json")
+    if not SESSION_META.exists():
+        raise FileNotFoundError(f"Missing session meta for marker mapping: {SESSION_META}")
+    meta = H.load_json(SESSION_META)
     fmt = H.ffprobe_format(VIDEO_PATH)
     creation = (fmt.get("tags") or {}).get("creation_time")
     if not creation:
@@ -420,12 +569,20 @@ def apply_visual_holds(base_clips: list[Clip], holds: list[dict]) -> tuple[list[
 
 
 def load_intended_markers():
-    scripts = Path(r"C:\Programming\RBYNewLayout\scripts")
+    scripts = profile_path(
+        "session_marker_script_dir",
+        first_existing_path(
+            Path(r"F:\Programming\RBYNewLayout\scripts"),
+            Path(r"C:\Programming\RBYNewLayout\scripts"),
+        ),
+    )
     if str(scripts) not in sys.path:
         sys.path.insert(0, str(scripts))
     import session_marker_labels as sml  # type: ignore
 
-    events = H.load_json(SESSION_DIR / "events.json")
+    if not SESSION_EVENTS.exists():
+        raise FileNotFoundError(f"Missing session events for marker replay: {SESSION_EVENTS}")
+    events = H.load_json(SESSION_EVENTS)
     return sml.replay_markers(events)
 
 
@@ -573,7 +730,7 @@ def escape(s: str) -> str:
 
 
 def safe_file_stem(text: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_. -]+", "_", text).strip(" .") or "mewtwo_timeline"
+    return safe_file_stem_text(text)
 
 
 def asset_xml(asset_id: str, path: Path, duration: int, *, has_video: bool, has_audio: bool) -> str:
@@ -762,7 +919,7 @@ def import_to_resolve(fcpxml: Path, markers: list[Marker], timeline_name: str, r
             marker["name"],
             marker["note"],
             1,
-            "mewtwo_manifest",
+            "rby_umb_manifest",
         )
         added += 1 if ok else 0
 
@@ -814,61 +971,52 @@ def hold_regions_are_current(path: Path) -> bool:
     rows = payload.get("regions", payload) if isinstance(payload, dict) else payload
     if not isinstance(rows, list):
         return False
-    return any(row.get("kind") == "post_battle_card_phase" for row in rows)
+    return any(row.get("kind") in {"post_battle_card_phase", "post_battle_card_manual_override"} for row in rows)
 
 
-def write_visual_hold_relay_prompt(regions: list[H.HoldRegion]) -> None:
-    VISUAL_HOLD_RELAY_PROMPT.parent.mkdir(parents=True, exist_ok=True)
+def stop_for_hold_region_decision(reason: str, regions: list[H.HoldRegion] | None = None) -> None:
+    HOLD_REGION_STOP_REPORT.parent.mkdir(parents=True, exist_ok=True)
     fallback_regions = [
         asdict(region)
-        for region in regions
-        if region.kind == "post_battle_card_visual_relay_fallback"
+        for region in (regions or [])
+        if region.kind == "post_battle_card_numeric_fallback"
     ]
-    lines = [
-        "# Visual Hold Relay Needed",
-        "",
-        "The RBYNewLayout log did not contain complete per-leader post-battle card markers:",
-        "`post-battle-card-visible`, `post-battle-card-phase-changed`, and `post-battle-card-hidden`.",
-        "",
-        "Inspect the source video and return post-battle card hold segments as JSON.",
-        "",
-        f"- Source video: `{VIDEO_PATH}`",
-        f"- Events log: `{SESSION_DIR / 'events.json'}`",
-        f"- Write output JSON to: `{VISUAL_HOLD_RELAY_OUTPUT}`",
-        "",
-        "Output schema:",
-        "",
-        "```json",
-        "[",
-        "  {",
-        '    "label": "post_battle_card_01_brock_defeated",',
-        '    "session_start_sec": 3178.722,',
-        '    "session_end_sec": 3218.403,',
-        '    "reason": "visual relay identified Brock defeated card phase"',
-        "  }",
-        "]",
-        "```",
-        "",
-        "Fallback numeric tiercard ranges found by the script:",
-        "",
-        "```json",
-        json.dumps(fallback_regions, indent=2),
-        "```",
-        "",
-    ]
-    VISUAL_HOLD_RELAY_PROMPT.write_text("\n".join(lines), encoding="utf-8")
+    payload = {
+        "schema": "rby_umb_hold_region_stop_v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "reason": reason,
+        "source_video": str(VIDEO_PATH),
+        "session_events": str(SESSION_EVENTS),
+        "hold_regions_path": str(HOLD_REGIONS_PATH),
+        "hold_regions_override": str(HOLD_REGION_OVERRIDE),
+        "fallback_numeric_regions": fallback_regions,
+        "options": [
+            "Provide a session/events log with complete post-battle card markers and rerun final assembly.",
+            f"Provide explicit hold regions at {HOLD_REGION_OVERRIDE} using session_start_sec/session_end_sec or source_start_sec/source_end_sec.",
+            "Tell the agent to continue without post-battle visual holds for this project.",
+        ],
+    }
+    HOLD_REGION_STOP_REPORT.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    raise RuntimeError(
+        "STOP: Required RBYNewLayout post-battle hold markers are unavailable.\n"
+        f"Reason: {reason}\n"
+        f"Stop report: {HOLD_REGION_STOP_REPORT}\n"
+        "Ask the user whether to provide markers, provide explicit hold regions, or continue without those holds."
+    )
 
 
 def ensure_hold_regions() -> None:
     if hold_regions_are_current(HOLD_REGIONS_PATH):
         return
     CODEX_DIR.mkdir(parents=True, exist_ok=True)
-    events = H.load_json(SESSION_DIR / "events.json")
+    if not SESSION_EVENTS.exists():
+        stop_for_hold_region_decision(f"Missing session events for hold-region derivation: {SESSION_EVENTS}")
+    events = H.load_json(SESSION_EVENTS)
     offset = source_start_elapsed()
-    visual_relay_rows = None
-    if VISUAL_HOLD_RELAY_OUTPUT.exists():
-        payload = H.load_json(VISUAL_HOLD_RELAY_OUTPUT)
-        visual_relay_rows = payload.get("regions", payload) if isinstance(payload, dict) else payload
+    override_rows = None
+    if HOLD_REGION_OVERRIDE.exists():
+        payload = H.load_json(HOLD_REGION_OVERRIDE)
+        override_rows = payload.get("regions", payload) if isinstance(payload, dict) else payload
     regions = H.derive_regions(
         events,
         source_offset=offset,
@@ -876,16 +1024,15 @@ def ensure_hold_regions() -> None:
         source_dur=source_duration_sec(),
         pad_post_battle_start=0.0,
         pad_post_battle_end=0.0,
-        visual_relay_rows=visual_relay_rows,
+        manual_override_rows=override_rows,
     )
-    if not any(region.kind in {"post_battle_card_phase", "post_battle_card_visual_relay"} for region in regions):
-        write_visual_hold_relay_prompt(regions)
-        raise RuntimeError(
-            "No complete post-battle card open/phase/close markers were found, and no visual relay output exists. "
-            f"Wrote relay prompt: {VISUAL_HOLD_RELAY_PROMPT}"
+    if not any(region.kind in {"post_battle_card_phase", "post_battle_card_manual_override"} for region in regions):
+        stop_for_hold_region_decision(
+            "No complete post-battle card open/phase/close markers were found.",
+            regions,
         )
     payload = {
-        "events": str(SESSION_DIR / "events.json"),
+        "events": str(SESSION_EVENTS),
         "source_video": str(VIDEO_PATH),
         "fps": FPS,
         "source_offset_sec": offset,
@@ -907,13 +1054,19 @@ def build(
 ) -> dict:
     CODEX_DIR.mkdir(parents=True, exist_ok=True)
     timeline_name = timeline_name or FINAL_NAME
-    out_fcpxml = PROJECT_DIR / f"{timeline_name}.fcpxml"
+    if timeline_name == REVIEW_NAME:
+        out_fcpxml = profile_path("review_fcpxml", PROJECT_DIR / f"{timeline_name}.fcpxml")
+    elif timeline_name == FINAL_NAME:
+        out_fcpxml = profile_path("final_fcpxml", PROJECT_DIR / f"{timeline_name}.fcpxml")
+    else:
+        out_fcpxml = PROJECT_DIR / f"{timeline_name}.fcpxml"
     if manifest_path is None:
-        manifest_path = (
-            MANIFEST_PATH
-            if timeline_name == FINAL_NAME
-            else CODEX_DIR / f"{safe_file_stem(timeline_name)}_manifest.json"
-        )
+        if timeline_name == FINAL_NAME:
+            manifest_path = MANIFEST_PATH
+        elif timeline_name == REVIEW_NAME:
+            manifest_path = profile_path("review_manifest", CODEX_DIR / f"{safe_file_stem(timeline_name)}_manifest.json")
+        else:
+            manifest_path = CODEX_DIR / f"{safe_file_stem(timeline_name)}_manifest.json"
     if not VIDEO_PATH.exists():
         raise FileNotFoundError(VIDEO_PATH)
     if not DIALOGUE_PATH.exists():
@@ -923,24 +1076,7 @@ def build(
 
     keep_start = source_frame(SOURCE_START_SEC)
     keep_end = min(video_duration_frames(VIDEO_PATH), media_duration_frames(DIALOGUE_PATH))
-    proposed_structural_cut_rows = [
-        {
-            "label": "remove_rom_mistake_restart_explanation",
-            "start_sec": RESTART_CUT_START_SEC,
-            "end_sec": RESTART_CUT_END_SEC,
-            "start_frame": source_frame(RESTART_CUT_START_SEC),
-            "end_frame": source_frame(RESTART_CUT_END_SEC),
-            "reason": "keep setup information before the mistake, then resume at the clean retake after the ROM restart",
-        },
-        {
-            "label": "remove_full_run_restart_explanation",
-            "start_sec": FULL_RESTART_CUT_START_SEC,
-            "end_sec": FULL_RESTART_CUT_END_SEC,
-            "start_frame": source_frame(FULL_RESTART_CUT_START_SEC),
-            "end_frame": source_frame(FULL_RESTART_CUT_END_SEC),
-            "reason": "keep the Ice Beam/save-state mistake context, remove the full restart explanation/rebuild, and resume at the clean Brock retry plan",
-        },
-    ]
+    proposed_structural_cut_rows = list(STRUCTURAL_SOURCE_CUTS)
     extra_cut_rows = load_extra_source_cuts(extra_source_cuts)
     locked_manual_cut_rows = proposed_structural_cut_rows if apply_locked_structural_cuts else []
     manual_cut_rows = locked_manual_cut_rows + extra_cut_rows
@@ -990,7 +1126,7 @@ def build(
     fcpxml_report = write_fcpxml(video_clips, audio_clips, markers, out_fcpxml, timeline_name)
 
     manifest = {
-        "schema": "mewtwo_rby_umb_fcpxml_build_v2",
+        "schema": "rby_umb_fcpxml_build_v3",
         "stage": "review_base" if not with_visual_holds else "editorial_base_with_visual_holds",
         "timeline_name": timeline_name,
         "project_dir": str(PROJECT_DIR),
@@ -1003,7 +1139,7 @@ def build(
             "source_start": {
                 "sec": SOURCE_START_SEC,
                 "frame": keep_start,
-                "reason": "remove setup/explanation and start at Mewtwo intro",
+                "reason": SOURCE_START_REASON,
             },
             "cuts": [
                 *manual_cut_rows,
@@ -1024,7 +1160,7 @@ def build(
                     "end_frame": end,
                     "start_sec": start / FPS,
                     "end_sec": end / FPS,
-                    "reason": "restore silent Mewtwo intro animation before first auto-editor dialogue",
+                    "reason": "restore source-backed lead-in before first auto-editor dialogue",
                 }
                 for start, end in force_keep_ranges
             ],
@@ -1044,7 +1180,7 @@ def build(
         "fcpxml": fcpxml_report,
         "notes": [
             "OBS/session marker timecodes are not source time; all marker and cut timing uses MP4 creation_time minus meta.startedAt.",
-            "Track 4 (0:a:3) was selected as the dialogue/mix source after rejecting silent stream candidates.",
+            f"Dialogue audio source: {DIALOGUE_PATH}.",
             (
                 "Visual holds are disabled for the review base; add them only in the deterministic final rebuild after cuts are approved."
                 if not with_visual_holds

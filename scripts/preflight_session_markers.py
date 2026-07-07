@@ -202,7 +202,7 @@ def build_report(source_dir: Path | None) -> dict[str, Any]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Preflight RBYNewLayout session-log markers for /edittimeline.")
+    ap = argparse.ArgumentParser(description="Preflight RBYNewLayout session-log markers for orchestrator workflows.")
     ap.add_argument("--source-dir", help="Optional source media directory to scan for MP4/MOV creation_time.")
     ap.add_argument("--out", default=str(OUT_PATH), help=f"Output JSON report path (default: {OUT_PATH}).")
     args = ap.parse_args()

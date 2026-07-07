@@ -17,7 +17,7 @@ Date: 2026-06-15
 - Latest normalized decisions output:
   - `C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo\CODEx\review_decisions_native\review_decisions_normalized_ranges.json`
 - Latest compiled approved cuts:
-  - `C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo\CODEx\cut_review\approved_source_cuts_mewtwo.json`
+  - `C:\Users\teope\Videos\Mewtwo Red and Blue Ultra Minimum Battles Redo\CODEx\cut_review\approved_source_cuts.json`
   - Most recent compile wrote `39` approved source cuts.
 
 ## What Changed
@@ -28,14 +28,14 @@ Date: 2026-06-15
   - Structural groups include waveform, video preview, flow preview, full restore/cut controls, per-clip restore/cut controls, and drag restore boxes.
   - During audio playback, the waveform segment under the playhead and the matching clip row get `play-current` highlighting.
   - Save now uses a project-specific filename and attempts File System Access API save first. If direct save is unavailable, it falls back to a Blob download with the better filename.
-- `scripts/run_mewtwo_rby_umb_pipeline.py`
+- `scripts/run_rby_umb_pipeline.py`
   - Reads livestream settings from orchestrator profile flags.
   - Supports auto/structural segmaps and structural restore/cut decisions.
   - Finds project-specific decision files beside the source video and copies them to `review/pink_decisions.json` for canonical preload.
-- `scripts/generate_mewtwo_cut_candidates.py`
+- `scripts/generate_rby_umb_cut_candidates.py`
   - Supports livestream edit mode, chat/asides review, and gameplay narrative bypass.
   - Emits structural review groups for the restart sections.
-- `scripts/build_mewtwo_rby_fcpxml.py`
+- `scripts/build_rby_umb_fcpxml.py`
   - Historical restart cuts are no longer applied by default; they are proposed structural cuts unless explicitly approved.
 - GUI/orchestrator updates:
   - Mewtwo profile defaults to livestream mode with gameplay narrative bypass on.
@@ -47,9 +47,9 @@ Date: 2026-06-15
 Commands that passed:
 
 ```powershell
-python -m py_compile scripts\build_cut_review.py scripts\run_mewtwo_rby_umb_pipeline.py
-.venv\Scripts\python.exe scripts\run_mewtwo_rby_umb_pipeline.py --stage compile-cut-candidates
-.venv\Scripts\python.exe scripts\run_mewtwo_rby_umb_pipeline.py --stage apply-html-decisions
+python -m py_compile scripts\build_cut_review.py scripts\run_rby_umb_pipeline.py
+.venv\Scripts\python.exe scripts\run_rby_umb_pipeline.py --stage compile-cut-candidates
+.venv\Scripts\python.exe scripts\run_rby_umb_pipeline.py --stage apply-html-decisions
 ```
 
 Static generated-page checks confirmed:
@@ -76,8 +76,8 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" "file:///C
 2. After the user saves decisions, run:
 
 ```powershell
-.venv\Scripts\python.exe scripts\run_mewtwo_rby_umb_pipeline.py --stage apply-html-decisions
-.venv\Scripts\python.exe scripts\run_mewtwo_rby_umb_pipeline.py --stage compile-approved-cuts
+.venv\Scripts\python.exe scripts\run_rby_umb_pipeline.py --stage apply-html-decisions
+.venv\Scripts\python.exe scripts\run_rby_umb_pipeline.py --stage compile-approved-cuts
 ```
 
 3. The pipeline accepts either:
@@ -95,8 +95,8 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" "file:///C
 
 - `config/orchestrator_workflows.json`
 - `scripts/build_cut_review.py`
-- `scripts/generate_mewtwo_cut_candidates.py`
-- `scripts/run_mewtwo_rby_umb_pipeline.py`
-- `scripts/build_mewtwo_rby_fcpxml.py`
+- `scripts/generate_rby_umb_cut_candidates.py`
+- `scripts/run_rby_umb_pipeline.py`
+- `scripts/build_rby_umb_fcpxml.py`
 - `docs/cut_review_process.md`
 - `docs/edit_flow_llm_instructions.md`

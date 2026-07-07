@@ -51,6 +51,33 @@ def _bootstrap_resolve_api():
     os.environ.setdefault('RESOLVE_SCRIPT_LIB', lib_path)
     if modules_dir not in sys.path:
         sys.path.insert(0, modules_dir)
+    if sys.platform.startswith('win'):
+        pyhome = sys.base_prefix or sys.prefix
+        if pyhome and os.path.isdir(pyhome):
+            os.environ.setdefault('PYTHON3HOME', pyhome)
+        for dll_dir in (
+            os.path.dirname(lib_path),
+            pyhome,
+            os.path.join(pyhome, 'DLLs') if pyhome else '',
+            sys.prefix,
+            os.path.join(sys.prefix, 'DLLs'),
+        ):
+            if not dll_dir or not os.path.isdir(dll_dir):
+                continue
+            if hasattr(os, 'add_dll_directory'):
+                try:
+                    os.add_dll_directory(dll_dir)
+                except OSError:
+                    pass
+            current_path = os.environ.get('PATH', '')
+            norm_dll = os.path.normcase(os.path.abspath(dll_dir))
+            existing = {
+                os.path.normcase(os.path.abspath(entry))
+                for entry in current_path.split(os.pathsep)
+                if entry
+            }
+            if norm_dll not in existing:
+                os.environ['PATH'] = dll_dir + (os.pathsep + current_path if current_path else '')
 
 
 def get_resolve():

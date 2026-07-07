@@ -188,6 +188,10 @@ def marker_matching_parts(marker: dict[str, Any], suffix: str) -> list[str]:
     return [part for part in marker_parts(marker) if part.endswith(suffix)]
 
 
+def is_battle_finish_part(part: str) -> bool:
+    return " Battle Finish" in part
+
+
 def first_marker(markers: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     return next((m for m in markers if marker_has(m, name)), None)
 
@@ -316,7 +320,7 @@ def next_non_rival_finish(
             continue
         if before_rel is not None and marker["rel"] >= before_rel:
             return None
-        if marker_part_endswith(marker, " Battle Finish") and not marker_has(marker, "Rival Battle Finish"):
+        if any(is_battle_finish_part(part) for part in marker_parts(marker)) and not marker_has(marker, "Rival Battle Finish"):
             return marker
     return None
 

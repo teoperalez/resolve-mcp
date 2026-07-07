@@ -17,7 +17,7 @@ Trigger phrases:
 - "run leader-tracks for the rby video"
 
 Use after:
-1. The edit timeline exists with battle gaps inserted (`/edittimeline` Step 2 or equivalent Gen 1 mechanism)
+1. The edit timeline exists with battle gaps inserted by the orchestrator or equivalent Gen 1 mechanism
 2. `gen1-marker-pipeline` phase 2 has placed labelled `Battle Start` / `Battle Finish` markers on the timeline
 
 Use before:

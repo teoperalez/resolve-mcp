@@ -32,6 +32,11 @@ ap.add_argument("--sr", type=int, default=44100)
 ap.add_argument("--cap", type=float, default=3.0)
 ap.add_argument("--tl-fps", type=float, default=60.0)
 ap.add_argument("--reuse-assets", action="store_true")
+ap.add_argument(
+    "--save-url",
+    default=os.environ.get("CUT_REVIEW_SAVE_URL", "http://127.0.0.1:17654/save-cut-decisions"),
+    help="Local helper endpoint for project-folder decision saves. Empty disables helper saves.",
+)
 A = ap.parse_args()
 
 REV = Path(A.out_dir)
@@ -340,13 +345,16 @@ save_stem = safe_filename_stem(
     else "cut_review"
 )
 decision_filename = f"{save_stem}_cut_review_decisions.json"
+project_decision_path = REV.parent / decision_filename
 save_target = {
     "filename": decision_filename,
     "legacyFilename": "pink_decisions.json",
     "sourcePath": str(source_video_path) if source_video_path else "",
     "sourceDir": str(source_video_path.parent) if source_video_exists and source_video_path else "",
     "sourceExists": source_video_exists,
+    "projectDecisionPath": str(project_decision_path),
     "reviewCopyPath": str(REV / "pink_decisions.json"),
+    "saveUrl": A.save_url,
 }
 
 
@@ -732,10 +740,10 @@ function setRowDecision(s,state){var mode=s.dataset.mode,idx=s.dataset.idx,store
 function setRowsFrom(s,state){var rows=Array.prototype.slice.call(s.closest('.card').querySelectorAll('.seg')),start=rows.indexOf(s);for(var i=start;i<rows.length;i++)setRowDecision(rows[i],state);upd();}
 function upd(){var mc=0,mk=0,ac=0,ar=0,sc=0,sr=0,ct=0,rt=0,srt=0;for(var i in dec){if(dec[i]==='cut')mc++;else mk++;}for(var a in autoDec){if(autoDec[a]==='restore')ar++;else ac++;}for(var s in structDec){if(structDec[s]==='restore')sr++;else sc++;}for(var g in CUTS)ct+=CUTS[g].length;for(var h in RESTORES)rt+=RESTORES[h].length;for(var sg in STRUCTURAL_RESTORES)srt+=STRUCTURAL_RESTORES[sg].length;document.getElementById('cnt').textContent=mk+' manual keep / '+mc+' manual cut / '+ac+' auto cut / '+ar+' auto restore / '+sc+' structural cut / '+sr+' structural restore / '+ct+' trims / '+rt+' auto restore boxes / '+srt+' structural restore boxes';}
 function saveStatus(text,kind){var el=document.getElementById('savehint');el.classList.remove('ok','warn');if(kind)el.classList.add(kind);el.textContent=text;}
-function defaultSaveHint(){return SAVE_TARGET.sourceExists&&SAVE_TARGET.sourceDir?'Target: '+SAVE_TARGET.sourceDir+'\\\\'+SAVE_TARGET.filename:'Source video path unavailable; choose a save path for '+SAVE_TARGET.filename;}
+function defaultSaveHint(){var target=SAVE_TARGET.reviewCopyPath||SAVE_TARGET.projectDecisionPath||SAVE_TARGET.filename;if(SAVE_TARGET.saveUrl&&target)return 'Project save target: '+target;if(target)return 'Project save helper unavailable; fallback download is '+(SAVE_TARGET.filename||'cut_review_decisions.json');return 'No save target configured.';}
 function decisionJson(){var cuts={},restores={},structuralRestores={};for(var g in CUTS)if(CUTS[g].length)cuts[g]=CUTS[g];for(var h in RESTORES)if(RESTORES[h].length)restores[h]=RESTORES[h];for(var sg in STRUCTURAL_RESTORES)if(STRUCTURAL_RESTORES[sg].length)structuralRestores[sg]=STRUCTURAL_RESTORES[sg];return JSON.stringify({pink:dec,cuts:cuts,auto:autoDec,restores:restores,structural:structDec,structural_restores:structuralRestores},null,1);}
 function downloadDecisionJson(text){var b=new Blob([text],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=SAVE_TARGET.filename||'cut_review_decisions.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);}
-async function writeDecisionJson(text){document.getElementById('out').value=text;if(window.showSaveFilePicker){try{if(!decisionFileHandle){if(!SAVE_TARGET.sourceExists)saveStatus('Source video path unavailable; choose a save location.','warn');decisionFileHandle=await window.showSaveFilePicker({suggestedName:SAVE_TARGET.filename,types:[{description:'JSON decisions',accept:{'application/json':['.json']}}]});}var w=await decisionFileHandle.createWritable();await w.write(text);await w.close();saveStatus('Saved '+(decisionFileHandle.name||SAVE_TARGET.filename),'ok');return;}catch(e){if(e&&e.name==='AbortError'){saveStatus('Save canceled.','warn');return;}saveStatus('Direct save unavailable; downloaded '+SAVE_TARGET.filename,'warn');}}downloadDecisionJson(text);}
+async function writeDecisionJson(text){document.getElementById('out').value=text;var target=SAVE_TARGET.reviewCopyPath||SAVE_TARGET.projectDecisionPath||SAVE_TARGET.filename||'cut_review_decisions.json';if(SAVE_TARGET.saveUrl){try{var res=await fetch(SAVE_TARGET.saveUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:text});var reply={};try{reply=await res.json();}catch(_e){}if(res.ok){saveStatus('Saved to project: '+(reply.path||target),'ok');return;}saveStatus('Project save failed: '+(reply.error||res.status),'warn');}catch(e){saveStatus('Project save helper unavailable; downloaded '+(SAVE_TARGET.filename||'cut_review_decisions.json'),'warn');}}downloadDecisionJson(text);}
 function subtractRanges(base,keep){var out=[];base.forEach(function(r){var pieces=[r.slice()];keep.forEach(function(k){var next=[];pieces.forEach(function(p){var s=Math.max(p[0],k[0]),e=Math.min(p[1],k[1]);if(e<=s){next.push(p);return;}if(p[0]<s)next.push([p[0],s]);if(e<p[1])next.push([e,p[1]]);});pieces=next;});out=out.concat(pieces);});return out.filter(function(r){return r[1]-r[0]>0.005;});}
 document.querySelectorAll('.tabbtn').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tabbtn').forEach(function(x){x.classList.toggle('on',x===b);});document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('on',p.id===b.dataset.tab);});};});
 document.querySelectorAll('.seg').forEach(function(s){var mode=s.dataset.mode, idx=s.dataset.idx, start=(mode==='auto'?(INITIAL.auto&&INITIAL.auto[idx]):(mode==='structural'?(INITIAL.structural&&INITIAL.structural[idx]):(INITIAL.pink&&INITIAL.pink[idx])))||defaultState(mode);setRowDecision(s,start);s.querySelectorAll('button[data-v]').forEach(function(b){b.onclick=function(){setRowDecision(s,b.dataset.v);upd();};});s.querySelectorAll('button[data-bulk]').forEach(function(b){b.onclick=function(){setRowsFrom(s,b.dataset.bulk==='restore_from'?'restore':'cut');};});});

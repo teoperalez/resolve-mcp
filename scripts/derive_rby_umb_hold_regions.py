@@ -333,7 +333,7 @@ def derive_legacy_tiercard_regions(
     pad_post_battle_end: float,
     final_start_s: float | None,
 ) -> list[HoldRegion]:
-    """Fallback for old logs that only recorded numeric tiercard states."""
+    """Fallback candidates for old logs that only recorded numeric tiercard states."""
     regions: list[HoldRegion] = []
     n = 1
     for ev in events:
@@ -350,14 +350,14 @@ def derive_legacy_tiercard_regions(
             continue
         r = make_region(
             label=f"legacy_post_battle_data_card_{n:02d}",
-            kind="post_battle_card_visual_relay_fallback",
+            kind="post_battle_card_numeric_fallback",
             start_sec=start_s,
             end_sec=end_s,
             source_offset=source_offset,
             fps=fps,
             reason=(
-                "Fallback from numeric tiercard-state markers; run visual relay "
-                "if precise per-leader open/phase/close markers are unavailable"
+                "Fallback from numeric tiercard-state markers; ask for explicit "
+                "hold-region approval if precise per-leader markers are unavailable"
             ),
             source_dur=source_dur,
             pad_start=pad_post_battle_start,
@@ -369,7 +369,7 @@ def derive_legacy_tiercard_regions(
     return regions
 
 
-def visual_relay_rows_to_regions(
+def manual_override_rows_to_regions(
     rows: list[dict],
     *,
     source_offset: float,
@@ -390,15 +390,15 @@ def visual_relay_rows_to_regions(
             end_s = float(row["source_end_sec"]) + source_offset
         else:
             continue
-        label = row.get("label") or f"visual_relay_post_battle_card_{index:02d}"
+        label = row.get("label") or f"manual_post_battle_card_{index:02d}"
         r = make_region(
             label=str(label),
-            kind="post_battle_card_visual_relay",
+            kind="post_battle_card_manual_override",
             start_sec=start_s,
             end_sec=end_s,
             source_offset=source_offset,
             fps=fps,
-            reason=str(row.get("reason") or "visual relay fallback for post-battle card hold"),
+            reason=str(row.get("reason") or "manual override for post-battle card hold"),
             source_dur=source_dur,
         )
         if r:
@@ -414,7 +414,7 @@ def derive_regions(
     source_dur: float | None,
     pad_post_battle_start: float,
     pad_post_battle_end: float,
-    visual_relay_rows: list[dict] | None = None,
+    manual_override_rows: list[dict] | None = None,
 ) -> list[HoldRegion]:
     events = sorted(events, key=event_sec)
     regions: list[HoldRegion] = []
@@ -484,10 +484,10 @@ def derive_regions(
     )
     if post_battle_regions:
         regions.extend(post_battle_regions)
-    elif visual_relay_rows:
+    elif manual_override_rows:
         regions.extend(
-            visual_relay_rows_to_regions(
-                visual_relay_rows,
+            manual_override_rows_to_regions(
+                manual_override_rows,
                 source_offset=source_offset,
                 fps=fps,
                 source_dur=source_dur,

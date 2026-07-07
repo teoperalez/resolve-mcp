@@ -1,6 +1,6 @@
 """Master orchestrator for the final-render-cut-qa skill.
 
-This is the entry point /edittimeline Step 18 calls. It walks the 13 steps from
+This is the entry point the orchestrator render-QA gate calls. It walks the 13 steps from
 SKILL.md and writes all artifacts under <workspace>/audio-checks/final-video-qa/.
 
 Status: SCAFFOLD — the orchestrator structure is in place but several steps

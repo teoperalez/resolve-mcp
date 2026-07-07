@@ -1,9 +1,8 @@
 # Resolve Orchestrator GUI
 
-The new orchestrator scaffold is additive. The older `resolve-edit-flow-gui`
-entrypoint still works, while `scripts/orchestrator_gui.py` opens the more
-general workflow runner. `scripts/orchestrator_run.py` exposes the same catalog
-from the command line.
+`scripts/orchestrator_gui.py` is the canonical workflow runner for full edit
+generation. `scripts/orchestrator_run.py` exposes the same catalog from the
+command line for inspection and recovery.
 
 ## Launch
 
@@ -21,14 +20,14 @@ CLI:
 
 ```powershell
 .venv\Scripts\python.exe scripts\orchestrator_run.py profiles
-.venv\Scripts\python.exe scripts\orchestrator_run.py plan --profile mewtwo_rby_umb_redo
-.venv\Scripts\python.exe scripts\orchestrator_run.py status --profile mewtwo_rby_umb_redo
+.venv\Scripts\python.exe scripts\orchestrator_run.py plan --profile <profile_id>
+.venv\Scripts\python.exe scripts\orchestrator_run.py status --profile <profile_id>
 .venv\Scripts\python.exe scripts\orchestrator_run.py validate
-.venv\Scripts\python.exe scripts\orchestrator_run.py run --profile mewtwo_rby_umb_redo --phase prepare
-.venv\Scripts\python.exe scripts\orchestrator_run.py prompt --profile mewtwo_rby_umb_redo --task narrative_cut_review --write
-.venv\Scripts\python.exe scripts\orchestrator_run.py prompt --profile mewtwo_rby_umb_redo --task narrative_cut_review --dispatch
-.venv\Scripts\python.exe scripts\orchestrator_llm_dispatch.py --profile mewtwo_rby_umb_redo --task narrative_cut_review
-.venv\Scripts\python.exe scripts\orchestrator_auto_editor.py --profile mewtwo_rby_umb_redo --dry-run
+.venv\Scripts\python.exe scripts\orchestrator_run.py run --profile <profile_id> --full
+.venv\Scripts\python.exe scripts\orchestrator_run.py prompt --profile <profile_id> --task narrative_cut_review --write
+.venv\Scripts\python.exe scripts\orchestrator_run.py prompt --profile <profile_id> --task narrative_cut_review --dispatch
+.venv\Scripts\python.exe scripts\orchestrator_llm_dispatch.py --profile <profile_id> --task narrative_cut_review
+.venv\Scripts\python.exe scripts\orchestrator_auto_editor.py --profile <profile_id> --dry-run
 ```
 
 Installed CLI:
@@ -61,18 +60,21 @@ Use `Run / Redo Selected` to rerun any selected step. Use `Redo From Selected`
 to rerun the selected step plus later full-run downstream steps. Manual-only
 review gates are not forced unless they are explicitly selected.
 
+Full workflow runs skip completed output-producing steps, so interrupted runs
+can be restarted without replaying finished work. Use selected-step redo when a
+specific step must be regenerated.
+
 Use `Review Outputs` on a workflow step or `Review Selected` on the Artifacts
 tab to inspect generated files. FCPXML artifacts open in the FCPXML segment
 review table, HTML review pages open directly, and JSON/text artifacts open in a
 read-only preview window.
 
-The first catalog entry captures the current Gen 1 RBY Ultra Minimum Battles
-shape:
+The Gen 1 RBY Ultra Minimum Battles workflow shape is:
 
 1. Run or reuse the auto-editor dialogue pass that produces the raw FCPXML.
 2. Build a lightweight V1/A1 review base.
-3. Generate waveform candidates and a narrative LLM prompt.
-4. Pause for LLM/human review.
+3. Generate the narrative LLM packet and deterministic cut candidates.
+4. Stop for the cut-decision review surface.
 5. Compile approved source-time cuts.
 6. Extract any source audio needed by assembly.
 7. Launch Resolve only for one final assembly step that builds the completed
@@ -87,7 +89,7 @@ The catalog also includes reusable templates for:
   and render.
 - `pokemon_gym_leader_challenge`: standard Pokemon Gym Leader Challenge or solo
   challenge videos. Uses intro/outro asset import, battle detection, FCPXML
-  battle gaps, battle type/rival starter LLM relay, V2 battle intro overlays,
+  battle gaps, battle type/rival starter LLM dispatch, V2 battle intro overlays,
   A2 BGM/battle audio, fades, member carousel, Fairlight, and render.
 - `gen1_rby_umb_review_first`: the current Ultra Minimum Battles shape. Uses
   review-first cuts, one Resolve final-assembly pass, Gen 1 non-boss gap policy,
@@ -105,11 +107,11 @@ commands can reference:
 - `{codex_dir}`
 - any key in the profile's `paths` or `parameters`
 
-The current Mewtwo profile sets:
+A Gen 1 RBY UMB profile normally sets:
 
 ```json
 "parameters": {
-  "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+  "pipeline_script": "scripts/run_rby_umb_pipeline.py",
   "carousel_max_candidates": 30
 }
 ```
@@ -127,7 +129,7 @@ The workflow then uses a generic tool:
 That expands to:
 
 ```powershell
-.venv\Scripts\python.exe scripts/run_mewtwo_rby_umb_pipeline.py --stage final-assembly
+.venv\Scripts\python.exe scripts/run_rby_umb_pipeline.py --stage final-assembly
 ```
 
 Only the final assembly step should set `"requires_resolve": true`. Earlier
@@ -138,10 +140,12 @@ creates the profile's Resolve project, and then runs the assembly command. The
 assembly command is responsible for creating/importing the final timeline, so no
 temporary review timeline is created during bootstrap.
 
-This moves sequencing, gating, status, and LLM/manual pauses out of the
-project-specific wrapper. A future project can reuse the workflow and replace
-`pipeline_script`, or define a workflow with direct script tools for stages that
-are already generic.
+This keeps sequencing, gating, status, LLM dispatch, stage cache records, and
+manual cut-decision pauses inside the reusable RBY UMB runner. A future project
+should keep `pipeline_script` pointed at
+`scripts/run_rby_umb_pipeline.py` and change profile paths/parameters for the
+source media, dialogue audio, session log, source start, structural cut ranges,
+assets, and artifact outputs.
 
 Every workflow step must resolve to a Python-backed command. Check this with:
 
@@ -234,7 +238,7 @@ Minimum profile shape after detection/manual fallback:
   "project_dir": "E:/New Project",
   "codex_dir": "{project_dir}/CODEx",
   "parameters": {
-    "pipeline_script": "scripts/run_new_project_pipeline.py",
+    "pipeline_script": "scripts/run_rby_umb_pipeline.py",
     "timeline_fps": 60
   },
   "paths": {
@@ -284,9 +288,17 @@ Pokemon/Gym Leader parameters:
 
 Gen 1 Ultra Minimum Battles parameters:
 
-- `pipeline_script`: current project-specific bridge script
+- `pipeline_script`: normally `scripts/run_rby_umb_pipeline.py`
 - `carousel_max_candidates`: visual candidates checked after the last battle
 - `review_fcpxml`: optional exported review FCPXML for section review
+- `source_start_sec` and `source_start_reason`: optional source-time trim before
+  the run begins
+- `structural_source_cuts`: optional locked/structural source-time ranges that
+  must still flow through review before becoming approved cuts
+- `pipeline_cache_dir`: optional override for per-stage cache/checkpoint JSON;
+  defaults to `{codex_dir}/orchestrator_cache`
+- `pipeline_stop_report`: optional override for missing-data stop reports;
+  defaults to `{codex_dir}/orchestrator_stop.json`
 
 Cut-candidate policy:
 
@@ -308,6 +320,9 @@ For Gen 1 Red/Blue/Yellow UMB workflows, the tooling policy remains:
 - leader intros inserted as 2x retimed video/audio clips
 - review, cut, hold, audio, and layout decisions collected as metadata before
   the single Resolve final-assembly pass
+- if required assets or marker-derived data are unavailable, stop and ask the
+  user whether to provide/fix the data, update the profile path, or explicitly
+  approve a fallback
 
 ## LLM Dispatch Flow
 

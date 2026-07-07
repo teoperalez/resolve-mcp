@@ -41,7 +41,14 @@ class OrchestratorRunner:
     def cancel(self) -> None:
         self.cancel_requested = True
 
-    def run(self, profile: ProjectProfile, workflow: WorkflowDefinition, steps: list[WorkflowStep]) -> None:
+    def run(
+        self,
+        profile: ProjectProfile,
+        workflow: WorkflowDefinition,
+        steps: list[WorkflowStep],
+        *,
+        skip_completed: bool = False,
+    ) -> None:
         self.cancel_requested = False
         mapping = profile.mapping(self.repo)
         completed: set[str] = set()
@@ -56,11 +63,17 @@ class OrchestratorRunner:
                 raise RuntimeError(f"Step {step.id!r} is missing selected dependency/dependencies: {', '.join(missing_deps)}")
             missing_artifacts = self._missing_required_artifacts(profile, step)
             if missing_artifacts:
-                message = "Missing required artifact(s): " + ", ".join(str(item) for item in missing_artifacts)
+                message = self._missing_artifact_message(step, missing_artifacts)
                 if step.optional:
                     self.callback(RunEvent("log", f"SKIP {step.title}: {message}", step.id, "skipped"))
                     continue
-                raise RuntimeError(f"{step.title}: {message}")
+                raise RuntimeError(message)
+
+            if skip_completed and self._outputs_complete(profile, step):
+                self.callback(RunEvent("log", f"CACHE {step.title}: declared outputs already exist.", step.id, "skipped"))
+                self.callback(RunEvent("step", step.title, step.id, "done"))
+                completed.add(step.id)
+                continue
 
             self.callback(RunEvent("step", step.title, step.id, "running"))
             try:
@@ -86,6 +99,26 @@ class OrchestratorRunner:
             if not path.exists():
                 missing.append(path)
         return missing
+
+    def _outputs_complete(self, profile: ProjectProfile, step: WorkflowStep) -> bool:
+        if not step.artifacts_out:
+            return False
+        paths = [profile.path(artifact.key, self.repo) for artifact in step.artifacts_out]
+        return all(path.exists() for path in paths)
+
+    @staticmethod
+    def _missing_artifact_message(step: WorkflowStep, missing: list[Path]) -> str:
+        lines = [
+            f"STOP: {step.title} cannot continue autonomously.",
+            "Reason: required asset/data is missing.",
+            "Missing:",
+            *[f"  - {path}" for path in missing],
+            "Ask the user how to proceed before continuing:",
+            "  1. Provide or regenerate the missing artifact, then rerun this step.",
+            "  2. Update the project profile path/setting in the orchestrator GUI.",
+            "  3. Explicitly approve a different artifact or fallback policy.",
+        ]
+        return "\n".join(lines)
 
     def _run_step(
         self,
@@ -183,14 +216,21 @@ class ThreadedRun:
     def running(self) -> bool:
         return self.thread is not None and self.thread.is_alive()
 
-    def start(self, profile: ProjectProfile, workflow: WorkflowDefinition, steps: list[WorkflowStep]) -> None:
+    def start(
+        self,
+        profile: ProjectProfile,
+        workflow: WorkflowDefinition,
+        steps: list[WorkflowStep],
+        *,
+        skip_completed: bool = False,
+    ) -> None:
         if self.running:
             raise RuntimeError("A workflow run is already active.")
         self.error = None
 
         def target() -> None:
             try:
-                self.runner.run(profile, workflow, steps)
+                self.runner.run(profile, workflow, steps, skip_completed=skip_completed)
             except Exception as exc:
                 self.error = exc
                 self.runner.callback(RunEvent("error", str(exc)))

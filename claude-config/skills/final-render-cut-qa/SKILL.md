@@ -1,6 +1,6 @@
 ---
 name: final-render-cut-qa
-description: After a video has been rendered, audit it for missed false-starts, repetitions, self-corrections, Whisper hallucinations, dead-air gaps, and cut-boundary errors. Generates spot-check audio previews + HTML transcript + Codex audit gate + source-time mapping + verdict. Use after Step 17 (4K render) of /edittimeline, or when the user says "QA this render", "watch this final render for missed cuts", "find false starts in the final video", "verify Claude's cut list against the final render", "spot-check the opener of <video>". Trigger phrases include "missed cut", "false start in render", "QA the render", "audit the final video".
+description: After a video has been rendered, audit it for missed false-starts, repetitions, self-corrections, Whisper hallucinations, dead-air gaps, and cut-boundary errors. Generates spot-check audio previews + HTML transcript + Codex audit gate + source-time mapping + verdict. Use after the orchestrator final render, or when the user says "QA this render", "watch this final render for missed cuts", "find false starts in the final video", "verify Claude's cut list against the final render", "spot-check the opener of <video>". Trigger phrases include "missed cut", "false start in render", "QA the render", "audit the final video".
 ---
 
 # final-render-cut-qa
@@ -224,7 +224,7 @@ Write `source-time-mapping-report.md` documenting every mapping decision.
 | State | Condition | Action |
 |---|---|---|
 | **PASS_CLEAN** | Codex APPROVE + every confirmed cut already in canonical (no appends) | Render ships. Write `final-verdict.md` with `next_action: ship`. |
-| **PASS_WITH_NEW_CUTS** | Codex APPROVE + ≥1 cut appended to canonical | Trigger rebuild. Write `rebuild-trigger.flag` (`/edittimeline` consumes it). Re-invoke this skill after rebuild — **MAX 1 rebuild iteration**. If second-round QA also returns PASS_WITH_NEW_CUTS, hard-halt with REJECT. |
+| **PASS_WITH_NEW_CUTS** | Codex APPROVE + >=1 cut appended to canonical | Trigger rebuild. Write `rebuild-trigger.flag` for the orchestrator rebuild gate. Re-invoke this skill after rebuild - **MAX 1 rebuild iteration**. If second-round QA also returns PASS_WITH_NEW_CUTS, hard-halt with REJECT. |
 | **MINOR_FIXED** | Codex returned MINOR_FIXED (formatting/schema fix only) | Treat as PASS_CLEAN |
 | **REJECT** | 3 Codex rejects OR user marked render fundamentally broken OR replay-metadata sanity failed | Halt. Write `final-verdict.md` with state REJECT + full diagnostic + rejection history. Surface to user for investigation. |
 
@@ -260,7 +260,7 @@ Implementations live in `scripts/` next to this SKILL.md. See `references/script
 7. **Codex adversarial review is mandatory.** Skill cannot return PASS without ≥1 Codex APPROVE.
 8. **Spot-check previews are mandatory and unfiltered.** All 4 regions always generated regardless of scanner findings.
 9. **Skill must not edit `plan.md`, `manifest.json`, `rubric.md`, or any `iter-*-claude-*.md`** from a parallel `/claude-codex-sync-*` loop if active.
-10. **Skill never rebuilds the timeline itself.** Signals PASS_WITH_NEW_CUTS and exits; `/edittimeline` orchestrator re-invokes the rebuild pipeline.
+10. **Skill never rebuilds the timeline itself.** Signals PASS_WITH_NEW_CUTS and exits; the orchestrator re-invokes the rebuild pipeline.
 
 ---
 
@@ -275,7 +275,7 @@ Implementations live in `scripts/` next to this SKILL.md. See `references/script
 7. Every new cut appended to canonical preserves the schema validator
 8. `final-verdict.md` written with one of the 4 verdict states + cited reasoning
 9. Rolling 2-version artifact retention honored
-10. If PASS_WITH_NEW_CUTS, `rebuild-trigger.flag` written for `/edittimeline` consumption
+10. If PASS_WITH_NEW_CUTS, `rebuild-trigger.flag` written for orchestrator consumption
 
 ---
 

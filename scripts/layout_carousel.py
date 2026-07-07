@@ -17,7 +17,7 @@ Workflow:
 
 Usage:
     python layout_carousel.py [--dry-run] [--marker-name "..."]
-                              [--crop-bottom 530]
+                              [--crop-bottom 530] [--end-at-timeline-end]
 """
 import sys
 import os
@@ -79,9 +79,13 @@ def main() -> int:
     ap.add_argument('--dry-run', action='store_true',
                     help='Report planned operations without modifying Resolve.')
     ap.add_argument('--marker-name', default=DEFAULT_MARKER_NAME,
-                    help='Name of the marker that signals the carousel start')
+                    help='Name of the marker that signals the carousel start. '
+                         'Comma-separated aliases are accepted.')
     ap.add_argument('--crop-bottom', type=float, default=DEFAULT_CROP_BOTTOM,
                     help='CropBottom value (pixels) applied to each V2 clip')
+    ap.add_argument('--end-at-timeline-end', '--no-outro', dest='end_at_timeline_end',
+                    action='store_true',
+                    help='Use the timeline end as the carousel end instead of treating the last V1 clip as an outro.')
     args = ap.parse_args()
 
     import DaVinciResolveScript as dvr
@@ -97,8 +101,13 @@ def main() -> int:
     # ── Find the Member Carousel Start marker ───────────────────────────────
     markers = tl.GetMarkers() or {}
     carousel_marker_rel = None
+    wanted_marker_names = {
+        part.strip().lower()
+        for part in args.marker_name.split(',')
+        if part.strip()
+    }
     for f, m in markers.items():
-        if (m.get('name') or '').strip().lower() == args.marker_name.lower():
+        if (m.get('name') or '').strip().lower() in wanted_marker_names:
             carousel_marker_rel = f
             break
     if carousel_marker_rel is None:
@@ -112,17 +121,28 @@ def main() -> int:
 
     # ── Get V1 clips and identify the carousel range + outro ────────────────
     v1 = sorted(tl.GetItemListInTrack('video', 1) or [], key=lambda c: c.GetStart())
-    if len(v1) < 2:
-        print('ERROR: need at least 2 V1 clips (carousel + outro).', file=sys.stderr)
+    if len(v1) < 1:
+        print('ERROR: need at least 1 V1 clip.', file=sys.stderr)
         return 1
 
-    outro_clip      = v1[-1]
-    outro_tl_start  = outro_clip.GetStart()
-    print(f'Outro clip (last V1): name={outro_clip.GetName()!r}  '
-          f'tl_start={outro_tl_start}  ({(outro_tl_start-tl_start)/fps:.2f}s into TL)')
+    if args.end_at_timeline_end:
+        outro_clip = None
+        outro_tl_start = tl.GetEndFrame()
+        v1_range = v1
+        print(f'Carousel end: timeline end {outro_tl_start} '
+              f'({(outro_tl_start-tl_start)/fps:.2f}s into TL)')
+    else:
+        if len(v1) < 2:
+            print('ERROR: need at least 2 V1 clips (carousel + outro), or use --end-at-timeline-end.', file=sys.stderr)
+            return 1
+        outro_clip = v1[-1]
+        outro_tl_start = outro_clip.GetStart()
+        v1_range = v1[:-1]
+        print(f'Outro clip (last V1): name={outro_clip.GetName()!r}  '
+              f'tl_start={outro_tl_start}  ({(outro_tl_start-tl_start)/fps:.2f}s into TL)')
 
     # Carousel clips = V1 clips from marker (inclusive) up to outro (exclusive)
-    carousel_clips = [c for c in v1[:-1] if c.GetStart() >= carousel_start_abs]
+    carousel_clips = [c for c in v1_range if c.GetStart() >= carousel_start_abs]
     if not carousel_clips:
         print('ERROR: no V1 clips between the marker and the outro.', file=sys.stderr)
         return 1

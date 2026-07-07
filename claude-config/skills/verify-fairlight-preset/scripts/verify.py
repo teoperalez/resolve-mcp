@@ -21,9 +21,41 @@ RESOLVE_MCP_SCRIPTS = Path(r'C:\Programming\resolve-mcp\scripts')
 
 def setup_resolve():
     """Bootstrap DaVinciResolveScript import path."""
-    sys.path.insert(0, r'C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting\Modules')
+    api_base = r'C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting'
+    modules_dir = os.path.join(api_base, 'Modules')
+    lib_path = r'C:\Program Files\Blackmagic Design\DaVinci Resolve\fusionscript.dll'
+    if modules_dir not in sys.path:
+        sys.path.insert(0, modules_dir)
+    os.environ.setdefault('RESOLVE_SCRIPT_API', api_base)
     os.environ.setdefault('RESOLVE_SCRIPT_LIB',
-                          r'C:\Program Files\Blackmagic Design\DaVinci Resolve\fusionscript.dll')
+                          lib_path)
+    if sys.platform.startswith('win'):
+        pyhome = sys.base_prefix or sys.prefix
+        if pyhome and os.path.isdir(pyhome):
+            os.environ.setdefault('PYTHON3HOME', pyhome)
+        for dll_dir in (
+            os.path.dirname(lib_path),
+            pyhome,
+            os.path.join(pyhome, 'DLLs') if pyhome else '',
+            sys.prefix,
+            os.path.join(sys.prefix, 'DLLs'),
+        ):
+            if not dll_dir or not os.path.isdir(dll_dir):
+                continue
+            if hasattr(os, 'add_dll_directory'):
+                try:
+                    os.add_dll_directory(dll_dir)
+                except OSError:
+                    pass
+            current_path = os.environ.get('PATH', '')
+            norm_dll = os.path.normcase(os.path.abspath(dll_dir))
+            existing = {
+                os.path.normcase(os.path.abspath(entry))
+                for entry in current_path.split(os.pathsep)
+                if entry
+            }
+            if norm_dll not in existing:
+                os.environ['PATH'] = dll_dir + (os.pathsep + current_path if current_path else '')
 
 
 def detect_signature(tl, verbose: bool = False) -> tuple[bool, dict]:

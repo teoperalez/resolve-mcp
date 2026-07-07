@@ -1,9 +1,9 @@
-"""Generate Mewtwo RBY UMB cut-review artifacts.
+"""Generate Gen 1 RBY UMB cut-review artifacts.
 
 Run this immediately after creating the lightweight review base:
 
-  python scripts/build_mewtwo_rby_fcpxml.py --review-base
-  python scripts/generate_mewtwo_cut_candidates.py --manifest CODEx/<review-manifest>.json
+  python scripts/build_rby_umb_fcpxml.py --review-base
+  python scripts/generate_rby_umb_cut_candidates.py --manifest CODEx/<review-manifest>.json
 
 The output is intentionally review-first and Resolve-free. It first writes the
 broad narrative LLM prompt, then runs deterministic waveform, n-gram, and
@@ -30,14 +30,16 @@ if str(REPO_DIR) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from scripts import build_mewtwo_rby_fcpxml as M
+from scripts import build_rby_umb_fcpxml as M
 from scripts import mark_cut_candidates as MCC
 
 
 DEFAULT_TIMELINE = M.REVIEW_NAME
-DEFAULT_MANIFEST = M.CODEX_DIR / f"{M.safe_file_stem(M.REVIEW_NAME)}_manifest.json"
-DEFAULT_OUT_DIR = M.CODEX_DIR / "cut_review"
-DEFAULT_TRANSCRIPT = M.CODEX_DIR / "transcripts" / f"{M.DIALOGUE_PATH.stem}.json"
+DEFAULT_MANIFEST = M.profile_path("review_manifest", M.CODEX_DIR / f"{M.safe_file_stem(M.REVIEW_NAME)}_manifest.json")
+DEFAULT_OUT_DIR = M.profile_path("cut_review_dir", M.CODEX_DIR / "cut_review")
+DEFAULT_TRANSCRIPT = M.profile_path("transcript_json", M.CODEX_DIR / "transcripts" / f"{M.DIALOGUE_PATH.stem}.json")
+NARRATIVE_IN_NAME = "review.in.md"
+NARRATIVE_OUT_NAME = "review.out.json"
 TL_FPS = 60.0
 STRUCTURAL_CLIP_ID_BASE = 200000
 LIVESTREAM_TYPES = {
@@ -499,33 +501,19 @@ def narrative_clip_from_row(row: dict, timeline_start_frame: int, idx: int) -> d
 
 
 def locked_manual_cuts() -> list[dict]:
-    cuts = [
-        (
-            "remove_rom_mistake_restart_explanation",
-            M.RESTART_CUT_START_SEC,
-            M.RESTART_CUT_END_SEC,
-            "ROM mistake/restart explanation; resumes at clean retake.",
-        ),
-        (
-            "remove_full_run_restart_explanation",
-            M.FULL_RESTART_CUT_START_SEC,
-            M.FULL_RESTART_CUT_END_SEC,
-            "Full run restart explanation/rebuild; resumes at clean Brock retry plan.",
-        ),
-    ]
     return [
         {
-            "label": label,
+            "label": row.get("label") or f"structural_source_cut_{index}",
             "source_video": str(M.VIDEO_PATH),
-            "start_sec": start,
-            "end_sec": end,
-            "start_frame": M.source_frame(start),
-            "end_frame": M.source_frame(end),
-            "confidence": "locked",
-            "type": "explicit_restart_cut",
-            "reason": reason,
+            "start_sec": row["start_sec"],
+            "end_sec": row["end_sec"],
+            "start_frame": int(row["start_frame"]),
+            "end_frame": int(row["end_frame"]),
+            "confidence": row.get("confidence") or "locked",
+            "type": row.get("type") or "explicit_structural_cut",
+            "reason": row.get("reason") or "profile-configured structural source cut",
         }
-        for label, start, end, reason in cuts
+        for index, row in enumerate(M.STRUCTURAL_SOURCE_CUTS, start=1)
     ]
 
 
@@ -621,9 +609,10 @@ def build_locked_cut_context(transcript_path: Path, manual_cuts: list[dict]) -> 
     return contexts
 
 
-def build_mewtwo_prompt(clips: list[dict], transcript_path: Path, manual_cuts: list[dict], args: argparse.Namespace) -> str:
+def build_rby_umb_prompt(clips: list[dict], transcript_path: Path, manual_cuts: list[dict], args: argparse.Namespace) -> str:
     body = "\n".join(MCC.format_clip_line(c) for c in clips)
     locked_context = build_locked_cut_context(transcript_path, manual_cuts)
+    project_label = M.source_name()
     gameplay_cut_guidance = (
         "Because `bypass gameplay narrative cuts` is enabled, do not return ordinary "
         "gameplay polish cuts such as false starts, repeated explanations, abandoned "
@@ -646,7 +635,7 @@ def build_mewtwo_prompt(clips: list[dict], transcript_path: Path, manual_cuts: l
 This run is being reviewed as a livestream edit. In addition to structural
 restart verification, identify sections where Teo is responding to chat,
 clarifying an aside for chat, doing stream/meta maintenance, or discussing a
-tangent that does not advance the main Mewtwo Red/Blue run. Good livestream
+tangent that does not advance the main run. Good livestream
 candidates include:
 
 - replies to chat messages or usernames when the exchange does not explain the run
@@ -691,7 +680,9 @@ Livestream mode is enabled, but chat/asides detection is off for this pass. Do
 not add chat-specific cuts unless they also satisfy the ordinary narrative or
 structural cut rules.
 """
-    return f"""You are reviewing a Mewtwo Pokemon Red/Blue Ultra Minimum Battles redo timeline before any heavy rebuild steps.
+    return f"""You are reviewing a Gen 1 Pokemon Red/Blue/Yellow Ultra Minimum Battles timeline before any heavy rebuild steps.
+
+Project/source: {project_label}
 
 ## Review Contract
 
@@ -702,14 +693,14 @@ count information, or intentional recap.
 
 {livestream_guidance}
 
-These structural restart ranges are proposed separately from ordinary gameplay
-narrative cuts. Verify them using the transcript context and include one JSON
-record for each structural restart cut in your output:
+These structural source-cut ranges are proposed separately from ordinary
+gameplay narrative cuts. Verify each one using the transcript context and
+include one JSON record for each proposed structural cut in your output:
 
 - Use `status: "locked_confirmed"` when the proposed source-time bounds are correct.
 - Use `status: "revision_needed"` and corrected `start_sec` / `end_sec` if the
   transcript shows the structural cut boundaries should move.
-- These structural restart rows document the proposed source-time boundaries.
+- These structural rows document the proposed source-time boundaries.
   The HTML review lets the editor cut/restore the underlying FCPXML sections.
 
 {json.dumps(manual_cuts, indent=2)}
@@ -742,13 +733,13 @@ Respond with ONLY a raw JSON array. No markdown fences, no prose.
   }},
 {livestream_example}
   {{
-    "label": "remove_full_run_restart_explanation",
+    "label": "profile_configured_structural_cut",
     "start_sec": 1818.50,
     "end_sec": 2080.53,
     "confidence": "locked",
-    "type": "full_restart",
+    "type": "explicit_structural_cut",
     "status": "locked_confirmed",
-    "reason": "The source leaves the failed Ice Beam/save-state branch and resumes at the clean Brock retry plan."
+    "reason": "The source leaves a failed/abandoned branch and resumes at the clean continuation."
   }}
 ]
 
@@ -778,13 +769,13 @@ def build_narrative_artifacts(rows: list[dict], timeline_start_frame: int, out_d
             clip["words_in_clip"] = []
 
     index_path = narrative_dir / "clip_index.json"
-    prompt_path = narrative_dir / "mewtwo_narrative_cut_review.in.md"
-    out_path = narrative_dir / "mewtwo_narrative_cut_review.out.json"
+    prompt_path = narrative_dir / NARRATIVE_IN_NAME
+    out_path = narrative_dir / NARRATIVE_OUT_NAME
     manual_cuts = locked_manual_cuts()
 
     write_json(index_path, clips)
     prompt_path.write_text(
-        build_mewtwo_prompt(clips, transcript_path, manual_cuts, args),
+        build_rby_umb_prompt(clips, transcript_path, manual_cuts, args),
         encoding="utf-8",
     )
 
@@ -854,7 +845,7 @@ def build_waveform_candidates(rows: list[dict], out_dir: Path, args: argparse.Na
     write_json(
         waveform_path,
         {
-            "schema": "mewtwo_waveform_candidates_v1",
+            "schema": "rby_umb_waveform_candidates_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "candidates": candidates,
             "categories": str(categories_path),
@@ -931,7 +922,7 @@ def build_ngram_candidates(rows: list[dict], out_dir: Path, args: argparse.Names
     write_json(
         path,
         {
-            "schema": "mewtwo_ngram_candidates_v1",
+            "schema": "rby_umb_ngram_candidates_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "note": (
                 "N-gram matches are diagnostics by default. Exact phrase repeats "
@@ -1015,7 +1006,7 @@ def build_artifact_candidates(rows: list[dict], out_dir: Path, args: argparse.Na
     write_json(
         path,
         {
-            "schema": "mewtwo_artifact_short_clip_candidates_v1",
+            "schema": "rby_umb_artifact_short_clip_candidates_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "candidates": candidates,
         },
@@ -1032,7 +1023,7 @@ def build_programmatic_candidates(rows: list[dict], out_dir: Path, args: argpars
     write_json(
         path,
         {
-            "schema": "mewtwo_programmatic_candidates_v1",
+            "schema": "rby_umb_programmatic_candidates_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "detectors": {
                 "waveform": waveform.get("waveform_candidates"),
@@ -1246,7 +1237,7 @@ def compile_candidate_manifest(
     out_dir: Path,
     args: argparse.Namespace,
 ) -> dict:
-    narrative_path = out_dir / "narrative" / "mewtwo_narrative_cut_review.out.json"
+    narrative_path = out_dir / "narrative" / NARRATIVE_OUT_NAME
     waveform_path = out_dir / "waveform_candidates.json"
     ngram_path = out_dir / "ngram_candidates.json"
     artifact_path = out_dir / "artifact_candidates.json"
@@ -1274,7 +1265,7 @@ def compile_candidate_manifest(
     review_artifacts = build_compiled_review_html(rows, medium, high, structural_reviews, out_dir, args)
 
     report = {
-        "schema": "mewtwo_cut_candidates_v2",
+        "schema": "rby_umb_cut_candidates_v3",
         "review_policy": "llm_then_programmatic_then_fcpxml_section_safe_compile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "timeline": timeline_name,
@@ -1323,7 +1314,7 @@ def compile_candidate_manifest(
             "all_candidates": len(all_candidates),
         },
         "artifacts": {
-            "narrative_prompt": str(out_dir / "narrative" / "mewtwo_narrative_cut_review.in.md"),
+            "narrative_prompt": str(out_dir / "narrative" / NARRATIVE_IN_NAME),
             "narrative_output": str(narrative_path),
             "waveform_candidates": str(waveform_path),
             "ngram_candidates": str(ngram_path),
@@ -1341,7 +1332,7 @@ def compile_candidate_manifest(
         "review_candidates": medium,
         "mark_only_candidates": low,
     }
-    report_path = out_dir / "cut_candidates_mewtwo.json"
+    report_path = M.CUT_CANDIDATES_PATH
     write_json(report_path, report)
     return report
 
@@ -1435,7 +1426,7 @@ def main() -> int:
 
     programmatic = None
     if args.stage in {"programmatic-candidates", "all"}:
-        narrative_output = out_dir / "narrative" / "mewtwo_narrative_cut_review.out.json"
+        narrative_output = out_dir / "narrative" / NARRATIVE_OUT_NAME
         if not narrative_output.exists():
             print(
                 f"  WARN: LLM narrative output is not present yet: {narrative_output}\n"
@@ -1454,7 +1445,7 @@ def main() -> int:
     if args.stage in {"compile", "all"}:
         print("\nCompiling LLM + programmatic candidates with FCPXML section-safety policy...")
         report = compile_candidate_manifest(rows, timeline_name, timeline_start_frame, out_dir, args)
-        print(f"\nWrote candidate manifest: {out_dir / 'cut_candidates_mewtwo.json'}")
+        print(f"\nWrote candidate manifest: {M.CUT_CANDIDATES_PATH}")
         print(
             "Candidates: "
             f"{report['counts']['high_confidence_auto_cuts']} high auto-cut, "

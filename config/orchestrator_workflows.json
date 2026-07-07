@@ -32,23 +32,41 @@
         "livestream_edit_mode": true,
         "livestream_cut_chat_interactions": true,
         "livestream_bypass_gameplay_narrative_cuts": true,
-        "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+        "pipeline_script": "scripts/run_rby_umb_pipeline.py",
+        "source_start_sec": 608.412,
+        "source_start_reason": "remove setup/explanation and start at Mewtwo intro",
+        "structural_source_cuts": [
+          {
+            "label": "remove_rom_mistake_restart_explanation",
+            "start_sec": 827.7,
+            "end_sec": 887.62,
+            "type": "explicit_restart_cut",
+            "reason": "keep setup information before the mistake, then resume at the clean retake after the ROM restart"
+          },
+          {
+            "label": "remove_full_run_restart_explanation",
+            "start_sec": 1818.5,
+            "end_sec": 2080.53,
+            "type": "full_restart",
+            "reason": "keep the Ice Beam/save-state mistake context, remove the full restart explanation/rebuild, and resume at the clean Brock retry plan"
+          }
+        ],
         "carousel_max_candidates": 30,
         "review_fcpxml": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo RBY UMB redo review base.fcpxml"
       },
       "paths": {
-        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates_mewtwo.json",
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
         "raw_autoeditor_fcpxml": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_4_AUTOEDITOR_RAW.fcpxml",
-        "narrative_prompt": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.in.md",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/review.in.md",
         "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
-        "narrative_output": "{codex_dir}/cut_review/narrative/mewtwo_narrative_cut_review.out.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/review.out.json",
         "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
         "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
         "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
         "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
         "categories_json": "{codex_dir}/cut_review/categories.json",
-        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts_mewtwo.json",
-        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts_mewtwo.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
         "game_audio": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks/Mewtwo Red and Blue Ultra Minimum Battles Redo_3.wav",
         "handoff_bundle": "{codex_dir}/cut_review/llm_handoff.json",
@@ -59,9 +77,11 @@
         "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
         "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
         "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
-        "pipeline_order_report": "{codex_dir}/mewtwo_pipeline_order_report.json",
-        "final_manifest": "{codex_dir}/Mewtwo RBY UMB redo CODEx final rebuild base_manifest.json",
-        "clip_color_report": "{codex_dir}/qa-reports/mewtwo-rby-umb-clip-colors.json"
+        "pipeline_order_report": "{codex_dir}/rby_umb_pipeline_order_report.json",
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "review_manifest": "{codex_dir}/review_base_manifest.json",
+        "final_manifest": "{codex_dir}/final_rebuild_manifest.json",
+        "clip_color_report": "{codex_dir}/qa-reports/rby-umb-clip-colors.json"
       }
     },
     {
@@ -104,7 +124,7 @@
         "render_dir": "",
         "fairlight_timeline_arg": "",
         "fairlight_timeline": "",
-        "pipeline_script": "scripts/run_mewtwo_rby_umb_pipeline.py",
+        "pipeline_script": "scripts/run_rby_umb_pipeline.py",
         "carousel_max_candidates": 30,
         "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "source_name": "Victreebel Red and Blue Ultra Minimum Battles part 2",
@@ -141,7 +161,7 @@
         "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
         "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
         "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
-        "pipeline_order_report": "{codex_dir}/mewtwo_pipeline_order_report.json",
+        "pipeline_order_report": "{codex_dir}/rby_umb_pipeline_order_report.json",
         "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
         "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
@@ -154,6 +174,56 @@
         "session_dir": "{session_dir}",
         "session_events": "{session_events}",
         "session_meta": "{session_meta}"
+      }
+    },
+    {
+      "id": "celebi_rby_umb",
+      "name": "Celebi RBY UMB",
+      "workflow_id": "gen1_rby_umb_review_first",
+      "game_version": "pokemon_red_blue",
+      "challenge_type": "ultra_minimum_battles",
+      "description": "F-drive Celebi Red/Blue Ultra Minimum Battles review-first workflow using the same Gen 1 RBY UMB orchestrator stages.",
+      "project_dir": "F:/Celebi UMB Red Blue",
+      "codex_dir": "{project_dir}/CODEx",
+      "parameters": {
+        "workflow_config": "{repo}/config/orchestrator_workflows.json",
+        "timeline_fps": 60,
+        "source_name": "Celebi UMB Red Blue",
+        "source_media": "{project_dir}/Celebi UMB Red Blue part 1.mkv",
+        "dialogue_audio": "{codex_dir}/cut_review/celebi_dialogue_combined_p1p2.wav",
+        "pipeline_script": "scripts/run_rby_umb_pipeline.py",
+        "carousel_max_candidates": 30,
+        "resolve_project_name": "Celebi UMB Red Blue",
+        "gen1_intro_root": "F:/Programming/RBYNewLayout/gymLeaders/LeaderIntros",
+        "bgm_dir": "F:/Programming/RBYNewLayout/audio/bgm",
+        "source_audio_offset_part1": "Celebi UMB Red Blue part 1.mkv=0",
+        "source_audio_offset_part2": "Celebi UMB Red Blue part 2.mkv=36646"
+      },
+      "paths": {
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/review.in.md",
+        "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/review.out.json",
+        "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
+        "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
+        "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
+        "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
+        "categories_json": "{codex_dir}/cut_review/categories.json",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_index": "{codex_dir}/cut_review/review/index.html",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
+        "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
+        "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "raw_autoeditor_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
+        "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "game_audio": "{codex_dir}/cut_review/celebi_game_audio_combined_p1p2_track3.wav",
+        "final_manifest": "{codex_dir}/Celebi RBY UMB CODEx orchestrator final base_manifest.json",
+        "clip_color_report": "{codex_dir}/qa-reports/celebi-rby-umb-clip-colors.json",
+        "pipeline_order_report": "{codex_dir}/celebi_pipeline_order_report.json",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md"
       }
     }
   ],
@@ -184,7 +254,7 @@
     {
       "id": "member_carousel_finder",
       "title": "Member Carousel Finder",
-      "description": "Finds the member carousel start marker by visual relay.",
+      "description": "Finds the member carousel start marker through the orchestrator visual LLM step.",
       "command": [
         "{python}",
         "scripts/find_member_carousel.py",
@@ -337,7 +407,7 @@
     {
       "id": "detect_battles",
       "title": "Detect Battles",
-      "description": "Writes and waits for the LLM relay battle-detection prompt.",
+      "description": "Runs the orchestrator LLM battle-detection step.",
       "command": [
         "{python}",
         "scripts/detect_battles.py",
@@ -367,7 +437,7 @@
     {
       "id": "classify_battles",
       "title": "Classify Battles",
-      "description": "Classifies detected battles as rival, gym, or other through LLM relay.",
+      "description": "Classifies detected battles as rival, gym, or other through orchestrator LLM dispatch.",
       "command": [
         "{python}",
         "scripts/classify_battles.py"

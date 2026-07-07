@@ -1,5 +1,5 @@
 """
-audit_step.py — step-level audit driver for the /edittimeline pipeline.
+audit_step.py - step-level audit driver for orchestrator-managed timeline steps.
 
 Two subcommands:
 
@@ -303,7 +303,7 @@ def _check_gen1_battle_intros_present(post: dict, rule: dict) -> list[dict]:
     clips = post.get('tracks', {}).get(kind, {}).get(idx, {}).get('clips', [])
     intros = [
         c for c in clips
-        if 'leaderintros' in (c.get('source_path') or '').replace('\\', '').lower()
+        if _is_gen1_leader_intro_clip(c)
     ]
     if len(intros) >= min_count:
         return []
@@ -426,6 +426,13 @@ def _check_v1_has_a1_coverage(post: dict) -> list[dict]:
         v_stem = Path(v_src).stem.lower()
         a_stem = Path(a_src).stem.lower()
         if v_stem and a_stem.startswith(v_stem) and a_stem.endswith(('_1', '_2', '_3', '_4', '_5')):
+            return True
+        parent_stem = Path(a_src).parent.name.lower()
+        if (
+            v_stem
+            and parent_stem in {f'{v_stem}_tracks', f'{v_stem} tracks'}
+            and a_stem in {'1', '2', '3', '4', '5'}
+        ):
             return True
         return bool(v_name and v_name.replace('.mp4', '') in a_name)
 

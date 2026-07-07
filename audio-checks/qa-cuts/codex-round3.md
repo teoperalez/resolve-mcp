@@ -39,7 +39,7 @@ Return one of:
 - **MINOR_FIXED** — you applied trivial fixes yourself (formatting, mid-word boundary nudges within ±0.3s) and re-verified clean. List what you fixed.
 - **REJECT** — surgical must-fix list. Each entry: rubric criterion, evidence (src range + transcript segment index + transcript text), concrete action.
 
-If PASS, the pipeline rebuilds Steps 5-17 of the `/edittimeline` workflow (re-import FCPXML → rebuild edit timeline → re-place markers → re-do A2 audio + Fairlight → 4K re-render).
+If PASS, the orchestrator rebuilds the configured post-review workflow stages (re-import FCPXML -> rebuild edit timeline -> re-place markers -> re-do A2 audio + Fairlight -> 4K re-render).
 
 ---
 

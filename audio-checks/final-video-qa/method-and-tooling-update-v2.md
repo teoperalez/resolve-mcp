@@ -432,11 +432,12 @@ If CPU fallback triggers and the render is > 30 min, prompt user to confirm befo
 
 ---
 
-## /edittimeline integration
+## Orchestrator integration
 
-The skill is invoked automatically as **Step 18** of `/edittimeline` (after Step 17's 4K render completes successfully).
+The skill is invoked automatically by the orchestrator render-QA gate after the
+4K render completes successfully.
 
-Invocation mode in `/edittimeline`:
+Invocation mode in the orchestrator:
 ```bash
 python ~/.claude/skills/final-render-cut-qa/run.py \
     --render-path "<FINAL_4K path>" \
@@ -470,7 +471,7 @@ User-triggered invocation (manual mode, no auto-confirm):
 7. **Codex adversarial review is mandatory.** Skill cannot return PASS without at least one Codex audit pass returning APPROVE_FOR_USER_REVIEW.
 8. **Spot-check previews are mandatory and unfiltered.** The 4 high-risk regions are always presented to the user regardless of scanner findings.
 9. **The skill must not edit `plan.md`, `manifest.json`, `rubric.md`, or any `iter-*-claude-*.md` file** from a parallel `/claude-codex-sync-*` loop if one is active. Stay in `audio-checks/final-video-qa/` and `plans/prompts/cut-analysis-*.out.md` (for append only).
-10. **The skill never rebuilds the timeline itself.** It signals PASS_WITH_NEW_CUTS and exits; the user (or `/edittimeline` orchestrator) re-invokes the rebuild pipeline. Decoupling QA from rebuild prevents recursion bugs.
+10. **The skill never rebuilds the timeline itself.** It signals PASS_WITH_NEW_CUTS and exits; the user or orchestrator re-invokes the rebuild pipeline. Decoupling QA from rebuild prevents recursion bugs.
 
 ---
 
@@ -487,7 +488,7 @@ Skill is complete and ready for promotion when:
 7. ✅ Every new cut appended to canonical preserves the schema validator
 8. ✅ Final verdict file written with one of the 4 verdict states + cited reasoning
 9. ✅ Artifact versioning policy honored (2 versions max on disk; older runs renamed before overwrite)
-10. ✅ If PASS_WITH_NEW_CUTS triggers a rebuild, the rebuild signal is written to `rebuild-trigger.flag` for `/edittimeline` to consume
+10. If PASS_WITH_NEW_CUTS triggers a rebuild, the rebuild signal is written to `rebuild-trigger.flag` for the orchestrator to consume
 
 ---
 

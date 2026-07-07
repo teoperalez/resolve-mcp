@@ -81,7 +81,7 @@ For PASS_CLEAN:
 
 For PASS_WITH_NEW_CUTS:
 - [ ] `rebuild-trigger.flag` written
-- [ ] `/edittimeline` consumes flag → re-runs Steps 5-17
+- [ ] orchestrator consumes flag -> re-runs the configured rebuild steps
 - [ ] After rebuild, re-invoke this skill (audit pass counter resets, rebuild iteration counter increments)
 
 For REJECT:

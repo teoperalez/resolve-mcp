@@ -1,4 +1,4 @@
-"""Ordered Mewtwo RBY Ultra Minimum Battles pipeline runner.
+"""Ordered Gen 1 RBY Ultra Minimum Battles pipeline runner.
 
 This is a guardrail script, not a magic one-button editor. Its job is to keep
 the run in the Victreebel-approved order so later heavy passes cannot happen
@@ -35,41 +35,40 @@ if str(REPO_DIR) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from scripts import build_mewtwo_rby_fcpxml as M
+from scripts import build_rby_umb_fcpxml as M
 
 
 CUT_REVIEW_DIR = M.CODEX_DIR / "cut_review"
-REVIEW_MANIFEST = M.CODEX_DIR / f"{M.safe_file_stem(M.REVIEW_NAME)}_manifest.json"
-CUT_CANDIDATES = CUT_REVIEW_DIR / "cut_candidates_mewtwo.json"
-NARRATIVE_PROMPT = CUT_REVIEW_DIR / "narrative" / "mewtwo_narrative_cut_review.in.md"
-NARRATIVE_CLIP_INDEX = CUT_REVIEW_DIR / "narrative" / "clip_index.json"
-NARRATIVE_OUTPUT = CUT_REVIEW_DIR / "narrative" / "mewtwo_narrative_cut_review.out.json"
-WAVEFORM_CANDIDATES = CUT_REVIEW_DIR / "waveform_candidates.json"
-NGRAM_CANDIDATES = CUT_REVIEW_DIR / "ngram_candidates.json"
-ARTIFACT_CANDIDATES = CUT_REVIEW_DIR / "artifact_candidates.json"
-PROGRAMMATIC_CANDIDATES = CUT_REVIEW_DIR / "programmatic_candidates.json"
-HTML_DECISIONS = CUT_REVIEW_DIR / "review" / "pink_decisions.json"
-HTML_CLIPS = CUT_REVIEW_DIR / "clips_for_review.json"
-HTML_SEGMAP = CUT_REVIEW_DIR / "review" / "segmap.json"
+REVIEW_MANIFEST = M.profile_path("review_manifest", M.CODEX_DIR / f"{M.safe_file_stem(M.REVIEW_NAME)}_manifest.json")
+CUT_CANDIDATES = M.profile_path("candidate_manifest", CUT_REVIEW_DIR / "cut_candidates.json")
+NARRATIVE_PROMPT = M.profile_path("narrative_prompt", CUT_REVIEW_DIR / "narrative" / "review.in.md")
+NARRATIVE_CLIP_INDEX = M.profile_path("narrative_clip_index", CUT_REVIEW_DIR / "narrative" / "clip_index.json")
+NARRATIVE_OUTPUT = M.profile_path("narrative_output", CUT_REVIEW_DIR / "narrative" / "review.out.json")
+WAVEFORM_CANDIDATES = M.profile_path("waveform_candidates", CUT_REVIEW_DIR / "waveform_candidates.json")
+NGRAM_CANDIDATES = M.profile_path("ngram_candidates", CUT_REVIEW_DIR / "ngram_candidates.json")
+ARTIFACT_CANDIDATES = M.profile_path("artifact_candidates", CUT_REVIEW_DIR / "artifact_candidates.json")
+PROGRAMMATIC_CANDIDATES = M.profile_path("programmatic_candidates", CUT_REVIEW_DIR / "programmatic_candidates.json")
+HTML_DECISIONS = M.profile_path("html_decisions", CUT_REVIEW_DIR / "review" / "pink_decisions.json")
+HTML_CLIPS = M.profile_path("html_clips", CUT_REVIEW_DIR / "clips_for_review.json")
+HTML_SEGMAP = M.profile_path("html_segmap", CUT_REVIEW_DIR / "review" / "segmap.json")
 HTML_AUTO_SEGMAP = CUT_REVIEW_DIR / "review" / "auto_segmap.json"
 HTML_STRUCTURAL_SEGMAP = CUT_REVIEW_DIR / "review" / "structural_segmap.json"
 NATIVE_APPLIED_DIR = M.CODEX_DIR / "review_decisions_native"
-NATIVE_NORMALIZED = NATIVE_APPLIED_DIR / "review_decisions_normalized_ranges.json"
-APPROVED_NARRATIVE = CUT_REVIEW_DIR / "approved_narrative_cuts_mewtwo.json"
-APPROVED_SOURCE_CUTS = CUT_REVIEW_DIR / "approved_source_cuts_mewtwo.json"
-FINAL_BASE_NAME = "Mewtwo RBY UMB redo CODEx final rebuild base"
-FINAL_MANIFEST = M.CODEX_DIR / f"{M.safe_file_stem(FINAL_BASE_NAME)}_manifest.json"
-GAME_AUDIO = (
-    M.PROJECT_DIR
-    / "Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks"
-    / "Mewtwo Red and Blue Ultra Minimum Battles Redo_3.wav"
-)
-BGM_REPORT = M.CODEX_DIR / "qa-reports" / "mewtwo-rby-umb-bgm.json"
-CLIP_COLOR_REPORT = M.CODEX_DIR / "qa-reports" / "mewtwo-rby-umb-clip-colors.json"
-PIPELINE_STATE = M.CODEX_DIR / "mewtwo_pipeline_state.json"
-PIPELINE_REPORT = M.CODEX_DIR / "mewtwo_pipeline_order_report.json"
+NATIVE_NORMALIZED = M.profile_path("native_normalized_ranges", NATIVE_APPLIED_DIR / "review_decisions_normalized_ranges.json")
+APPROVED_NARRATIVE = M.profile_path("approved_narrative", CUT_REVIEW_DIR / "approved_narrative_cuts.json")
+APPROVED_SOURCE_CUTS = M.profile_path("approved_source_cuts", CUT_REVIEW_DIR / "approved_source_cuts.json")
+FINAL_BASE_NAME = M.FINAL_NAME
+FINAL_MANIFEST = M.profile_path("final_manifest", M.CODEX_DIR / f"{M.safe_file_stem(FINAL_BASE_NAME)}_manifest.json")
+GAME_AUDIO = M.profile_path("game_audio", M.PROJECT_DIR / f"{M.source_name()}_tracks" / f"{M.source_name()}_3.wav")
+GAME_AUDIO_STREAM = M.profile_text("game_audio_stream", "0:a:2")
+BGM_REPORT = M.profile_path("bgm_report", M.CODEX_DIR / "qa-reports" / "rby-umb-bgm.json")
+CLIP_COLOR_REPORT = M.profile_path("clip_color_report", M.CODEX_DIR / "qa-reports" / "rby-umb-clip-colors.json")
+PIPELINE_STATE = M.profile_path("pipeline_state", M.CODEX_DIR / "rby_umb_pipeline_state.json")
+PIPELINE_REPORT = M.profile_path("pipeline_order_report", M.CODEX_DIR / "rby_umb_pipeline_order_report.json")
+PIPELINE_CACHE_DIR = M.profile_path("pipeline_cache_dir", M.CODEX_DIR / "orchestrator_cache")
+PIPELINE_STOP_REPORT = M.profile_path("pipeline_stop_report", M.CODEX_DIR / "orchestrator_stop.json")
 DEFAULT_WORKFLOW_CONFIG = REPO_DIR / "config" / "orchestrator_workflows.json"
-DEFAULT_PROFILE_ID = "mewtwo_rby_umb_redo"
+DEFAULT_PROFILE_ID = ""
 
 
 ORDER = [
@@ -87,6 +86,27 @@ ORDER = [
 ]
 
 
+STAGE_OUTPUTS: dict[str, list[Path]] = {
+    "review-base": [REVIEW_MANIFEST, M.profile_path("review_fcpxml", M.CODEX_DIR / "cut_review" / "review_base.fcpxml")],
+    "narrative-prompt": [NARRATIVE_PROMPT, NARRATIVE_CLIP_INDEX],
+    "programmatic-candidates": [WAVEFORM_CANDIDATES, NGRAM_CANDIDATES, ARTIFACT_CANDIDATES, PROGRAMMATIC_CANDIDATES],
+    "compile-cut-candidates": [CUT_CANDIDATES, HTML_CLIPS, HTML_SEGMAP],
+    "apply-html-decisions": [NATIVE_NORMALIZED],
+    "compile-approved-cuts": [APPROVED_SOURCE_CUTS],
+    "extract-game-audio": [GAME_AUDIO],
+    "final-base": [FINAL_MANIFEST],
+    "bgm": [BGM_REPORT],
+    "clip-colors": [CLIP_COLOR_REPORT],
+    "final-assembly": [FINAL_MANIFEST, BGM_REPORT, CLIP_COLOR_REPORT],
+    "validate-order": [PIPELINE_REPORT],
+}
+CACHE_ONLY_STAGES = {"gen1-intros", "find-member-carousel", "carousel", "carousel-dry-run"}
+
+
+class PipelineStop(RuntimeError):
+    """A required input or decision is missing, so the orchestrator must stop."""
+
+
 def run(cmd: list[str]) -> None:
     print(" ".join(f'"{part}"' if " " in str(part) else str(part) for part in cmd), flush=True)
     subprocess.run([str(part) for part in cmd], check=True)
@@ -99,6 +119,61 @@ def read_json(path: Path):
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+
+
+def stage_cache_path(stage: str) -> Path:
+    return PIPELINE_CACHE_DIR / f"{stage}.json"
+
+
+def stage_outputs_exist(stage: str) -> bool:
+    outputs = STAGE_OUTPUTS.get(stage, [])
+    return bool(outputs) and all(path.exists() for path in outputs)
+
+
+def stage_cache_complete(stage: str) -> bool:
+    outputs = STAGE_OUTPUTS.get(stage, [])
+    if outputs and not stage_outputs_exist(stage):
+        return False
+    path = stage_cache_path(stage)
+    if not path.exists():
+        return bool(outputs) and stage_outputs_exist(stage)
+    try:
+        payload = read_json(path)
+    except Exception:
+        return False
+    if payload.get("status") not in {"complete", "warning", "cached"}:
+        return False
+    return bool(outputs) or stage in CACHE_ONLY_STAGES
+
+
+def stop_for_user(stage: str, reason: str, *, missing: list[str] | None = None, options: list[str] | None = None) -> None:
+    missing = missing or []
+    options = options or [
+        "Fix or provide the missing asset/data, then rerun this same orchestrator step.",
+        "Update the active project profile in the orchestrator GUI if the path or setting is wrong.",
+        "Explicitly tell the agent which alternate artifact or fallback policy you want used.",
+    ]
+    payload = {
+        "schema": "rby_umb_orchestrator_stop_v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "stage": stage,
+        "reason": reason,
+        "missing": missing,
+        "options": options,
+        "next_action": "Ask the user which option to use before continuing.",
+    }
+    write_json(PIPELINE_STOP_REPORT, payload)
+    lines = [
+        f"STOP: Stage {stage!r} cannot continue autonomously.",
+        f"Reason: {reason}",
+    ]
+    if missing:
+        lines.append("Missing required asset/data:")
+        lines.extend(f"  - {item}" for item in missing)
+    lines.append("Ask the user how to proceed:")
+    lines.extend(f"  {index}. {option}" for index, option in enumerate(options, 1))
+    lines.append(f"Stop report: {PIPELINE_STOP_REPORT}")
+    raise PipelineStop("\n".join(lines))
 
 
 def truthy(value) -> bool:
@@ -188,9 +263,10 @@ def resolve_html_decisions_path() -> Path | None:
 def require(paths: list[Path], stage: str) -> None:
     missing = [str(path) for path in paths if not path.exists()]
     if missing:
-        raise RuntimeError(
-            f"Stage {stage!r} is not ready. Missing required artifact(s):\n"
-            + "\n".join(f"  - {item}" for item in missing)
+        stop_for_user(
+            stage,
+            "Required input artifact(s) are missing.",
+            missing=missing,
         )
 
 
@@ -253,17 +329,24 @@ def mark_state(stage: str, status: str, **extra) -> None:
     state = {}
     if PIPELINE_STATE.exists():
         state = read_json(PIPELINE_STATE)
+    record = {
+        "stage": stage,
+        "status": status,
+        "at": datetime.now(timezone.utc).isoformat(),
+        **extra,
+    }
     state.setdefault("history", []).append(
-        {
-            "stage": stage,
-            "status": status,
-            "at": datetime.now(timezone.utc).isoformat(),
-            **extra,
-        }
+        record
     )
     state["last_stage"] = stage
     state["last_status"] = status
     write_json(PIPELINE_STATE, state)
+    cache_payload = {
+        "schema": "rby_umb_stage_cache_v1",
+        **record,
+        "outputs": [str(path) for path in STAGE_OUTPUTS.get(stage, [])],
+    }
+    write_json(stage_cache_path(stage), cache_payload)
 
 
 def artifact_status() -> dict:
@@ -320,11 +403,45 @@ def artifact_status() -> dict:
     }
 
 
+def require_orchestrator_profile() -> None:
+    if M.ACTIVE_PROFILE_ID:
+        return
+    stop_for_user(
+        "profile",
+        "No orchestrator profile is active. This runner is intentionally profile-driven so it does not fall back to an old project.",
+        options=[
+            "Run this through the orchestrator GUI.",
+            "Run scripts/orchestrator_run.py with --profile <profile_id>.",
+            "Set ORCHESTRATOR_PROFILE_ID and ORCHESTRATOR_CONFIG_PATH before invoking this runner directly.",
+        ],
+    )
+
+
+def run_cached_stage(args: argparse.Namespace, stage: str, func) -> int | None:
+    if getattr(args, "reuse_cache", True) and not args.force and stage_cache_complete(stage):
+        print(f"Cache hit for stage {stage!r}; outputs already exist.")
+        mark_state(stage, "cached", cache=str(stage_cache_path(stage)))
+        return 0
+    mark_state(stage, "running")
+    try:
+        result = func(args)
+    except Exception as exc:
+        mark_state(stage, "failed", error=str(exc))
+        raise
+    if stage in STAGE_OUTPUTS and not stage_outputs_exist(stage):
+        missing = [str(path) for path in STAGE_OUTPUTS[stage] if not path.exists()]
+        mark_state(stage, "stopped", missing=missing)
+        stop_for_user(stage, "The stage finished but did not produce its declared output artifact(s).", missing=missing)
+    if not isinstance(result, int) or result == 0:
+        mark_state(stage, "complete", cache=str(stage_cache_path(stage)))
+    return result
+
+
 def stage_review_base(args: argparse.Namespace) -> None:
     run(
         [
             sys.executable,
-            SCRIPT_DIR / "build_mewtwo_rby_fcpxml.py",
+            SCRIPT_DIR / "build_rby_umb_fcpxml.py",
             "--review-base",
         ]
     )
@@ -335,7 +452,7 @@ def stage_narrative_prompt(args: argparse.Namespace) -> None:
     require([REVIEW_MANIFEST], "narrative-prompt")
     cmd = [
         sys.executable,
-        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        SCRIPT_DIR / "generate_rby_umb_cut_candidates.py",
         "--stage",
         "narrative-prompt",
         "--manifest",
@@ -352,7 +469,7 @@ def stage_programmatic_candidates(args: argparse.Namespace) -> None:
     require([REVIEW_MANIFEST, NARRATIVE_OUTPUT], "programmatic-candidates")
     cmd = [
         sys.executable,
-        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        SCRIPT_DIR / "generate_rby_umb_cut_candidates.py",
         "--stage",
         "programmatic-candidates",
         "--manifest",
@@ -379,7 +496,7 @@ def stage_compile_cut_candidates(args: argparse.Namespace) -> None:
     )
     cmd = [
         sys.executable,
-        SCRIPT_DIR / "generate_mewtwo_cut_candidates.py",
+        SCRIPT_DIR / "generate_rby_umb_cut_candidates.py",
         "--stage",
         "compile",
         "--manifest",
@@ -423,7 +540,7 @@ def stage_apply_html_decisions(args: argparse.Namespace) -> None:
         write_json(
             NATIVE_NORMALIZED,
             {
-                "schema": "mewtwo_offline_html_review_decisions_v1",
+                "schema": "rby_umb_offline_html_review_decisions_v1",
                 "whole_cut_indices": [],
                 "partial_records": [],
                 "auto_whole_restore_indices": [],
@@ -730,7 +847,7 @@ def compile_html_decision_cuts(
     auto_restore_ranges = [source_cut_from_timeline_range(row, timeline_fps) for row in auto_restore_records if row.get("clip")]
     structural_restore_ranges = [source_cut_from_timeline_range(row, timeline_fps) for row in structural_restore_records if row.get("clip")]
     metadata = {
-        "schema": "mewtwo_offline_html_review_decisions_v1",
+        "schema": "rby_umb_offline_html_review_decisions_v1",
         "dry_run_auto_approved": bool(decisions.get("dry_run_auto_approved")),
         "whole_cut_indices": whole_cut_indices,
         "partial_records": partial_records,
@@ -923,7 +1040,7 @@ def stage_compile_approved_cuts(args: argparse.Namespace) -> None:
     write_json(
         APPROVED_SOURCE_CUTS,
         {
-            "schema": "mewtwo_approved_source_cuts_v1",
+            "schema": "rby_umb_approved_source_cuts_v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "note": "Structural restart cuts are included only when approved by the HTML structural review decisions.",
             "approval_sources": approval_sources,
@@ -940,7 +1057,7 @@ def stage_final_base(args: argparse.Namespace) -> None:
     run(
         [
             sys.executable,
-            SCRIPT_DIR / "build_mewtwo_rby_fcpxml.py",
+            SCRIPT_DIR / "build_rby_umb_fcpxml.py",
             "--timeline-name",
             FINAL_BASE_NAME,
             "--manifest",
@@ -981,7 +1098,7 @@ def stage_extract_game_audio(args: argparse.Namespace) -> None:
             "-i",
             M.VIDEO_PATH,
             "-map",
-            "0:a:2",
+            GAME_AUDIO_STREAM,
             "-ac",
             "2",
             "-ar",
@@ -1024,6 +1141,11 @@ def stage_carousel(args: argparse.Namespace, dry_run: bool) -> None:
     mark_state("carousel-dry-run" if dry_run else "carousel", "complete")
 
 
+def stage_find_member_carousel(args: argparse.Namespace) -> None:
+    run([sys.executable, SCRIPT_DIR / "find_member_carousel.py", "--max-candidates", "30"])
+    mark_state("find-member-carousel", "complete")
+
+
 def stage_clip_colors(args: argparse.Namespace, dry_run: bool = False) -> None:
     require([FINAL_MANIFEST], "clip-colors")
     timeline_name = timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME)
@@ -1062,12 +1184,12 @@ def stage_clip_colors(args: argparse.Namespace, dry_run: bool = False) -> None:
 
 def stage_final_assembly(args: argparse.Namespace) -> None:
     require([APPROVED_SOURCE_CUTS, GAME_AUDIO], "final-assembly")
-    stage_final_base(args)
-    stage_gen1_intros(args)
-    stage_bgm(args, dry_run=False)
-    run([sys.executable, SCRIPT_DIR / "find_member_carousel.py", "--max-candidates", "30"])
-    stage_carousel(args, dry_run=False)
-    stage_clip_colors(args, dry_run=False)
+    run_cached_stage(args, "final-base", stage_final_base)
+    run_cached_stage(args, "gen1-intros", stage_gen1_intros)
+    run_cached_stage(args, "bgm", lambda ns: stage_bgm(ns, dry_run=False))
+    run_cached_stage(args, "find-member-carousel", stage_find_member_carousel)
+    run_cached_stage(args, "carousel", lambda ns: stage_carousel(ns, dry_run=False))
+    run_cached_stage(args, "clip-colors", lambda ns: stage_clip_colors(ns, dry_run=False))
     mark_state(
         "final-assembly",
         "complete",
@@ -1097,7 +1219,7 @@ def stage_validate_order(args: argparse.Namespace) -> int:
     if not status.get("carousel_marker_on_current_timeline"):
         missing.append("carousel_marker_on_current_timeline")
     report = {
-        "schema": "mewtwo_pipeline_order_report_v1",
+        "schema": "rby_umb_pipeline_order_report_v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "order": ORDER,
         "status": status,
@@ -1111,24 +1233,28 @@ def stage_validate_order(args: argparse.Namespace) -> int:
 
 def stage_plan(args: argparse.Namespace) -> None:
     commands = [
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "review-base"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "narrative-prompt"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "review-base"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "narrative-prompt"],
         ["LLM", "narrative-llm-review", str(NARRATIVE_PROMPT), "->", str(NARRATIVE_OUTPUT)],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "programmatic-candidates"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "compile-cut-candidates"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "apply-html-decisions"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "compile-approved-cuts"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "extract-game-audio"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "final-assembly"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "clip-colors"],
-        [sys.executable, SCRIPT_DIR / "run_mewtwo_rby_umb_pipeline.py", "--stage", "validate-order", "--strict"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "programmatic-candidates"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "compile-cut-candidates"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "apply-html-decisions"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "compile-approved-cuts"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "extract-game-audio"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "final-assembly"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "clip-colors"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "validate-order", "--strict"],
     ]
     report = {
         "order": ORDER,
         "commands": [[str(part) for part in cmd] for cmd in commands],
         "artifacts": artifact_status(),
     }
-    write_json(M.CODEX_DIR / "mewtwo_pipeline_plan.json", report)
+    plan_path = M.profile_path("pipeline_plan", M.CODEX_DIR / "rby_umb_pipeline_plan.json")
+    try:
+        write_json(plan_path, report)
+    except OSError as exc:
+        report["plan_write_warning"] = f"Could not write {plan_path}: {exc}"
     print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
 
 
@@ -1162,75 +1288,93 @@ def main() -> int:
     )
     parser.add_argument("--strict", action="store_true", help="Make validate-order fail when finished-stage artifacts are missing.")
     parser.add_argument("--force", action="store_true", help="Overwrite stage outputs where supported.")
+    parser.add_argument(
+        "--no-reuse-cache",
+        dest="reuse_cache",
+        action="store_false",
+        default=True,
+        help="Re-run the requested stage even when its cached outputs already exist.",
+    )
     parser.add_argument("--strict-apply", action="store_true",
                         help="For clip-colors, fail if Resolve does not actually persist requested clip colors.")
     parser.add_argument("--allow-empty-approved-cuts", action="store_true",
                         help="Allow compile-approved-cuts to write an empty approved source-cut file.")
     args = parser.parse_args()
 
+    require_orchestrator_profile()
+
     if args.stage == "plan":
-        stage_plan(args)
+        run_cached_stage(args, "plan", stage_plan)
         return 0
     if args.stage == "review-base":
-        stage_review_base(args)
+        run_cached_stage(args, "review-base", stage_review_base)
         return 0
     if args.stage == "narrative-prompt":
-        stage_narrative_prompt(args)
+        run_cached_stage(args, "narrative-prompt", stage_narrative_prompt)
         return 0
     if args.stage == "programmatic-candidates":
-        stage_programmatic_candidates(args)
+        run_cached_stage(args, "programmatic-candidates", stage_programmatic_candidates)
         return 0
     if args.stage == "compile-cut-candidates":
-        stage_compile_cut_candidates(args)
+        run_cached_stage(args, "compile-cut-candidates", stage_compile_cut_candidates)
         return 0
     if args.stage == "cut-candidates":
-        stage_cut_candidates(args)
+        run_cached_stage(args, "cut-candidates", stage_cut_candidates)
         return 0
     if args.stage == "apply-html-decisions":
-        stage_apply_html_decisions(args)
+        run_cached_stage(args, "apply-html-decisions", stage_apply_html_decisions)
         return 0
     if args.stage == "compile-approved-cuts":
-        stage_compile_approved_cuts(args)
+        run_cached_stage(args, "compile-approved-cuts", stage_compile_approved_cuts)
         return 0
     if args.stage == "final-base":
-        stage_final_base(args)
+        run_cached_stage(args, "final-base", stage_final_base)
         return 0
     if args.stage == "gen1-intros":
-        stage_gen1_intros(args)
+        run_cached_stage(args, "gen1-intros", stage_gen1_intros)
         return 0
     if args.stage == "extract-game-audio":
-        stage_extract_game_audio(args)
+        run_cached_stage(args, "extract-game-audio", stage_extract_game_audio)
         return 0
     if args.stage == "bgm-dry-run":
-        stage_bgm(args, dry_run=True)
+        run_cached_stage(args, "bgm-dry-run", lambda ns: stage_bgm(ns, dry_run=True))
         return 0
     if args.stage == "bgm":
-        stage_bgm(args, dry_run=False)
+        run_cached_stage(args, "bgm", lambda ns: stage_bgm(ns, dry_run=False))
         return 0
     if args.stage == "carousel-dry-run":
-        stage_carousel(args, dry_run=True)
+        run_cached_stage(args, "carousel-dry-run", lambda ns: stage_carousel(ns, dry_run=True))
         return 0
     if args.stage == "carousel":
-        stage_carousel(args, dry_run=False)
+        run_cached_stage(args, "carousel", lambda ns: stage_carousel(ns, dry_run=False))
         return 0
     if args.stage == "clip-colors-dry-run":
-        stage_clip_colors(args, dry_run=True)
+        run_cached_stage(args, "clip-colors-dry-run", lambda ns: stage_clip_colors(ns, dry_run=True))
         return 0
     if args.stage == "clip-colors":
-        stage_clip_colors(args, dry_run=False)
+        run_cached_stage(args, "clip-colors", lambda ns: stage_clip_colors(ns, dry_run=False))
         return 0
     if args.stage == "final-assembly":
-        stage_final_assembly(args)
+        run_cached_stage(args, "final-assembly", stage_final_assembly)
         return 0
     if args.stage == "validate-order":
-        return stage_validate_order(args)
+        return run_cached_stage(args, "validate-order", stage_validate_order) or 0
     if args.stage == "all-through-candidates":
-        stage_review_base(args)
-        stage_narrative_prompt(args)
+        run_cached_stage(args, "review-base", stage_review_base)
+        run_cached_stage(args, "narrative-prompt", stage_narrative_prompt)
         if not NARRATIVE_OUTPUT.exists():
-            raise RuntimeError(f"LLM narrative output is required before programmatic candidate stages: {NARRATIVE_OUTPUT}")
-        stage_programmatic_candidates(args)
-        stage_compile_cut_candidates(args)
+            stop_for_user(
+                "all-through-candidates",
+                "The narrative LLM output is required before programmatic candidate stages.",
+                missing=[str(NARRATIVE_OUTPUT)],
+                options=[
+                    "Run the orchestrator LLM review step and approve/save the output.",
+                    "Place a valid narrative review JSON at the expected output path.",
+                    "Stop here and resume from programmatic-candidates after review is complete.",
+                ],
+            )
+        run_cached_stage(args, "programmatic-candidates", stage_programmatic_candidates)
+        run_cached_stage(args, "compile-cut-candidates", stage_compile_cut_candidates)
         return 0
     raise RuntimeError(f"Unhandled stage: {args.stage}")
 
