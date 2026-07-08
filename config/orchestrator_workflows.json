@@ -2,6 +2,221 @@
   "schema": "resolve_orchestrator_workflows_v1",
   "profiles": [
     {
+      "id": "roxanne_minimum_wrap_up",
+      "name": "Roxanne Minimum Wrap Up",
+      "workflow_id": "generic_minimum_battles_review_first",
+      "game_version": "pokemon_emerald",
+      "challenge_type": "minimum_battles_multi_pokemon",
+      "description": "Review-first workflow for F:/Roxanne Minimum using the existing combined auto-editor export.",
+      "project_dir": "F:/Roxanne Minimum",
+      "codex_dir": "{project_dir}/CODEx",
+      "parameters": {
+        "workflow_config": "{repo}/config/orchestrator_workflows.json",
+        "timeline_fps": 60,
+        "whisper_model": "large-v3-turbo",
+        "whisper_device": "cuda",
+        "whisper_compute_type": "float16",
+        "llm_dispatch_mode": "auto",
+        "llm_open_code_workspace": true,
+        "llm_timeout_sec": 3600,
+        "llm_model": "",
+        "source_name": "Roxanne Minimum_COMBINED",
+        "source_media": "{project_dir}/Roxanne Minimum_COMBINED.mp4",
+        "dialogue_audio": "{project_dir}/Roxanne Minimum_COMBINED_tracks/4.wav",
+        "raw_autoeditor_fcpxml": "{project_dir}/Roxanne Minimum_COMBINED_ALTERED.fcpxml",
+        "pipeline_script": "scripts/run_minimum_battles_pipeline.py",
+        "source_parts": [
+          "{project_dir}/Roxanne Minimum_COMBINED.mp4"
+        ],
+        "used_source_parts": [
+          "{project_dir}/Roxanne Minimum_COMBINED.mp4"
+        ],
+        "asset_root": "F:/RSE Assets",
+        "layout_root": "F:/Programming/RSENewLayout",
+        "intro_asset": "F:/Programming/RSENewLayout/RSE Short intro.mp4",
+        "outro_asset": "F:/RSE Assets/RSE Assets.mp4",
+        "background_infinite_asset": "F:/RSE Assets/RSE Assets Infinite.mkv",
+        "bgm_dir": "F:/Programming/RSENewLayout/audio/bgm",
+        "dialogue_track_index": 4,
+        "gap_frames": 60,
+        "marker_offset_frames": 34,
+        "marker_offset_tolerance_frames": 12,
+        "auto_editor_export": "resolve",
+        "auto_editor_margin": "0.1sec",
+        "auto_editor_edit": "audio:stream=0",
+        "auto_editor_extra_args": "",
+        "auto_editor_preview": false,
+        "waveform_sr": 16000,
+        "review_sr": 44100,
+        "speech_rms": 0.02,
+        "voiced_zcr": 0.25,
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "audio_normalization_target_db": -9.0,
+        "carousel_max_candidates": 30,
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml"
+      },
+      "paths": {
+        "input_preflight_report": "{codex_dir}/minimum_battles/input_preflight.json",
+        "parts_manifest": "{codex_dir}/minimum_battles/auto_editor/parts_manifest.json",
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "review_manifest": "{codex_dir}/cut_review/review_base_manifest.json",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_index": "{codex_dir}/cut_review/review/index.html",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
+        "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "source_map": "{codex_dir}/minimum_battles/source_map.json",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/review.in.md",
+        "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/review.out.json",
+        "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
+        "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
+        "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
+        "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
+        "post_cut_fcpxml": "{codex_dir}/cut_review/review_base_after_html_decisions.fcpxml",
+        "post_cut_narrative_audit_dir": "{codex_dir}/cut_review/post_cut_narrative_audit",
+        "post_cut_narrative_audit_report": "{codex_dir}/cut_review/post_cut_narrative_audit/audit.json",
+        "post_cut_narrative_audit_prompt": "{codex_dir}/cut_review/post_cut_narrative_audit/review.in.md",
+        "post_cut_narrative_audit_output": "{codex_dir}/cut_review/post_cut_narrative_audit/review.out.json",
+        "post_cut_narrative_audit_index": "{codex_dir}/cut_review/post_cut_narrative_audit/index.html",
+        "categories_json": "{codex_dir}/cut_review/categories.json",
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
+        "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
+        "structure_decisions": "{codex_dir}/minimum_battles/structure_decisions.json",
+        "gap_plan": "{codex_dir}/minimum_battles/gap_plan.json",
+        "gap_marker_report": "{codex_dir}/qa-reports/minimum-battles-gap-marker-report.json",
+        "final_fcpxml": "{codex_dir}/minimum_battles/final_base.fcpxml",
+        "final_manifest": "{codex_dir}/minimum_battles/final_base_manifest.json",
+        "a1_dialogue_audit_report": "{codex_dir}/cut_review/a1_dialogue_audit.json",
+        "a1_dialogue_audit_transcript_dir": "{codex_dir}/cut_review/a1-dialogue-audit-transcript",
+        "stitched_dialogue_audio": "{codex_dir}/minimum_battles/stitched_dialogue.wav",
+        "rse_assets_report": "{codex_dir}/qa-reports/rse-assets-preflight.json",
+        "bgm_report": "{codex_dir}/qa-reports/minimum-battles-bgm.json",
+        "clip_color_report": "{codex_dir}/qa-reports/minimum-battles-clip-colors.json",
+        "fairlight_report": "{codex_dir}/qa-reports/minimum-battles-fairlight.json",
+        "audio_normalization_instructions": "{codex_dir}/qa-reports/audio-normalization-computer-use.md",
+        "pipeline_order_report": "{codex_dir}/minimum_battles/pipeline_order_report.json",
+        "pipeline_state": "{codex_dir}/minimum_battles/pipeline_state.json",
+        "pipeline_stop_report": "{codex_dir}/minimum_battles/orchestrator_stop.json",
+        "pipeline_plan": "{codex_dir}/minimum_battles/pipeline_plan.json",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md"
+      }
+    },
+    {
+      "id": "roxanne_rse_minimum_battles_19",
+      "name": "Roxanne RSE Minimum Battles 19",
+      "workflow_id": "generic_minimum_battles_review_first",
+      "game_version": "pokemon_emerald",
+      "challenge_type": "minimum_battles_multi_pokemon",
+      "description": "Review-first RSE minimum-battles workflow for Roxanne Minimum Battles 19.",
+      "project_dir": "F:/Roxanne Minimum Battles 19",
+      "codex_dir": "{project_dir}/CODEx",
+      "parameters": {
+        "workflow_config": "{repo}/config/orchestrator_workflows.json",
+        "timeline_fps": 60,
+        "whisper_model": "large-v3-turbo",
+        "whisper_device": "cuda",
+        "whisper_compute_type": "float16",
+        "llm_dispatch_mode": "auto",
+        "llm_open_code_workspace": true,
+        "llm_timeout_sec": 3600,
+        "llm_model": "",
+        "source_name": "Roxanne Minimum Battles 19",
+        "pipeline_script": "scripts/run_minimum_battles_pipeline.py",
+        "source_parts": [
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 1.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 2.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 3.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 4.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 5.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 6.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 7.mkv"
+        ],
+        "used_source_parts": [
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 2.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 3.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 4.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 5.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 6.mkv",
+          "F:/Roxanne Minimum Battles 19/Roxanne Minimum Battles 19 part 7.mkv"
+        ],
+        "asset_root": "F:/RSE Assets",
+        "layout_root": "F:/Programming/RSENewLayout",
+        "intro_asset": "F:/Programming/RSENewLayout/RSE Short intro.mp4",
+        "outro_asset": "F:/RSE Assets/RSE Assets.mp4",
+        "background_infinite_asset": "F:/RSE Assets/RSE Assets Infinite.mkv",
+        "bgm_dir": "F:/Programming/RSENewLayout/audio/bgm",
+        "dialogue_track_index": 4,
+        "gap_frames": 60,
+        "marker_offset_frames": 34,
+        "marker_offset_tolerance_frames": 12,
+        "auto_editor_export": "resolve",
+        "auto_editor_margin": "0.1sec",
+        "auto_editor_edit": "audio:stream=0",
+        "auto_editor_extra_args": "",
+        "auto_editor_preview": false,
+        "bgm_crossfade_frames": 59,
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "audio_normalization_target_db": -9.0,
+        "carousel_max_candidates": 30,
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml"
+      },
+      "paths": {
+        "input_preflight_report": "{codex_dir}/minimum_battles/input_preflight.json",
+        "parts_manifest": "{codex_dir}/minimum_battles/auto_editor/parts_manifest.json",
+        "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
+        "review_manifest": "{codex_dir}/cut_review/review_base_manifest.json",
+        "html_clips": "{codex_dir}/cut_review/clips_for_review.json",
+        "html_index": "{codex_dir}/cut_review/review/index.html",
+        "html_segmap": "{codex_dir}/cut_review/review/segmap.json",
+        "html_decisions": "{codex_dir}/cut_review/review/pink_decisions.json",
+        "fcpxml_review_artifact": "{codex_dir}/cut_review/fcpxml_segment_review.json",
+        "fcpxml_review_decisions": "{codex_dir}/cut_review/fcpxml_segment_decisions.json",
+        "source_map": "{codex_dir}/minimum_battles/source_map.json",
+        "narrative_prompt": "{codex_dir}/cut_review/narrative/review.in.md",
+        "narrative_clip_index": "{codex_dir}/cut_review/narrative/clip_index.json",
+        "narrative_output": "{codex_dir}/cut_review/narrative/review.out.json",
+        "waveform_candidates": "{codex_dir}/cut_review/waveform_candidates.json",
+        "ngram_candidates": "{codex_dir}/cut_review/ngram_candidates.json",
+        "artifact_candidates": "{codex_dir}/cut_review/artifact_candidates.json",
+        "programmatic_candidates": "{codex_dir}/cut_review/programmatic_candidates.json",
+        "post_cut_fcpxml": "{codex_dir}/cut_review/review_base_after_html_decisions.fcpxml",
+        "post_cut_narrative_audit_dir": "{codex_dir}/cut_review/post_cut_narrative_audit",
+        "post_cut_narrative_audit_report": "{codex_dir}/cut_review/post_cut_narrative_audit/audit.json",
+        "post_cut_narrative_audit_prompt": "{codex_dir}/cut_review/post_cut_narrative_audit/review.in.md",
+        "post_cut_narrative_audit_output": "{codex_dir}/cut_review/post_cut_narrative_audit/review.out.json",
+        "post_cut_narrative_audit_index": "{codex_dir}/cut_review/post_cut_narrative_audit/index.html",
+        "categories_json": "{codex_dir}/cut_review/categories.json",
+        "candidate_manifest": "{codex_dir}/cut_review/cut_candidates.json",
+        "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
+        "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
+        "structure_decisions": "{codex_dir}/minimum_battles/structure_decisions.json",
+        "gap_plan": "{codex_dir}/minimum_battles/gap_plan.json",
+        "gap_marker_report": "{codex_dir}/qa-reports/minimum-battles-gap-marker-report.json",
+        "final_fcpxml": "{codex_dir}/minimum_battles/final_base.fcpxml",
+        "final_manifest": "{codex_dir}/minimum_battles/final_base_manifest.json",
+        "a1_dialogue_audit_report": "{codex_dir}/cut_review/a1_dialogue_audit.json",
+        "a1_dialogue_audit_transcript_dir": "{codex_dir}/cut_review/a1-dialogue-audit-transcript",
+        "stitched_dialogue_audio": "{codex_dir}/minimum_battles/stitched_dialogue.wav",
+        "rse_assets_report": "{codex_dir}/qa-reports/rse-assets-preflight.json",
+        "bgm_report": "{codex_dir}/qa-reports/minimum-battles-bgm.json",
+        "clip_color_report": "{codex_dir}/qa-reports/minimum-battles-clip-colors.json",
+        "fairlight_report": "{codex_dir}/qa-reports/minimum-battles-fairlight.json",
+        "audio_normalization_instructions": "{codex_dir}/qa-reports/audio-normalization-computer-use.md",
+        "pipeline_order_report": "{codex_dir}/minimum_battles/pipeline_order_report.json",
+        "pipeline_state": "{codex_dir}/minimum_battles/pipeline_state.json",
+        "pipeline_stop_report": "{codex_dir}/minimum_battles/orchestrator_stop.json",
+        "pipeline_plan": "{codex_dir}/minimum_battles/pipeline_plan.json",
+        "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md"
+      }
+    },
+    {
       "id": "mewtwo_rby_umb_redo",
       "name": "Mewtwo RBY UMB Redo",
       "workflow_id": "gen1_rby_umb_review_first",
@@ -33,6 +248,10 @@
         "livestream_cut_chat_interactions": true,
         "livestream_bypass_gameplay_narrative_cuts": true,
         "pipeline_script": "scripts/run_rby_umb_pipeline.py",
+        "post_intro_gap_sec": 1.0,
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "audio_normalization_target_db": -9.0,
         "source_start_sec": 608.412,
         "source_start_reason": "remove setup/explanation and start at Mewtwo intro",
         "structural_source_cuts": [
@@ -68,6 +287,7 @@
         "approved_narrative": "{codex_dir}/cut_review/approved_narrative_cuts.json",
         "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "a1_dialogue_audit_report": "{codex_dir}/cut_review/a1_dialogue_audit.json",
         "game_audio": "C:/Users/teope/Videos/Mewtwo Red and Blue Ultra Minimum Battles Redo/Mewtwo Red and Blue Ultra Minimum Battles Redo_tracks/Mewtwo Red and Blue Ultra Minimum Battles Redo_3.wav",
         "handoff_bundle": "{codex_dir}/cut_review/llm_handoff.json",
         "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md",
@@ -84,7 +304,9 @@
         "intro_outro_report": "{codex_dir}/qa-reports/rby-umb-intro-outro.json",
         "gen1_intros_report": "{codex_dir}/qa-reports/battle-intros-placements.json",
         "bgm_report": "{codex_dir}/qa-reports/rby-umb-bgm.json",
-        "clip_color_report": "{codex_dir}/qa-reports/rby-umb-clip-colors.json"
+        "clip_color_report": "{codex_dir}/qa-reports/rby-umb-clip-colors.json",
+        "fairlight_report": "{codex_dir}/qa-reports/rby-umb-fairlight.json",
+        "audio_normalization_instructions": "{codex_dir}/qa-reports/audio-normalization-computer-use.md"
       }
     },
     {
@@ -128,6 +350,10 @@
         "fairlight_timeline_arg": "",
         "fairlight_timeline": "",
         "pipeline_script": "scripts/run_rby_umb_pipeline.py",
+        "post_intro_gap_sec": 1.0,
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "audio_normalization_target_db": -9.0,
         "carousel_max_candidates": 30,
         "review_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "source_name": "Victreebel Red and Blue Ultra Minimum Battles part 2",
@@ -171,12 +397,15 @@
         "raw_autoeditor_fcpxml": "{project_dir}/{source_name}_AUTOEDITOR_RAW.fcpxml",
         "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "a1_dialogue_audit_report": "{codex_dir}/cut_review/a1_dialogue_audit.json",
         "game_audio": "{project_dir}/{source_name}_tracks/{source_name}_3.wav",
         "final_manifest": "{codex_dir}/final_rebuild_manifest.json",
         "intro_outro_report": "{codex_dir}/qa-reports/rby-umb-intro-outro.json",
         "gen1_intros_report": "{codex_dir}/qa-reports/battle-intros-placements.json",
         "bgm_report": "{codex_dir}/qa-reports/rby-umb-bgm.json",
         "clip_color_report": "{codex_dir}/qa-reports/section_color_report.json",
+        "fairlight_report": "{codex_dir}/qa-reports/rby-umb-fairlight.json",
+        "audio_normalization_instructions": "{codex_dir}/qa-reports/audio-normalization-computer-use.md",
         "session_dir": "{session_dir}",
         "session_events": "{session_events}",
         "session_meta": "{session_meta}"
@@ -194,6 +423,7 @@
       "parameters": {
         "workflow_config": "{repo}/config/orchestrator_workflows.json",
         "timeline_fps": 60,
+        "whisper_model": "large-v3-turbo",
         "source_name": "Celebi UMB Red Blue",
         "source_media": "{project_dir}/Celebi UMB Red Blue part 1.mkv",
         "dialogue_audio": "{codex_dir}/cut_review/celebi_dialogue_combined_p1p2.wav",
@@ -203,8 +433,12 @@
         "gen1_intro_root": "F:/Programming/RBYNewLayout/gymLeaders/LeaderIntros",
         "bgm_dir": "F:/Programming/RBYNewLayout/audio/bgm",
         "intro_speed_pct": 400,
+        "post_intro_gap_sec": 1.0,
         "gen1_intro_speed": 2,
         "opening_bgm_offset_sec": 13,
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "audio_normalization_target_db": -9.0,
         "source_audio_offset_part1": "Celebi UMB Red Blue part 1.mkv=0",
         "source_audio_offset_part2": "Celebi UMB Red Blue part 2.mkv=36646"
       },
@@ -229,12 +463,15 @@
         "raw_autoeditor_fcpxml": "{codex_dir}/cut_review/review_base.fcpxml",
         "approved_source_cuts": "{codex_dir}/cut_review/approved_source_cuts.json",
         "native_normalized_ranges": "{codex_dir}/review_decisions_native/review_decisions_normalized_ranges.json",
+        "a1_dialogue_audit_report": "{codex_dir}/cut_review/a1_dialogue_audit.json",
         "game_audio": "{codex_dir}/cut_review/celebi_game_audio_combined_p1p2_track3.wav",
         "final_manifest": "{codex_dir}/Celebi RBY UMB CODEx orchestrator final base_manifest.json",
         "intro_outro_report": "{codex_dir}/qa-reports/celebi-rby-umb-intro-outro.json",
         "gen1_intros_report": "{codex_dir}/qa-reports/celebi-rby-umb-battle-intros.json",
         "bgm_report": "{codex_dir}/qa-reports/celebi-rby-umb-bgm-final.json",
         "clip_color_report": "{codex_dir}/qa-reports/celebi-rby-umb-clip-colors.json",
+        "fairlight_report": "{codex_dir}/qa-reports/celebi-rby-umb-fairlight.json",
+        "audio_normalization_instructions": "{codex_dir}/qa-reports/audio-normalization-computer-use.md",
         "pipeline_order_report": "{codex_dir}/celebi_pipeline_order_report.json",
         "llm_instructions": "{repo}/docs/edit_flow_llm_instructions.md"
       }
@@ -613,6 +850,575 @@
   ],
   "workflows": [
     {
+      "id": "generic_minimum_battles_review_first",
+      "name": "Generic Minimum Battles Review-First Edit",
+      "description": "Review-first workflow for multi-part Pokemon minimum-battles videos: stitched auto-editor review base, approved structure-driven gap plan, final-base A1 audit, continuous V1 hold coverage, RSE assets, continuous BGM, Fairlight, and normalization handoff.",
+      "game_versions": [
+        "pokemon_emerald",
+        "pokemon_ruby_sapphire",
+        "pokemon_fire_red_leaf_green",
+        "pokemon_red_blue",
+        "pokemon_yellow",
+        "pokemon_gold_silver",
+        "pokemon_crystal"
+      ],
+      "challenge_types": [
+        "minimum_battles_multi_pokemon",
+        "minimum_battles"
+      ],
+      "llm_tasks": [
+        "narrative_cut_review"
+      ],
+      "tooling": {
+        "timeline_rebuild_mode": "offline_review_then_final_base_fcpxml_before_resolve",
+        "gap_mode": "approved_structure_gap_plan",
+        "marker_mode": "approved_structure_only",
+        "visual_hold_mode": "continuous_v1_extension_not_still_or_higher_track_overlay",
+        "audio_bed": "continuous_a2_bgm",
+        "post_cut_audit_policy": "run_after_every_cut_application_before_downstream_compile"
+      },
+      "review_surfaces": [
+        {
+          "id": "fcpxml_segments",
+          "title": "FCPXML Segment Review",
+          "kind": "fcpxml_segments",
+          "decisions_path": "{fcpxml_review_decisions}",
+          "description": "Table review of source-backed FCPXML video segments. Decisions are keep, cut, or manual_fit."
+        }
+      ],
+      "steps": [
+        {
+          "id": "input-preflight",
+          "title": "Validate minimum-battles inputs",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "input-preflight"
+          },
+          "artifacts_out": [
+            "input_preflight_report"
+          ]
+        },
+        {
+          "id": "auto-editor-multi",
+          "title": "Run auto-editor for selected source parts",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "auto-editor-multi"
+          },
+          "depends_on": [
+            "input-preflight"
+          ],
+          "artifacts_in": [
+            {
+              "key": "input_preflight_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "parts_manifest"
+          ]
+        },
+        {
+          "id": "review-base",
+          "title": "Build stitched review base",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "review-base"
+          },
+          "depends_on": [
+            "auto-editor-multi"
+          ],
+          "artifacts_in": [
+            {
+              "key": "parts_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "review_fcpxml",
+            "review_manifest",
+            "html_clips",
+            "source_map"
+          ]
+        },
+        {
+          "id": "narrative-prompt",
+          "title": "Build minimum-battles narrative and structure prompt",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "narrative-prompt"
+          },
+          "depends_on": [
+            "review-base"
+          ],
+          "artifacts_in": [
+            {
+              "key": "review_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "narrative_prompt",
+            "narrative_clip_index"
+          ]
+        },
+        {
+          "id": "narrative-llm-review",
+          "title": "Run minimum-battles narrative review",
+          "phase": "review",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "narrative-llm-review"
+          },
+          "llm_task": "narrative_cut_review",
+          "depends_on": [
+            "narrative-prompt"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_prompt",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "narrative_output"
+          ]
+        },
+        {
+          "id": "programmatic-candidates",
+          "title": "Run waveform, n-gram, and artifact detectors",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "programmatic-candidates"
+          },
+          "depends_on": [
+            "narrative-llm-review"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_output",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "waveform_candidates",
+            "ngram_candidates",
+            "artifact_candidates",
+            "programmatic_candidates",
+            "categories_json"
+          ]
+        },
+        {
+          "id": "compile-cut-candidates",
+          "title": "Compile ranked cut candidates",
+          "phase": "prepare",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "compile-cut-candidates"
+          },
+          "depends_on": [
+            "programmatic-candidates"
+          ],
+          "artifacts_in": [
+            {
+              "key": "narrative_output",
+              "required": true
+            },
+            {
+              "key": "waveform_candidates",
+              "required": true
+            },
+            {
+              "key": "ngram_candidates",
+              "required": true
+            },
+            {
+              "key": "artifact_candidates",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "candidate_manifest",
+            "html_index",
+            "html_segmap"
+          ],
+          "pause_after": true
+        },
+        {
+          "id": "apply-html-decisions",
+          "title": "Apply waveform review decisions",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "apply-html-decisions"
+          },
+          "depends_on": [
+            "compile-cut-candidates"
+          ],
+          "artifacts_in": [
+            {
+              "key": "candidate_manifest",
+              "required": true
+            },
+            {
+              "key": "html_clips",
+              "required": true
+            },
+            {
+              "key": "html_segmap",
+              "required": true
+            }
+          ],
+      "artifacts_out": [
+        "native_normalized_ranges"
+      ]
+    },
+    {
+      "id": "post-cut-narrative-audit",
+      "title": "Audit post-cut narrative continuity",
+      "phase": "finish",
+      "kind": "script",
+      "tool": "profile_pipeline_stage",
+      "args": {
+        "stage": "post-cut-narrative-audit"
+      },
+      "depends_on": [
+        "apply-html-decisions"
+      ],
+      "artifacts_in": [
+        {
+          "key": "native_normalized_ranges",
+          "required": true
+        }
+      ],
+      "artifacts_out": [
+        "post_cut_narrative_audit_report",
+        "post_cut_narrative_audit_prompt",
+        "post_cut_narrative_audit_index"
+      ],
+      "pause_after": true
+    },
+    {
+      "id": "compile-approved-cuts",
+      "title": "Compile approved source-time cuts",
+      "phase": "finish",
+      "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "compile-approved-cuts"
+          },
+      "depends_on": [
+        "post-cut-narrative-audit"
+      ],
+          "artifacts_in": [
+            {
+              "key": "candidate_manifest",
+              "required": true
+            }
+          ],
+      "artifacts_out": [
+        "approved_source_cuts"
+      ]
+    },
+        {
+          "id": "structure-decisions",
+          "title": "Compile approved minimum-battles structure",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "structure-decisions"
+          },
+          "depends_on": [
+            "compile-approved-cuts"
+          ],
+          "artifacts_in": [
+            {
+              "key": "candidate_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "structure_decisions"
+          ]
+        },
+        {
+          "id": "gap-plan",
+          "title": "Compile canonical gap plan",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "gap-plan"
+          },
+          "depends_on": [
+            "structure-decisions"
+          ],
+          "artifacts_in": [
+            {
+              "key": "structure_decisions",
+              "required": true
+            },
+            {
+              "key": "approved_source_cuts",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "gap_plan"
+          ]
+        },
+        {
+          "id": "final-base-fcpxml",
+          "title": "Build final-base FCPXML with continuous V1 holds before Resolve",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "final-base-fcpxml"
+          },
+          "depends_on": [
+            "gap-plan"
+          ],
+          "artifacts_in": [
+            {
+              "key": "parts_manifest",
+              "required": true
+            },
+            {
+              "key": "approved_source_cuts",
+              "required": true
+            },
+            {
+              "key": "gap_plan",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "final_fcpxml",
+            "final_manifest",
+            "gap_marker_report"
+          ]
+        },
+        {
+          "id": "a1-dialogue-audit",
+          "title": "Audit final-base A1 dialogue with fresh Whisper",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "a1-dialogue-audit"
+          },
+          "depends_on": [
+            "final-base-fcpxml"
+          ],
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "final_fcpxml",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "a1_dialogue_audit_report"
+          ]
+        },
+        {
+          "id": "rse-assets-preflight",
+          "title": "Preflight RSE assets and relinks",
+          "phase": "assets",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "rse-assets-preflight"
+          },
+          "depends_on": [
+            "a1-dialogue-audit"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "a1_dialogue_audit_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "rse_assets_report"
+          ]
+        },
+        {
+          "id": "resolve-final-assembly",
+          "title": "Import final-base FCPXML into Resolve",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "resolve-final-assembly"
+          },
+          "depends_on": [
+            "rse-assets-preflight"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_fcpxml",
+              "required": true
+            },
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "rse_assets_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "final_manifest"
+          ]
+        },
+        {
+          "id": "bgm",
+          "title": "Place continuous minimum-battles BGM bed",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "bgm"
+          },
+          "depends_on": [
+            "resolve-final-assembly"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "bgm_report"
+          ]
+        },
+        {
+          "id": "clip-colors",
+          "title": "Color final timeline content sections",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "clip-colors"
+          },
+          "depends_on": [
+            "bgm"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "bgm_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "clip_color_report"
+          ]
+        },
+        {
+          "id": "fairlight",
+          "title": "Apply Fairlight preset",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "fairlight"
+          },
+          "depends_on": [
+            "clip-colors"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "clip_color_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "fairlight_report"
+          ]
+        },
+        {
+          "id": "audio-normalization-handoff",
+          "title": "Write Computer Use audio normalization handoff",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "audio-normalization-handoff"
+          },
+          "depends_on": [
+            "fairlight"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "fairlight_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "audio_normalization_instructions"
+          ],
+          "pause_after": true
+        },
+        {
+          "id": "validate-order",
+          "title": "Validate minimum-battles finished artifacts",
+          "phase": "validate",
+          "kind": "script",
+          "tool": "profile_pipeline_stage_strict",
+          "args": {
+            "stage": "validate-order"
+          },
+          "depends_on": [
+            "audio-normalization-handoff"
+          ],
+          "requires_resolve": true,
+          "optional": true,
+          "artifacts_out": [
+            "pipeline_order_report"
+          ]
+        }
+      ]
+    },
+    {
       "id": "gen1_rby_umb_review_first",
       "name": "Gen 1 RBY UMB Review-First Edit",
       "description": "Build review artifacts offline, pause for human approval, compile source-time decisions, then launch Resolve once for final assembly with cuts, visual holds, Gen 1 leader intros, BGM, carousel, and validation-ready structure.",
@@ -860,6 +1666,29 @@
           ]
         },
         {
+          "id": "a1-dialogue-audit",
+          "title": "Audit A1 FCPXML dialogue with fresh Whisper",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "a1-dialogue-audit"
+          },
+          "depends_on": [
+            "compile-approved-cuts"
+          ],
+          "artifacts_in": [
+            {
+              "key": "approved_source_cuts",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "final_manifest",
+            "a1_dialogue_audit_report"
+          ]
+        },
+        {
           "id": "extract-game-audio",
           "title": "Extract source game-audio bridge track",
           "phase": "finish",
@@ -869,7 +1698,7 @@
             "stage": "extract-game-audio"
           },
           "depends_on": [
-            "compile-approved-cuts"
+            "a1-dialogue-audit"
           ],
           "artifacts_out": [
             "game_audio"
@@ -885,7 +1714,7 @@
             "stage": "final-assembly"
           },
           "depends_on": [
-            "compile-approved-cuts",
+            "a1-dialogue-audit",
             "extract-game-audio"
           ],
           "requires_resolve": true,
@@ -896,6 +1725,10 @@
             },
             {
               "key": "game_audio",
+              "required": true
+            },
+            {
+              "key": "a1_dialogue_audit_report",
               "required": true
             }
           ],
@@ -931,6 +1764,61 @@
           ]
         },
         {
+          "id": "fairlight",
+          "title": "Apply Fairlight preset",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "fairlight"
+          },
+          "depends_on": [
+            "clip-colors"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "clip_color_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "fairlight_report"
+          ]
+        },
+        {
+          "id": "audio-normalization-handoff",
+          "title": "Write Computer Use audio normalization handoff",
+          "phase": "finish",
+          "kind": "script",
+          "tool": "profile_pipeline_stage",
+          "args": {
+            "stage": "audio-normalization-handoff"
+          },
+          "depends_on": [
+            "fairlight"
+          ],
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "final_manifest",
+              "required": true
+            },
+            {
+              "key": "fairlight_report",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "audio_normalization_instructions"
+          ],
+          "pause_after": true
+        },
+        {
           "id": "validate-order",
           "title": "Validate finished-stage artifacts",
           "phase": "validate",
@@ -940,7 +1828,7 @@
             "stage": "validate-order"
           },
           "depends_on": [
-            "clip-colors"
+            "audio-normalization-handoff"
           ],
           "requires_resolve": true,
           "optional": true,
@@ -1511,6 +2399,7 @@
       "review_policy": "paste_output_into_gui_then_save_approved_cuts",
       "output_contract": {
         "type": "json_array",
+        "min_items": 1,
         "required_fields": [
           "start_sec",
           "end_sec",
@@ -1535,6 +2424,7 @@
       "review_policy": "paste_output_into_gui_then_save_approved_cuts",
       "output_contract": {
         "type": "json_array",
+        "min_items": 1,
         "required_fields": [
           "start_sec",
           "end_sec",

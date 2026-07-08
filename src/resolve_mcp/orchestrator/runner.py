@@ -8,6 +8,7 @@ from collections import deque
 from pathlib import Path
 from typing import Callable
 
+from .artifact_validators import artifact_validation_error
 from .models import ProjectProfile, WorkflowDefinition, WorkflowStep, expand_templates
 from .resolve_bootstrap import ensure_resolve_ready
 
@@ -90,29 +91,38 @@ class OrchestratorRunner:
                 self.callback(RunEvent("pause", f"Paused after {step.title}.", step.id, "paused"))
                 return
 
-    def _missing_required_artifacts(self, profile: ProjectProfile, step: WorkflowStep) -> list[Path]:
-        missing: list[Path] = []
+    def _missing_required_artifacts(self, profile: ProjectProfile, step: WorkflowStep) -> list[tuple[Path, str]]:
+        missing: list[tuple[Path, str]] = []
         for artifact in step.artifacts_in:
             if not artifact.required:
                 continue
             path = profile.path(artifact.key, self.repo)
             if not path.exists():
-                missing.append(path)
+                missing.append((path, "missing"))
+                continue
+            validation_error = artifact_validation_error(artifact.key, path)
+            if validation_error:
+                missing.append((path, validation_error))
         return missing
 
     def _outputs_complete(self, profile: ProjectProfile, step: WorkflowStep) -> bool:
         if not step.artifacts_out:
             return False
-        paths = [profile.path(artifact.key, self.repo) for artifact in step.artifacts_out]
-        return all(path.exists() for path in paths)
+        for artifact in step.artifacts_out:
+            path = profile.path(artifact.key, self.repo)
+            if not path.exists():
+                return False
+            if artifact_validation_error(artifact.key, path):
+                return False
+        return True
 
     @staticmethod
-    def _missing_artifact_message(step: WorkflowStep, missing: list[Path]) -> str:
+    def _missing_artifact_message(step: WorkflowStep, missing: list[tuple[Path, str]]) -> str:
         lines = [
             f"STOP: {step.title} cannot continue autonomously.",
-            "Reason: required asset/data is missing.",
-            "Missing:",
-            *[f"  - {path}" for path in missing],
+            "Reason: required asset/data is missing or invalid.",
+            "Missing/invalid:",
+            *[f"  - {path} ({reason})" for path, reason in missing],
             "Ask the user how to proceed before continuing:",
             "  1. Provide or regenerate the missing artifact, then rerun this step.",
             "  2. Update the project profile path/setting in the orchestrator GUI.",

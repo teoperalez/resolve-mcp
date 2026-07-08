@@ -6,14 +6,15 @@ This intentionally differs from the generic random BGM script. The Golem-style
 RBY UMB formula is:
 
   - opening: fixed lo-fi sequence, usually Dual Screen Lovelife -> Aurora Rising
-  - gauntlet gaps: synchronized console/game audio, not random BGM
+  - gauntlet gaps: source BGM files with their original source offsets/handles
+  - rival battles: Rival.mp3 on A2, derived from canonical Battle Start/End markers
   - leader battles: preserve already-placed A2 battle-theme clips
   - leader intro stings on A3 create intentional A2 silence under the intro
   - ending: fixed lo-fi sequence over final tierlist/member carousel
 
 Run this after leader/battle audio has been placed on A2/A3. It deletes old
-non-protected A2 clips, renders faded WAV slices, imports them, and places them
-around the protected battle-theme ranges.
+non-protected A2 clips, imports the source audio files, and places them around
+the protected battle-theme ranges without baking away source handles.
 
 Example:
   python scripts/place_rby_umb_bgm.py ^
@@ -39,12 +40,23 @@ import _resolve_env  # noqa: F401
 
 DEFAULT_BGM_DIR = Path(r"C:\Programming\RBYNewLayout\audio\bgm")
 DEFAULT_OPENING = ["Dual Screen Lovelife", "Aurora Rising"]
+DEFAULT_MIDDLE = [
+    "Gameplay Calm",
+    "On the road",
+    "Young Traveler",
+    "Wandering Through the World",
+    "Speed Boost Hills",
+    "Pixel Lounge",
+    "Playing Games for Fun",
+    "RGB Renaissance",
+]
 DEFAULT_ENDING = [
     "Dual Screen Lovelife",
     "Motivated By Clouds",
     "Roll Me in Stardust",
     "Skyline Scroller",
 ]
+DEFAULT_LEADER_AUDIO_DIR = Path(r"C:\Programming\RBYNewLayout\gymLeaders\LeaderIntros\audio")
 CACHE_DIR = Path.home() / ".resolve-mcp" / "cache" / "rby-umb-bgm"
 REPORT_PATH = Path("_data") / "qa-reports" / "rby-umb-bgm.json"
 MIN_SEGMENT_FRAMES = 12
@@ -60,6 +72,7 @@ class Segment:
     record_frame: int
     fade_in: int
     fade_out: int
+    render_slice: bool = False
     out_path: str | None = None
 
 
@@ -390,6 +403,7 @@ def append_music_sequence(
     fps: float,
     fade_frames: int,
     first_source_offset: int = 0,
+    render_slices: bool = False,
 ) -> int:
     cur = record_start
     for idx, stem in enumerate(stems):
@@ -411,9 +425,93 @@ def append_music_sequence(
             record_frame=cur,
             fade_in=0 if cur == record_start else fade_frames,
             fade_out=fade_frames,
+            render_slice=render_slices,
         ))
         cur += dur
     return cur
+
+
+def append_music_cursor(
+    segments: list[Segment],
+    *,
+    role: str,
+    stems: list[str],
+    bgm_dir: Path,
+    cursor: dict[str, int],
+    record_start: int,
+    record_end: int,
+    fps: float,
+    fade_frames: int,
+    render_slices: bool = False,
+) -> None:
+    if record_end - record_start < MIN_SEGMENT_FRAMES or not stems:
+        return
+
+    cur = record_start
+    while record_end - cur >= MIN_SEGMENT_FRAMES:
+        idx = int(cursor.get("index", 0)) % len(stems)
+        path = find_audio_file(bgm_dir, stems[idx])
+        total = media_duration_frames(path, fps)
+        src = max(0, min(int(cursor.get("source_start", 0)), total - 1))
+        dur = min(record_end - cur, total - src)
+        if dur < MIN_SEGMENT_FRAMES:
+            cursor["index"] = (idx + 1) % len(stems)
+            cursor["source_start"] = 0
+            continue
+        segments.append(Segment(
+            role=role,
+            label=f"{idx + 1:02d}_{stems[idx]}",
+            source=path,
+            source_start=src,
+            duration=dur,
+            record_frame=cur,
+            fade_in=fade_frames,
+            fade_out=fade_frames,
+            render_slice=render_slices,
+        ))
+        cur += dur
+        next_src = src + dur
+        if next_src >= total - MIN_SEGMENT_FRAMES:
+            cursor["index"] = (idx + 1) % len(stems)
+            cursor["source_start"] = 0
+        else:
+            cursor["index"] = idx
+            cursor["source_start"] = next_src
+
+
+def append_looped_audio(
+    segments: list[Segment],
+    *,
+    role: str,
+    label: str,
+    source: Path,
+    record_start: int,
+    record_end: int,
+    fps: float,
+    fade_frames: int,
+    render_slices: bool = False,
+) -> None:
+    if record_end - record_start < MIN_SEGMENT_FRAMES:
+        return
+    total = media_duration_frames(source, fps)
+    cur = record_start
+    loop_index = 1
+    while record_end - cur >= MIN_SEGMENT_FRAMES:
+        src = 0
+        dur = min(record_end - cur, total)
+        segments.append(Segment(
+            role=role,
+            label=f"{safe_name(label)}_{loop_index:02d}",
+            source=source,
+            source_start=src,
+            duration=dur,
+            record_frame=cur,
+            fade_in=0 if cur == record_start else fade_frames,
+            fade_out=fade_frames if cur + dur >= record_end else 0,
+            render_slice=render_slices,
+        ))
+        cur += dur
+        loop_index += 1
 
 
 def append_game_audio(
@@ -447,6 +545,7 @@ def append_game_audio(
         record_frame=record_start,
         fade_in=fade_frames,
         fade_out=fade_frames,
+        render_slice=True,
     ))
 
 
@@ -458,6 +557,73 @@ def marker_name_has(name: str, text: str) -> bool:
     return text.lower() in (name or "").lower()
 
 
+def parse_battle_starts(markers: list[tuple[int, str, str]]) -> list[dict]:
+    rows = []
+    for frame, name, _note in markers:
+        match = re.search(r"\b(?:START|RESUME)\s+(\d+)\s+(.+?)\s+Battle Start$", name, re.I)
+        if not match:
+            continue
+        rows.append({
+            "frame": frame,
+            "ordinal": int(match.group(1)),
+            "trainer": match.group(2).strip(),
+            "name": name,
+        })
+    return sorted(rows, key=lambda row: row["frame"])
+
+
+def parse_battle_ends(markers: list[tuple[int, str, str]]) -> dict[int, dict]:
+    rows = {}
+    for frame, name, _note in markers:
+        match = re.search(
+            r"\bEND\??\s+(\d+)\s+(.+?)\s+(?:Battle Finish|Loss Guess|Gave-Up Guess)",
+            name,
+            re.I,
+        )
+        if not match:
+            continue
+        rows[int(match.group(1))] = {
+            "frame": frame,
+            "ordinal": int(match.group(1)),
+            "trainer": match.group(2).strip(),
+            "name": name,
+        }
+    return rows
+
+
+def rival_battle_ranges(
+    markers: list[tuple[int, str, str]],
+    *,
+    fallback_end: int,
+) -> list[tuple[int, int, str]]:
+    starts = parse_battle_starts(markers)
+    ends_by_ordinal = parse_battle_ends(markers)
+    out = []
+    for index, start in enumerate(starts):
+        trainer = str(start["trainer"])
+        if not trainer.lower().startswith("rival"):
+            continue
+        end_row = ends_by_ordinal.get(int(start["ordinal"]))
+        end = int(end_row["frame"]) if end_row else 0
+        if end <= int(start["frame"]):
+            next_start = starts[index + 1]["frame"] if index + 1 < len(starts) else fallback_end
+            end = int(next_start)
+        end = min(end, fallback_end)
+        if end - int(start["frame"]) >= MIN_SEGMENT_FRAMES:
+            out.append((int(start["frame"]), end, trainer))
+    return out
+
+
+def has_existing_overlap(ranges: list[tuple[int, int, str]], start: int, end: int, needle: str) -> bool:
+    needle = needle.lower()
+    for r0, r1, label in ranges:
+        if r1 <= start or r0 >= end:
+            continue
+        if needle in (label or "").lower():
+            return True
+    return False
+
+
 def segment_report(seg: Segment) -> dict:
     row = asdict(seg)
     row["source"] = str(seg.source)
@@ -467,10 +633,16 @@ def segment_report(seg: Segment) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--game-audio", type=Path, required=True,
-                    help="console/game-audio WAV used for between-battle bridges")
+                    help="console/game-audio WAV; used only with --use-game-audio-bridges")
     ap.add_argument("--bgm-dir", type=Path, default=DEFAULT_BGM_DIR)
     ap.add_argument("--opening-sequence", default=",".join(DEFAULT_OPENING))
+    ap.add_argument("--middle-sequence", default=",".join(DEFAULT_MIDDLE),
+                    help="comma-separated source BGM tracks for non-battle middle gaps")
     ap.add_argument("--ending-sequence", default=",".join(DEFAULT_ENDING))
+    ap.add_argument("--leader-audio-dir", type=Path, default=DEFAULT_LEADER_AUDIO_DIR,
+                    help="folder containing Gen 1 leader/rival audio files")
+    ap.add_argument("--rival-audio", type=Path, default=None,
+                    help="explicit Rival audio file; defaults to --leader-audio-dir/Rival.mp3")
     ap.add_argument("--opening-first-source-offset-sec", type=float, default=0.0,
                     help="trim the first opening BGM source by this many seconds")
     ap.add_argument("--source-audio-offset", action="append", default=[],
@@ -486,6 +658,10 @@ def main() -> int:
     ap.add_argument("--end-at-timeline-end", "--no-outro", dest="end_at_timeline_end",
                     action="store_true",
                     help="Fill through timeline end instead of treating the last V1 clip as an outro.")
+    ap.add_argument("--use-game-audio-bridges", action="store_true",
+                    help="legacy fallback: fill non-opening/non-ending gaps from --game-audio")
+    ap.add_argument("--render-slices", action="store_true",
+                    help="legacy fallback: bake placed source files to faded WAV slices before import")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report", type=Path, default=REPORT_PATH)
     args = ap.parse_args()
@@ -546,9 +722,32 @@ def main() -> int:
     markers = marker_abs_frames(timeline)
     first_battle = first_marker(markers, lambda name, _note: marker_name_has(name, "Battle Start"))
     last_battle_finish = last_marker(markers, lambda name, _note: marker_name_has(name, "Battle Finish"))
+    protected_ranges = collect_ranges(protected_a2)
+
+    segments: list[Segment] = []
+    rival_audio = args.rival_audio or (args.leader_audio_dir / "Rival.mp3")
+    if not rival_audio.exists():
+        raise RuntimeError(f"Missing Rival audio file: {rival_audio}")
+    generated_rival_ranges = []
+    for start, end, label in rival_battle_ranges(markers, fallback_end=outro_start):
+        if has_existing_overlap(protected_ranges, start, end, "rival"):
+            continue
+        append_looped_audio(
+            segments,
+            role="battle_rival",
+            label=label,
+            source=rival_audio,
+            record_start=start,
+            record_end=end,
+            fps=fps,
+            fade_frames=fade_frames,
+            render_slices=args.render_slices,
+        )
+        generated_rival_ranges.append((start, end, f"generated Rival:{label}"))
 
     blocked = merge_blocked(
-        collect_ranges(protected_a2)
+        protected_ranges
+        + generated_rival_ranges
         + [(s, e, "A3:" + label) for s, e, label in collect_ranges(a3_items) if s < outro_start]
     )
     gaps = complement(tl_start, outro_start, blocked)
@@ -558,12 +757,14 @@ def main() -> int:
     ending_start = max(opening_end, min(ending_start, outro_start))
     gap_pieces = split_gaps_at(gaps, [opening_end, ending_start])
 
-    game_audio_frames = media_duration_frames(args.game_audio, fps)
+    game_audio_frames = media_duration_frames(args.game_audio, fps) if args.use_game_audio_bridges else 0
     opening = parse_sequence(args.opening_sequence)
+    middle = parse_sequence(args.middle_sequence)
     ending = parse_sequence(args.ending_sequence)
     first_bgm_offset = int(round(args.opening_first_source_offset_sec * fps))
+    middle_cursor = {"index": 0, "source_start": 0}
+    ending_cursor = {"index": 0, "source_start": 0}
 
-    segments: list[Segment] = []
     for idx, (g0, g1) in enumerate(gap_pieces, start=1):
         if g1 <= opening_end:
             cur = append_music_sequence(
@@ -576,54 +777,73 @@ def main() -> int:
                 fps=fps,
                 fade_frames=fade_frames,
                 first_source_offset=first_bgm_offset if g0 == tl_start else 0,
+                render_slices=args.render_slices,
             )
             if cur < g1:
-                append_game_audio(
-                    segments,
-                    game_audio=args.game_audio,
-                    game_audio_frames=game_audio_frames,
-                    v1_map=v1_map,
-                    record_start=cur,
-                    record_end=g1,
-                    fps=fps,
-                    fade_frames=fade_frames,
-                    label=f"opening_tail_{idx:02d}",
-                )
+                if args.use_game_audio_bridges:
+                    append_game_audio(
+                        segments,
+                        game_audio=args.game_audio,
+                        game_audio_frames=game_audio_frames,
+                        v1_map=v1_map,
+                        record_start=cur,
+                        record_end=g1,
+                        fps=fps,
+                        fade_frames=fade_frames,
+                        label=f"opening_tail_{idx:02d}",
+                    )
+                else:
+                    append_music_cursor(
+                        segments,
+                        role="middle_bgm",
+                        stems=middle,
+                        bgm_dir=args.bgm_dir,
+                        cursor=middle_cursor,
+                        record_start=cur,
+                        record_end=g1,
+                        fps=fps,
+                        fade_frames=fade_frames,
+                        render_slices=args.render_slices,
+                    )
         elif g0 >= ending_start:
-            cur = append_music_sequence(
+            append_music_cursor(
                 segments,
                 role="ending_bgm",
                 stems=ending,
                 bgm_dir=args.bgm_dir,
+                cursor=ending_cursor,
                 record_start=g0,
                 record_end=g1,
                 fps=fps,
                 fade_frames=fade_frames,
+                render_slices=args.render_slices,
             )
-            if cur < g1:
+        else:
+            if args.use_game_audio_bridges:
                 append_game_audio(
                     segments,
                     game_audio=args.game_audio,
                     game_audio_frames=game_audio_frames,
                     v1_map=v1_map,
-                    record_start=cur,
+                    record_start=g0,
                     record_end=g1,
                     fps=fps,
                     fade_frames=fade_frames,
-                    label=f"ending_tail_{idx:02d}",
+                    label=f"bridge_{idx:02d}",
                 )
-        else:
-            append_game_audio(
-                segments,
-                game_audio=args.game_audio,
-                game_audio_frames=game_audio_frames,
-                v1_map=v1_map,
-                record_start=g0,
-                record_end=g1,
-                fps=fps,
-                fade_frames=fade_frames,
-                label=f"bridge_{idx:02d}",
-            )
+            else:
+                append_music_cursor(
+                    segments,
+                    role="middle_bgm",
+                    stems=middle,
+                    bgm_dir=args.bgm_dir,
+                    cursor=middle_cursor,
+                    record_start=g0,
+                    record_end=g1,
+                    fps=fps,
+                    fade_frames=fade_frames,
+                    render_slices=args.render_slices,
+                )
 
     print(f"Protected A2 battle clips: {len(protected_a2)}")
     print(f"Old non-protected A2 clips to delete: {len(delete_a2)}")
@@ -643,7 +863,14 @@ def main() -> int:
         "game_audio": str(args.game_audio),
         "dominant_v1_source": dominant,
         "opening_first_source_offset_sec": args.opening_first_source_offset_sec,
+        "opening_sequence": opening,
+        "middle_sequence": middle,
+        "ending_sequence": ending,
         "source_audio_offsets": args.source_audio_offset,
+        "use_game_audio_bridges": args.use_game_audio_bridges,
+        "render_slices": args.render_slices,
+        "rival_audio": str(rival_audio),
+        "generated_rival_ranges": generated_rival_ranges,
         "end_mode": "timeline_end" if args.end_at_timeline_end else "last_v1_as_outro",
         "outro_start_abs": outro_start,
         "opening_end_abs": opening_end,
@@ -663,10 +890,18 @@ def main() -> int:
         print(f"Report: {args.report}")
         return 0
 
-    rendered = [render_segment(seg, fps) for seg in segments]
+    rendered = []
+    media_paths = []
+    for seg in segments:
+        if seg.render_slice:
+            rendered_path = render_segment(seg, fps)
+            rendered.append(rendered_path)
+            media_paths.append(rendered_path)
+        else:
+            media_paths.append(seg.source)
     root = pool.GetRootFolder()
     target_folder = find_subfolder(root, ("Mewtwo CODEx Assets", "Victreebel CODEx Assets", "assets")) or root
-    media = import_media(pool, target_folder, sorted({p.resolve() for p in rendered}))
+    media = import_media(pool, target_folder, sorted({p.resolve() for p in media_paths}))
 
     if delete_a2:
         ok = timeline.DeleteClips(delete_a2)
@@ -674,12 +909,14 @@ def main() -> int:
 
     payload = []
     for seg in segments:
-        out = Path(seg.out_path or "")
-        item = media[norm_path(out.resolve())]
+        source_path = Path(seg.out_path or "") if seg.render_slice else seg.source
+        item = media[norm_path(source_path.resolve())]
+        start_frame = 0 if seg.render_slice else seg.source_start
+        end_frame = seg.duration if seg.render_slice else seg.source_start + seg.duration
         payload.append({
             "mediaPoolItem": item,
-            "startFrame": 0,
-            "endFrame": seg.duration,
+            "startFrame": start_frame,
+            "endFrame": end_frame,
             "recordFrame": seg.record_frame,
             "trackIndex": args.track_index,
             "mediaType": 2,
@@ -692,6 +929,7 @@ def main() -> int:
     report["placed"] = placed
     report["expected"] = len(payload)
     report["rendered_files"] = [str(p) for p in sorted({p.resolve() for p in rendered})]
+    report["source_files"] = [str(p) for p in sorted({p.resolve() for p in media_paths})]
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Placed: {placed}/{len(payload)}")

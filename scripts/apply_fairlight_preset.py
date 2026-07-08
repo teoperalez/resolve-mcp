@@ -77,20 +77,22 @@ def find_timeline(project, name: str):
 def print_normalize_walkthrough():
     print("""
 ─────────────────────────────────────────────────────────────────────────
-Next step: Normalize Audio (Sample Peak -9.0 dB, per-track independently)
+Next step: Normalize Audio (Sample Peak -9.0 dBFS, independent clips)
 
 The Resolve scripting API does NOT expose NormalizeAudio. Do this in the UI:
 
-  1. Edit page (or Fairlight page) — select all clips on the track:
-       click first clip → Ctrl+Shift+End to extend to the end of the track.
-  2. Right-click any selected clip → 'Normalize Audio Levels…'
-  3. Set:
+  1. Edit page (or Fairlight page) — unlock A2 if it is locked.
+  2. Drag-select all audio clips only across the populated audio lanes.
+       Do not use Ctrl+A, and do not select any video clips.
+  3. Verify the audio multi-clip selection is still active.
+  4. Right-click the center/body of the longest visible selected A2 clip,
+       away from fade handles and clip edges.
+  5. Choose 'Normalize Audio Levels…' from that selected audio clip menu.
+  6. Set:
        Normalization Mode → Sample Peak Program
        Target Level       → -9.0 dBFS
-       Set Level          → Relative
-       Reference          → Independently (each clip's own peak)
-  4. Click Normalize.
-  5. Repeat for every audio track that needs leveling.
+       Reference          → Independent / Independently, when shown
+  7. Click Normalize, then save the project.
 ─────────────────────────────────────────────────────────────────────────
 """.rstrip())
 
