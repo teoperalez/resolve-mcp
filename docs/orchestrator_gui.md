@@ -76,10 +76,13 @@ The Gen 1 RBY Ultra Minimum Battles workflow shape is:
 3. Generate the narrative LLM packet and deterministic cut candidates.
 4. Stop for the cut-decision review surface.
 5. Compile approved source-time cuts.
-6. Extract any source audio needed by assembly.
-7. Launch Resolve only for one final assembly step that builds the completed
+6. Rerun faster-whisper and audit final-base FCPXML A1 sections for dialogue.
+7. Extract any source audio needed by assembly.
+8. Launch Resolve only for one final assembly step that builds the completed
    timeline with approved cuts, visual holds, Gen 1 intros, BGM/game audio,
    carousel layout, and validation-ready structure.
+9. Apply the configured Fairlight preset, then write a Computer Use handoff for
+   Resolve's manual track/audio normalization command.
 
 The catalog also includes reusable templates for:
 
@@ -93,7 +96,9 @@ The catalog also includes reusable templates for:
   A2 BGM/battle audio, fades, member carousel, Fairlight, and render.
 - `gen1_rby_umb_review_first`: the current Ultra Minimum Battles shape. Uses
   review-first cuts, one Resolve final-assembly pass, Gen 1 non-boss gap policy,
-  and discrete 2x Gen 1 leader intros.
+  a final fresh-Whisper A1/FCPXML dialogue audit, discrete 2x Gen 1 leader
+  intros, Fairlight preset application, and a Computer Use normalization
+  handoff.
 
 ## Customizing Workflows
 
@@ -112,7 +117,11 @@ A Gen 1 RBY UMB profile normally sets:
 ```json
 "parameters": {
   "pipeline_script": "scripts/run_rby_umb_pipeline.py",
-  "carousel_max_candidates": 30
+  "carousel_max_candidates": 30,
+  "post_intro_gap_sec": 1.0,
+  "fairlight_preset": "Standard Gameplay youtube",
+  "fairlight_preset_type": "CONSOLE_FLEXI",
+  "audio_normalization_target_db": -9.0
 }
 ```
 
@@ -132,13 +141,13 @@ That expands to:
 .venv\Scripts\python.exe scripts/run_rby_umb_pipeline.py --stage final-assembly
 ```
 
-Only the final assembly step should set `"requires_resolve": true`. Earlier
-steps must write FCPXML, manifests, prompt packets, decisions, audio extracts,
-and other source/remap metadata without opening Resolve. When a
-`requires_resolve` step runs, the runner launches Resolve if needed, loads or
-creates the profile's Resolve project, and then runs the assembly command. The
-assembly command is responsible for creating/importing the final timeline, so no
-temporary review timeline is created during bootstrap.
+Only finish steps that touch the Resolve project should set
+`"requires_resolve": true`. Earlier steps must write FCPXML, manifests, prompt
+packets, decisions, audio extracts, and other source/remap metadata without
+opening Resolve. When a `requires_resolve` step runs, the runner launches
+Resolve if needed, loads or creates the profile's Resolve project, and then runs
+the command. The assembly command is responsible for creating/importing the final
+timeline, so no temporary review timeline is created during bootstrap.
 
 This keeps sequencing, gating, status, LLM dispatch, stage cache records, and
 manual cut-decision pauses inside the reusable RBY UMB runner. A future project
@@ -291,6 +300,15 @@ Gen 1 Ultra Minimum Battles parameters:
 - `pipeline_script`: normally `scripts/run_rby_umb_pipeline.py`
 - `carousel_max_candidates`: visual candidates checked after the last battle
 - `review_fcpxml`: optional exported review FCPXML for section review
+- `post_intro_gap_sec`: expected duration between the source timeline markers
+  `Intro Hold Gap Start`/`Intro Gap Start` and `Gameplay Start`; defaults to
+  `1.0` and is validated against the marker interval
+- `fairlight_preset` and `fairlight_preset_type`: Fairlight preset applied
+  after the final timeline is assembled
+- `audio_normalization_target_db`: target level written into the Computer Use
+  normalization handoff; defaults to `-9.0`
+- `a1_dialogue_audit_report`: fresh-Whisper report for final-base FCPXML A1
+  sections that contain no recognized dialogue
 - `source_start_sec` and `source_start_reason`: optional source-time trim before
   the run begins
 - `structural_source_cuts`: optional locked/structural source-time ranges that
@@ -318,6 +336,23 @@ For Gen 1 Red/Blue/Yellow UMB workflows, the tooling policy remains:
 - non-boss battle gaps only
 - leader/E4/champion fights handled by discrete intro insertion
 - leader intros inserted as 2x retimed video/audio clips
+- the structural intro/outro step derives the post-intro gameplay gap from the
+  source timeline markers `Intro Hold Gap Start`/`Intro Gap Start` and
+  `Gameplay Start`
+- after approved cuts compile, `a1-dialogue-audit` reruns faster-whisper and
+  stops the workflow if any final-base FCPXML A1 clip has no overlapping
+  recognized dialogue
+- if A1 overlaps the marker interval, the marker-derived insert creates the
+  silent A1 gap and shifts markers at/after the insert point; V1 bridges the
+  inserted second with the intro-card hold, then the first post-gap V1 clip is
+  extended left by the same duration so it starts with the shifted A1 dialogue
+  section; `intro_outro_report` records the marker mapping, gap bounds, and V1
+  bridge events
+- the Fairlight preset is applied after clip coloring; the next step writes a
+  handoff telling the Codex agent to use Computer Use to unlock A2 if needed,
+  drag-select all audio clips only, right-click the center/body of the longest
+  visible selected A2 clip, choose `Normalize Audio Levels...`, and click
+  `Normalize`
 - review, cut, hold, audio, and layout decisions collected as metadata before
   the single Resolve final-assembly pass
 - if required assets or marker-derived data are unavailable, stop and ask the

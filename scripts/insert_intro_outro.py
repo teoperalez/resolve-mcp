@@ -3,12 +3,17 @@ Build a new 'edited' timeline by prepending the game intro, copying all
 existing clips from the current timeline (shifted right by the intro's
 duration), and appending the outro video + outro audio on A3.
 
+For RBY UMB profiles, the post-intro gameplay gap is derived from source timeline
+ruler markers: "Intro Hold Gap Start"/"Intro Gap Start" to "Gameplay Start".
+Those markers define the one-second timeline insert point; the intro clip
+duration does not define that gap.
+
 The original timeline is left intact as a backup.
 
 Strategy:
   1. Read all clip info from the current timeline.
   2. Create a new empty timeline (same project settings).
-  3. Append intro → shifted original clips → outro in one batch per group.
+  3. Append intro → shifted original clips, with marker-derived gameplay gap → outro.
 
 Usage:
     python insert_intro_outro.py --game GAME_KEY [--dry-run]
@@ -205,21 +210,234 @@ def verify_video_clear_of_a1(tl, video_item, label: str) -> list[dict]:
     """Return A1 overlaps for a structural intro-like video item."""
     v_start = video_item.GetStart()
     v_end = v_start + video_item.GetDuration()
+    return verify_a1_range_clear(tl, v_start, v_end, label, video_item.GetName() or '')
+
+
+def verify_a1_range_clear(tl, start_frame: int, end_frame: int,
+                          label: str, source_name: str = '') -> list[dict]:
+    """Return A1 overlaps for an expected silent timeline range."""
     overlaps = []
     for audio in tl.GetItemListInTrack('audio', 1) or []:
         a_start = audio.GetStart()
         a_end = a_start + audio.GetDuration()
-        if ranges_overlap(v_start, v_end, a_start, a_end):
+        if ranges_overlap(start_frame, end_frame, a_start, a_end):
             overlaps.append({
                 'label': label,
-                'video': video_item.GetName() or '',
-                'video_start': v_start,
-                'video_end': v_end,
+                'source': source_name,
+                'range_start': start_frame,
+                'range_end': end_frame,
                 'audio': audio.GetName() or '',
                 'audio_start': a_start,
                 'audio_end': a_end,
             })
     return overlaps
+
+
+def _norm_marker_name(value: str) -> str:
+    return ' '.join((value or '').strip().lower().split())
+
+
+def find_marker(orig_markers: list[dict], names: set[str]) -> dict | None:
+    wanted = {_norm_marker_name(name) for name in names}
+    for marker in orig_markers:
+        if _norm_marker_name(marker.get('name', '')) in wanted:
+            return marker
+    return None
+
+
+def resolve_post_intro_marker_gap(orig_markers: list[dict], fps: float,
+                                  configured_gap_sec: float,
+                                  require_markers: bool) -> dict | None:
+    """Resolve the post-intro gameplay insert from project ruler markers.
+
+    The source timeline owns this timing. "Intro Hold Gap Start" marks the
+    insert point; "Gameplay Start" marks the first post-gap gameplay frame.
+    """
+    if configured_gap_sec <= 0 and not require_markers:
+        return None
+
+    start_marker = find_marker(orig_markers, {'Intro Gap Start', 'Intro Hold Gap Start'})
+    end_marker = find_marker(orig_markers, {'Gameplay Start'})
+    if not start_marker or not end_marker:
+        if require_markers or configured_gap_sec > 0:
+            missing = []
+            if not start_marker:
+                missing.append('Intro Gap Start / Intro Hold Gap Start')
+            if not end_marker:
+                missing.append('Gameplay Start')
+            raise ValueError(
+                'post-intro gap must be marker-derived, but missing marker(s): '
+                + ', '.join(missing)
+            )
+        return None
+
+    start_frame = int(start_marker['frame'])
+    end_frame = int(end_marker['frame'])
+    gap_frames = end_frame - start_frame
+    if gap_frames <= 0:
+        raise ValueError(
+            f'post-intro marker gap is invalid: {start_marker["name"]!r} '
+            f'at {start_frame}, {end_marker["name"]!r} at {end_frame}'
+        )
+
+    configured_frames = max(0, int(round(configured_gap_sec * fps)))
+    if configured_frames and gap_frames != configured_frames:
+        raise ValueError(
+            'post-intro marker gap does not match configured duration: '
+            f'markers={gap_frames} frames, configured={configured_frames} frames'
+        )
+
+    return {
+        'source': 'timeline_markers',
+        'start_marker': start_marker,
+        'end_marker': end_marker,
+        'start_frame': start_frame,
+        'end_frame': end_frame,
+        'gap_frames': gap_frames,
+        'configured_gap_frames': configured_frames,
+    }
+
+
+def append_shifted_clip(shifted: list[dict], colors: list[str], c: dict,
+                        record_frame: int, color: str,
+                        start_frame: int | None = None,
+                        end_frame: int | None = None) -> None:
+    shifted.append({
+        'mediaPoolItem': c['mediaPoolItem'],
+        'startFrame':   c['startFrame'] if start_frame is None else start_frame,
+        'endFrame':     c['endFrame'] if end_frame is None else end_frame,
+        'recordFrame':  record_frame,
+        'trackIndex':   c['trackIndex'],
+        'mediaType':    c['mediaType'],
+    })
+    colors.append(color)
+
+
+def clip_gets_marker_timeline_insert(c: dict) -> bool:
+    """The gameplay spine is all video plus A1 dialogue/gameplay audio."""
+    return int(c['mediaType']) == 1 or (
+        int(c['mediaType']) == 2 and int(c['trackIndex']) == 1
+    )
+
+
+def marker_gap_insert_frames(marker_gap: dict | None) -> int:
+    if not marker_gap:
+        return 0
+    return int(marker_gap.get('timeline_insert_frames', marker_gap.get('a1_insert_frames', 0)) or 0)
+
+
+def marker_extra_shift_for_frame(frame: int, marker_gap: dict | None) -> int:
+    insert_frames = marker_gap_insert_frames(marker_gap)
+    if insert_frames <= 0 or not marker_gap:
+        return 0
+    return insert_frames if int(frame) >= int(marker_gap['start_frame']) else 0
+
+
+def _is_v1_clip(c: dict) -> bool:
+    return int(c['mediaType']) == 1 and int(c['trackIndex']) == 1
+
+
+def marker_record_extra_shift_for_clip(c: dict, marker_gap: dict | None) -> int:
+    insert_frames = marker_gap_insert_frames(marker_gap)
+    if insert_frames <= 0 or not marker_gap or not clip_gets_marker_timeline_insert(c):
+        return 0
+
+    rel = int(c['relRecord'])
+    duration = int(c['endFrame']) - int(c['startFrame'])
+    rel_end = rel + duration
+    gap_start = int(marker_gap['start_frame'])
+    gap_end = int(marker_gap['end_frame'])
+    if _is_v1_clip(c):
+        if rel < gap_start and rel_end == gap_end:
+            return 0
+        if rel == gap_end:
+            return 0
+    return insert_frames if rel >= gap_start else 0
+
+
+def append_clip_with_marker_timeline_insert(shifted: list[dict], colors: list[str],
+                                            c: dict, new_start: int,
+                                            base_shift_frames: int,
+                                            marker_gap: dict | None) -> None:
+    """Append a source clip, opening the marker-defined insert on V* and A1."""
+    color = c.get('clipColor', '')
+    rel = int(c['relRecord'])
+    record = new_start + rel + base_shift_frames
+    if not marker_gap or not clip_gets_marker_timeline_insert(c):
+        append_shifted_clip(shifted, colors, c, record, color)
+        return
+
+    gap_start = int(marker_gap['start_frame'])
+    gap_frames = marker_gap_insert_frames(marker_gap)
+    if gap_frames <= 0:
+        append_shifted_clip(shifted, colors, c, record, color)
+        return
+    duration = int(c['endFrame']) - int(c['startFrame'])
+    rel_end = rel + duration
+    gap_end = int(marker_gap['end_frame'])
+
+    if rel_end <= gap_start:
+        append_shifted_clip(shifted, colors, c, record, color)
+        return
+
+    if _is_v1_clip(c):
+        # Match the manual V1 repair: the intro-card hold should visually bridge
+        # the A1-only inserted silence, and the first gameplay/dialogue V1 clip
+        # should start with the shifted A1 section instead of appearing late.
+        if rel < gap_start and rel_end == gap_end:
+            append_shifted_clip(shifted, colors, c, record, color)
+            marker_gap.setdefault('v1_bridge_events', []).append({
+                'action': 'bridge_intro_hold',
+                'rel_record': rel,
+                'rel_end': rel_end,
+                'record_frame': record,
+                'source_start_frame': int(c['startFrame']),
+                'source_end_frame': int(c['endFrame']),
+            })
+            return
+        if rel == gap_end:
+            extended_start = max(0, int(c['startFrame']) - gap_frames)
+            append_shifted_clip(
+                shifted,
+                colors,
+                c,
+                record,
+                color,
+                start_frame=extended_start,
+            )
+            marker_gap.setdefault('v1_bridge_events', []).append({
+                'action': 'extend_first_post_gap_v1_left',
+                'rel_record': rel,
+                'record_frame': record,
+                'source_start_frame': extended_start,
+                'source_end_frame': int(c['endFrame']),
+                'extended_left_frames': int(c['startFrame']) - extended_start,
+            })
+            return
+
+    if rel >= gap_start:
+        append_shifted_clip(shifted, colors, c, record + gap_frames, color)
+        return
+
+    pre_frames = gap_start - rel
+    if pre_frames > 0:
+        append_shifted_clip(
+            shifted,
+            colors,
+            c,
+            record,
+            color,
+            end_frame=int(c['startFrame']) + pre_frames,
+        )
+    if duration > pre_frames:
+        append_shifted_clip(
+            shifted,
+            colors,
+            c,
+            new_start + gap_start + base_shift_frames + gap_frames,
+            color,
+            start_frame=int(c['startFrame']) + pre_frames,
+        )
 
 
 # ── retime helpers ─────────────────────────────────────────────────────────────
@@ -325,7 +543,9 @@ def prepare_retimed_intro(intro_mpi, speed_pct: int, pool, assets_bin):
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
-        intro_speed: int | None = None, report_path: Path | None = None) -> int:
+        intro_speed: int | None = None, report_path: Path | None = None,
+        post_intro_gap_sec: float = 0.0,
+        require_markers_for_post_intro_gap: bool = False) -> int:
     # Resolve intro speed: explicit CLI value wins, otherwise auto-detect from
     # transcripts/min-battles.json (default 100% if no cache).
     if intro_speed is None:
@@ -372,6 +592,7 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
         orig_tl = found
 
     fps          = float(project.GetSetting('timelineFrameRate'))
+    configured_post_intro_gap_frames = max(0, int(round(post_intro_gap_sec * fps)))
     orig_start   = orig_tl.GetStartFrame()
     orig_end     = orig_tl.GetEndFrame()
     orig_name    = orig_tl.GetName()
@@ -388,6 +609,30 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
         }
         for frame, marker in sorted((orig_tl.GetMarkers() or {}).items())
     ]
+    try:
+        marker_gap = resolve_post_intro_marker_gap(
+            orig_markers,
+            fps,
+            post_intro_gap_sec,
+            require_markers_for_post_intro_gap,
+        )
+    except ValueError as exc:
+        print(f'ERROR: {exc}', file=sys.stderr)
+        return 1
+    post_intro_gap_frames = int(marker_gap['gap_frames']) if marker_gap else 0
+    source_post_intro_a1_overlaps = []
+    if marker_gap:
+        source_post_intro_a1_overlaps = verify_a1_range_clear(
+            orig_tl,
+            orig_start + int(marker_gap['start_frame']),
+            orig_start + int(marker_gap['end_frame']),
+            'source_post_intro_gap',
+        )
+        marker_gap['source_a1_overlap_count'] = len(source_post_intro_a1_overlaps)
+        marker_gap['timeline_insert_frames'] = post_intro_gap_frames if source_post_intro_a1_overlaps else 0
+        marker_gap['a1_insert_frames'] = marker_gap['timeline_insert_frames']
+        marker_gap['video_insert_frames'] = marker_gap['timeline_insert_frames']
+        marker_gap['marker_insert_frames'] = marker_gap['timeline_insert_frames']
 
     # ── Find "assets" bin ────────────────────────────────────────────────────
     root       = pool.GetRootFolder()
@@ -431,6 +676,20 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
     print(f'Intro speed:  {intro_speed}%  ({speed_reason})')
     print(f'Outro video:  {outro_vid_mpi.GetName() if outro_vid_mpi else "none"}')
     print(f'Outro audio:  {outro_aud_mpi.GetName() if outro_aud_mpi else "none"}')
+    if marker_gap:
+        print(
+            'Post-intro gameplay gap: '
+            f'{post_intro_gap_frames} frames ({post_intro_gap_frames/fps:.2f}s) '
+            f'from markers {marker_gap["start_marker"]["name"]!r} '
+            f'→ {marker_gap["end_marker"]["name"]!r}'
+        )
+        print(
+            'Source A1 marker-gap overlaps: '
+            f'{len(source_post_intro_a1_overlaps)} '
+            f'(timeline insert shift for V*+A1+markers: {marker_gap["timeline_insert_frames"]} frames)'
+        )
+    else:
+        print('Post-intro gameplay gap: none')
     print(f'Clips found:  {len(existing)}')
     print(f'Original TL:  frames {orig_start}–{orig_end}')
 
@@ -438,17 +697,33 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
         # Estimate the retimed intro duration. Resolve rounds to whole frames,
         # so this may be off by ±1 vs the actual placed-then-retimed result.
         intro_tl  = max(1, round(intro_tl_frames_est * 100 / intro_speed))
-        outro_rel = (orig_end - orig_start) + intro_tl
+        base_shift = intro_tl
+        outro_rel = (orig_end - orig_start) + base_shift
         print('\n── DRY RUN (shift estimate) ──')
         print(f'  Intro  → recordFrame={orig_start}  '
               f'(~{intro_tl} TL frames after {intro_speed}% retime; '
               f'native ~{intro_tl_frames_est})')
+        print(f'  Source timeline and ruler markers → shifted by +{base_shift} frames')
+        if marker_gap:
+            print(
+                '  A1 marker gap → '
+                f'{marker_gap["start_frame"] + base_shift}..'
+                f'{marker_gap["end_frame"] + base_shift} '
+                f'({post_intro_gap_frames} frames)'
+            )
         for c in sorted(existing, key=lambda x: (x['mediaType'], x['trackIndex'], x['relRecord'])):
-            new_rf = orig_start + c['relRecord'] + intro_tl
+            marker_extra = (
+                marker_record_extra_shift_for_clip(c, marker_gap)
+                if marker_gap and clip_gets_marker_timeline_insert(c)
+                else 0
+            )
+            new_rf = orig_start + c['relRecord'] + base_shift + marker_extra
             print(f'  type={c["mediaType"]} track={c["trackIndex"]:2d}  '
                   f'src=[{c["startFrame"]},{c["endFrame"]}]  '
                   f'record {c["relRecord"]} → {new_rf}  '
                   f'{c["mediaPoolItem"].GetName()}')
+        if orig_markers:
+            print(f'  Ruler markers → shifted by {base_shift} frames')
         if outro_vid_mpi:
             print(f'  Outro video → recordFrame={orig_start + outro_rel}')
         if outro_aud_mpi:
@@ -491,21 +766,22 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
     print(f'Intro placed: {intro_tl_frames} TL frames '
           f'({intro_tl_frames/fps:.2f}s @ {intro_speed}%)')
 
-    # ── Re-place all original clips shifted by the actual intro TL duration ───
-    outro_rel = (orig_end - orig_start) + intro_tl_frames
+    # ── Re-place originals shifted by intro; open marker-defined gameplay gap
+    base_shift_frames = intro_tl_frames
+    gameplay_shift_frames = base_shift_frames
+    outro_rel = (orig_end - orig_start) + base_shift_frames
     if existing:
         shifted = []
         shifted_colors = []
         for c in existing:
-            shifted.append({
-                'mediaPoolItem': c['mediaPoolItem'],
-                'startFrame':   c['startFrame'],
-                'endFrame':     c['endFrame'],
-                'recordFrame':  new_start + c['relRecord'] + intro_tl_frames,
-                'trackIndex':   c['trackIndex'],
-                'mediaType':    c['mediaType'],
-            })
-            shifted_colors.append(c.get('clipColor', ''))
+            append_clip_with_marker_timeline_insert(
+                shifted,
+                shifted_colors,
+                c,
+                new_start,
+                base_shift_frames,
+                marker_gap,
+            )
         placed = pool.AppendToTimeline(shifted) or []
         print(f'Re-placed {len(placed)}/{len(shifted)} original clips.')
         colored = 0
@@ -546,32 +822,78 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
 
     # Ruler markers are timeline-resident and Resolve does not copy them when
     # rebuilding a derived timeline. Preserve them by shifting everything right
-    # by the actual intro duration.
+    # by the intro duration, plus the marker-derived gameplay insert for
+    # markers at/after that insert point. Later stages, including Gen 1 leader
+    # intros, depend on those shifted marker locations.
     if orig_markers:
         placed_markers = 0
+        marker_mappings = []
         for marker in orig_markers:
-            new_frame = marker['frame'] + intro_tl_frames
+            gap_shift = marker_extra_shift_for_frame(marker['frame'], marker_gap)
+            new_frame = marker['frame'] + base_shift_frames + gap_shift
+            placed_frame = None
             for nudge in range(0, 10):
                 ok = new_tl.AddMarker(new_frame + nudge, marker['color'],
                                       marker['name'], marker['note'],
                                       marker['duration'], marker['customData'])
                 if ok:
                     placed_markers += 1
+                    placed_frame = new_frame + nudge
                     break
+            marker_mappings.append({
+                'name': marker['name'],
+                'color': marker['color'],
+                'source_frame': marker['frame'],
+                'base_shift_frames': base_shift_frames,
+                'gap_shift_frames': gap_shift,
+                'expected_new_frame': new_frame,
+                'placed_frame': placed_frame,
+                'nudge_frames': None if placed_frame is None else placed_frame - new_frame,
+            })
         print(f'Reapplied ruler markers: {placed_markers}/{len(orig_markers)}.')
     else:
         placed_markers = 0
+        marker_mappings = []
+
+    if post_intro_gap_frames and require_markers_for_post_intro_gap and placed_markers != len(orig_markers):
+        print(
+            'ERROR: post-intro gap marker correspondence failed: '
+            f'reapplied {placed_markers}/{len(orig_markers)} source timeline markers.',
+            file=sys.stderr,
+        )
+        return 1
 
     intro_a1_overlaps = verify_video_clear_of_a1(new_tl, intro_item, 'structural_intro')
     if intro_a1_overlaps:
         print('ERROR: structural intro video overlaps A1 audio:', file=sys.stderr)
         for row in intro_a1_overlaps:
             print(
-                f'  - {row["video"]} [{row["video_start"]},{row["video_end"]}) '
+                f'  - {row["source"]} [{row["range_start"]},{row["range_end"]}) '
                 f'overlaps {row["audio"]} [{row["audio_start"]},{row["audio_end"]})',
                 file=sys.stderr,
             )
         return 1
+    post_intro_a1_overlaps = []
+    post_intro_gap_abs_start = None
+    post_intro_gap_abs_end = None
+    if marker_gap:
+        post_intro_gap_abs_start = new_start + int(marker_gap['start_frame']) + base_shift_frames
+        post_intro_gap_abs_end = new_start + int(marker_gap['end_frame']) + base_shift_frames
+        post_intro_a1_overlaps = verify_a1_range_clear(
+            new_tl,
+            post_intro_gap_abs_start,
+            post_intro_gap_abs_end,
+            'post_intro_gap',
+        )
+        if post_intro_a1_overlaps:
+            print('ERROR: post-intro gap overlaps A1 audio:', file=sys.stderr)
+            for row in post_intro_a1_overlaps:
+                print(
+                    f'  - gap [{row["range_start"]},{row["range_end"]}) '
+                    f'overlaps {row["audio"]} [{row["audio_start"]},{row["audio_end"]})',
+                    file=sys.stderr,
+                )
+            return 1
 
     if report_path:
         report = {
@@ -583,7 +905,36 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
             'intro_speed_pct': intro_speed,
             'intro_clip': intro_item.GetName() or '',
             'intro_duration_frames': intro_tl_frames,
+            'base_timeline_shift_frames': base_shift_frames,
+            'post_intro_gap_source': 'timeline_markers' if marker_gap else 'none',
+            'post_intro_gap_frames': post_intro_gap_frames,
+            'post_intro_gap_sec': post_intro_gap_frames / fps,
+            'configured_post_intro_gap_frames': configured_post_intro_gap_frames,
+            'configured_post_intro_gap_sec': post_intro_gap_sec,
+            'gameplay_shift_frames': gameplay_shift_frames,
+            'marker_shift_frames': base_shift_frames,
+            'marker_base_shift_frames': base_shift_frames,
+            'marker_gap_shift_frames': marker_gap_insert_frames(marker_gap),
+            'timeline_gap_shift_frames': marker_gap_insert_frames(marker_gap),
+            'video_gap_shift_frames': marker_gap.get('video_insert_frames', 0) if marker_gap else 0,
+            'a1_gap_shift_frames': marker_gap.get('a1_insert_frames', 0) if marker_gap else 0,
+            'post_intro_gap_source_a1_overlap_count': len(source_post_intro_a1_overlaps),
+            'post_intro_gap_source_start_frame': marker_gap['start_frame'] if marker_gap else None,
+            'post_intro_gap_source_end_frame': marker_gap['end_frame'] if marker_gap else None,
+            'post_intro_v1_bridge_events': marker_gap.get('v1_bridge_events', []) if marker_gap else [],
+            'post_intro_gap_placed_start_frame': (
+                int(marker_gap['start_frame']) + base_shift_frames if marker_gap else None
+            ),
+            'post_intro_gap_placed_end_frame': (
+                int(marker_gap['end_frame']) + base_shift_frames if marker_gap else None
+            ),
+            'post_intro_gap_abs_start_frame': post_intro_gap_abs_start,
+            'post_intro_gap_abs_end_frame': post_intro_gap_abs_end,
+            'post_intro_gap_start_marker': marker_gap['start_marker']['name'] if marker_gap else None,
+            'post_intro_gap_end_marker': marker_gap['end_marker']['name'] if marker_gap else None,
+            'post_intro_gap_marker_correspondence_required': require_markers_for_post_intro_gap,
             'intro_a1_overlap_count': len(intro_a1_overlaps),
+            'post_intro_a1_gap_overlap_count': len(post_intro_a1_overlaps),
             'original_clip_count': len(existing),
             'original_start_frame': orig_start,
             'original_end_frame': orig_end,
@@ -592,6 +943,7 @@ def run(game_key: str, dry_run: bool, source_timeline: str | None = None,
             'outro_audio': outro_aud_mpi.GetName() if outro_aud_mpi else None,
             'markers_reapplied': placed_markers,
             'markers_expected': len(orig_markers),
+            'marker_mappings': marker_mappings,
         }
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
@@ -615,9 +967,15 @@ def main() -> int:
                         help='Print what would happen without touching Resolve')
     parser.add_argument('--report', type=Path,
                         help='Write a JSON report for orchestrator cache/validation')
+    parser.add_argument('--post-intro-gap-sec', type=float, default=0.0,
+                        help='Expected duration between the source timeline Intro Gap Start/Gameplay Start markers.')
+    parser.add_argument('--require-markers-for-post-intro-gap', action='store_true',
+                        help='Fail if the source timeline lacks the marker pair needed to derive the post-intro gameplay gap.')
     args = parser.parse_args()
     return run(args.game, args.dry_run, args.source_timeline,
-               intro_speed=args.intro_speed, report_path=args.report)
+               intro_speed=args.intro_speed, report_path=args.report,
+               post_intro_gap_sec=args.post_intro_gap_sec,
+               require_markers_for_post_intro_gap=args.require_markers_for_post_intro_gap)
 
 
 if __name__ == '__main__':

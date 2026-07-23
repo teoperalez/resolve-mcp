@@ -67,6 +67,82 @@ Do not invent marker data, infer battle markers from transcripts when canonical
 session logs are expected, or silently fall back to prompt-file/manual workflows
 outside the orchestrator.
 
+### Marker-Derived Gameplay Gap
+
+For RBY UMB intro/gameplay marker gaps, do not create a black V1 hole or an
+A1-only offset. When the project markers `Intro Hold Gap Start` / `Intro Gap
+Start` and `Gameplay Start` require a one-second insert, open that silent gap on
+A1 and shift timeline markers at or after the insert point by the same extra
+amount so downstream Gen 1 intro placement reads the corrected positions. V1
+must match the manual repair pattern: the intro-card hold remains continuous
+through the inserted A1 silence and ends at the shifted `Intro Hold Gap Start`
+marker, then the first post-gap V1 gameplay/dialogue clip is extended left by
+the same insert amount so it begins with the shifted A1 clip. This preserves the
+gameplay spine without leaving black picture under the playhead.
+
+### Visual Hold Semantics
+
+In this repository's edit workflows, a visual hold means an extended, unbroken
+V1 video clip over the full hold range. It does not mean a still-image asset, a
+freeze-frame PNG, a rendered hold video, or a higher-track overlay. A1 may
+continue as cut dialogue underneath, but V1 must be continuous on track 1 until
+the hold range ends.
+
+### Final A1 Dialogue Audit
+
+Before the final Resolve assembly proceeds, run the orchestrator's
+`a1-dialogue-audit` step. It reruns faster-whisper on the dialogue audio and
+fails if any final-base FCPXML A1 clip has no overlapping recognized dialogue.
+Treat findings such as coughs, throat clears, and short non-word noises as
+review/cut candidates instead of allowing them into the finished timeline.
+
+### Fairlight Preset Before Handoff
+
+Before passing any finished Resolve timeline back to the user for review or
+render, apply the repo Fairlight preset to that exact timeline and save the
+project:
+
+```powershell
+.venv\Scripts\python.exe scripts\apply_fairlight_preset.py --timeline "<timeline name>"
+```
+
+The default preset is `Standard Gameplay youtube` with type `CONSOLE_FLEXI`.
+Do not describe a timeline as ready until the apply script reports
+`Result: True` and `pm.SaveProject(): True`.
+
+### Continuous BGM Bed Placement
+
+A2 BGM must be a continuous music bed made from clips at their real source
+durations. When placing BGM through Resolve `AppendToTimeline`, remember that
+`recordFrame` is in timeline frames, but audio `startFrame` / `endFrame` are in
+the media item's source-frame units. Do not pass 60fps timeline durations as
+`endFrame` for 30fps-tagged WAV files; that doubles the Resolve timeline span
+and leaves long silent tails. Verification must compare the actual A2 clip
+starts, durations, and source left offsets against the generated BGM placement
+plan, not merely check that A2 has no timeline gaps.
+
+### Computer Use Audio Normalization
+
+When the orchestrator reaches the `audio-normalization-handoff` step, the
+Resolve Normalize Audio command must be run through Computer Use exactly this
+way:
+
+1. Unlock A2 if it is locked.
+2. Drag-select all audio clips only, across the populated audio lanes. Do not
+   select video clips and do not use Ctrl+A.
+3. Verify the audio multi-clip selection is still active.
+4. Right-click the center/body of the longest visible selected A2 clip, away
+   from fade handles and clip edges.
+5. Choose `Normalize Audio Levels...` from that selected audio clip context
+   menu.
+6. Use `Sample Peak Program`, the configured target level, and Independent clip
+   reference when Resolve shows that option.
+7. Click `Normalize`, then save the Resolve project.
+
+If the right-click collapses the multi-selection, close the menu and redo the
+audio-only drag selection before choosing Normalize. If any video clip is
+selected, normalization is invalid; clear the selection and start over.
+
 ---
 
 ## Screenshots

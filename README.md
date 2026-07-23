@@ -230,6 +230,14 @@ The orchestrator is intentionally stricter than individual helper scripts:
 - Gameplay V1 must have aligned A1 dialogue coverage. Intro/outro assets are
   exempt, but any gameplay V1 clip without matching source-aligned A1 is a
   global audit failure.
+- Final RBY UMB assembly must run `a1-dialogue-audit`: it reruns
+  faster-whisper and fails when a final-base FCPXML A1 section has no
+  overlapping recognized dialogue, catching coughs/throat clears that
+  auto-editor may have kept as clips.
+- For marker-derived RBY UMB intro gaps, V1 must bridge the inserted A1 silence:
+  the intro-card hold stays continuous through the inserted second, and the
+  first post-gap V1 clip is extended left by that same duration so it starts
+  with the shifted A1 dialogue clip.
 - Battle-intro overlays must land on V2. The placement script verifies the API
   result and writes `_data/qa-reports/battle-intros-placements.json`; the audit
   scope also checks that the expected V2 intro clips exist.
@@ -601,7 +609,12 @@ rem Force overwrite of the host preset (otherwise leave host file alone if prese
 3. Copies the repo file into the host dir if it's missing (no-op if already present and same size — pass `--force-install` to overwrite).
 4. Switches to `--timeline` if given.
 5. Calls `Project.ApplyFairlightPresetToCurrentTimeline(<Name>)`. Returns True on success.
-6. Prints the manual **Normalize Audio** walkthrough (Sample Peak -9.0 dB, independent per track) — this step is UI-only because the Resolve scripting API doesn't expose `NormalizeAudio`.
+6. Prints the manual **Normalize Audio** walkthrough. This step is UI-only
+   because the Resolve scripting API doesn't expose `NormalizeAudio`: unlock A2
+   if needed, drag-select all audio clips only, right-click the center/body of
+   the longest visible selected A2 clip, choose **Normalize Audio Levels...**,
+   use Sample Peak Program at the configured target level with Independent clip
+   reference when shown, then click **Normalize**.
 
 **Saving your own preset:** Resolve's API doesn't expose a "save preset" call — saving is UI-only. To capture a new preset:
 

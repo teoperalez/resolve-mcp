@@ -134,8 +134,14 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"  {readiness[step.id]:8} {step.phase:10} {step.id}")
     print("\nArtifacts:")
     for artifact in artifacts:
-        state = "ok" if artifact.exists else "missing"
-        print(f"  {state:8} {artifact.key:28} {artifact.path}")
+        if not artifact.exists:
+            state = "missing"
+        elif artifact.validation_error:
+            state = "invalid"
+        else:
+            state = "ok"
+        suffix = f" ({artifact.validation_error})" if artifact.validation_error else ""
+        print(f"  {state:8} {artifact.key:28} {artifact.path}{suffix}")
     return 0
 
 

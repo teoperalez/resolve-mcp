@@ -264,6 +264,12 @@ class LLMDispatcher:
             raise LLMDispatchError("LLM feedback must be a JSON array for this task.")
         if contract_type == "json_object" and not isinstance(payload, dict):
             raise LLMDispatchError("LLM feedback must be a JSON object for this task.")
+        if contract_type == "json_array" and "min_items" in output_contract:
+            min_items = self._contract_int(output_contract, "min_items", 0)
+            if len(payload) < min_items:
+                raise LLMDispatchError(
+                    f"LLM feedback must contain at least {min_items} JSON array item(s) for this task."
+                )
 
         required_fields = [str(item) for item in output_contract.get("required_fields") or []]
         if required_fields:
@@ -300,6 +306,13 @@ class LLMDispatcher:
             missing = [field for field in required_fields if field not in payload]
             if missing:
                 raise LLMDispatchError(f"JSON object is missing required field(s): {', '.join(missing)}")
+
+    @staticmethod
+    def _contract_int(output_contract: dict[str, Any], key: str, default: int) -> int:
+        try:
+            return int(output_contract.get(key, default))
+        except (TypeError, ValueError):
+            return default
 
     def _codex_read_roots(self, profile: ProjectProfile) -> list[Path]:
         mapping = profile.mapping(self.repo)
