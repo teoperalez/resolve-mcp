@@ -846,6 +846,99 @@
         "{render_dir_arg}",
         "{render_dir}"
       ]
+    },
+    {
+      "id": "deterministic_gsc_gym_full",
+      "title": "Build and Import One Deterministic GSC Gym Leader Timeline",
+      "description": "Runs the complete zero-LLM GSC Gym Leader Challenge build through one receipt-bound Resolve import under one hard ten-minute process-tree deadline.",
+      "command": [
+        "{python}",
+        "scripts/run_gsc_gym_deterministic_workflow.py",
+        "full",
+        "--config",
+        "{workflow_config}",
+        "--source",
+        "{source_media}",
+        "--session-dir",
+        "{session_dir}",
+        "--dialogue-audio-ordinal",
+        "{dialogue_audio_ordinal}",
+        "--output-dir",
+        "{output_dir}",
+        "--resolve-project",
+        "{resolve_project}",
+        "--result-json",
+        "{deterministic_plan}"
+      ]
+    },
+    {
+      "id": "deterministic_gsc_gym_prepare",
+      "title": "Deterministic GSC Gym Leader Resolve Preflight",
+      "description": "Runs the read-only, zero-LLM GSC Gym Leader Challenge pre-deployment audit against one stable completed 4K60 recording, its selected 48 kHz dialogue stream, exact session telemetry, strict mapper projection, deterministic carousel evidence, embedded OBS chapters, the current Resolve identity, and the fingerprinted Lt. Surge reference, with a hard ten-minute ceiling.",
+      "command": [
+        "{python}",
+        "scripts/run_gsc_gym_deterministic_workflow.py",
+        "stage",
+        "--config",
+        "{workflow_config}",
+        "--name",
+        "prepare",
+        "--source",
+        "{source_media}",
+        "--session-dir",
+        "{session_dir}",
+        "--dialogue-audio-ordinal",
+        "{dialogue_audio_ordinal}",
+        "--require-resolve",
+        "--result-json",
+        "{deterministic_plan}"
+      ]
+    },
+    {
+      "id": "deterministic_gsc_gym_build_offline",
+      "title": "Build Deterministic GSC Gym Leader FCPXML",
+      "description": "Builds and structurally audits the complete zero-LLM GSC Gym Leader Challenge FCPXML on F: without opening or mutating Resolve; every physical retry and BGM range is explicit, while only identity attempt ordinal 1 receives an intro/A1 gap; carousel slices and the linked outro are explicit.",
+      "command": [
+        "{python}",
+        "scripts/run_gsc_gym_deterministic_workflow.py",
+        "build-offline",
+        "--config",
+        "{workflow_config}",
+        "--source",
+        "{source_media}",
+        "--session-dir",
+        "{session_dir}",
+        "--dialogue-audio-ordinal",
+        "{dialogue_audio_ordinal}",
+        "--output-dir",
+        "{output_dir}",
+        "--result-json",
+        "{deterministic_plan}"
+      ]
+    },
+    {
+      "id": "deterministic_gsc_gym_resolve_dry_run",
+      "title": "Import One Deterministic GSC Gym Leader Dry Run",
+      "description": "Revalidates immutable inputs and media, imports exactly one receipt-bound timeline into the exact already-open Resolve project, proves 4K60 track geometry and CropBottom 530, links the exact V1/A3 outro pair, saves, and refuses duplicate imports.",
+      "command": [
+        "{python}",
+        "scripts/run_gsc_gym_deterministic_workflow.py",
+        "resolve-dry-run",
+        "--config",
+        "{workflow_config}",
+        "--source",
+        "{source_media}",
+        "--session-dir",
+        "{session_dir}",
+        "--dialogue-audio-ordinal",
+        "{dialogue_audio_ordinal}",
+        "--output-dir",
+        "{output_dir}",
+        "--resolve-project",
+        "{resolve_project}",
+        "--result-json",
+        "{deterministic_plan}"
+      ]
     }
   ],
   "workflows": [
@@ -2377,6 +2470,104 @@
           },
           "depends_on": [
             "fairlight"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gsc_gym_leader_deterministic_single_build",
+      "name": "GSC Gym Leader Deterministic One-Build Dry Run",
+      "description": "Separate zero-LLM Gym Leader Challenge workflow: stable finalized intake, deterministic silence edit, frame-exact offline FCPXML assembly, and one receipt-bound Resolve dry-run import with live validation.",
+      "game_versions": [
+        "pokemon_crystal",
+        "pokemon_gold_silver"
+      ],
+      "challenge_types": [
+        "gym_leader_challenge",
+        "deterministic_gsc_gym_leader_challenge"
+      ],
+      "llm_tasks": [],
+      "review_surfaces": [],
+      "tooling": {
+        "runtime_limit_seconds": 600,
+        "deployment_status": "ready_for_post_recording_resolve_dry_run",
+        "timeline_composition": "deterministic_only",
+        "timeline_rebuild_mode": "one_receipt_bound_resolve_import_no_duplicate_timeline",
+        "outer_process_tree_watchdog_seconds": 600,
+        "completed_source_contract": "finalized_nonpartial_main_OBS_source;single_nonempty_3840x2160_exact_60fps_video_stream;source_events_and_meta_unchanged_across_two_second_dwell_and_revalidated_immediately_before_Resolve_handoff",
+        "dialogue_audio_contract": "explicit_one_based_audio_ordinal_default_5_matching_preserved_Surge_zero_based_audio_stream_4;selected_stream_nonempty_48000Hz;boundary_geometry_must_pass_600_frame_snap_ceiling",
+        "marker_source": "exact_battle_events_plus_mapper_intervals_mapped_to_embedded_OBS_chapters",
+        "battle_population": "every_retained_physical_attempt_keeps_its_own_A2_battle_range;only_supplied_identity_attempt_ordinal_1_gets_an_A1_gap;only_leader_or_rival_identity_attempt_ordinal_1_gets_V2_intro",
+        "battle_a1_gap_geometry": "one_real_60f_timeline_insert_only_for_supplied_identity_attempt_ordinal_1_at_an_adjacent_autoeditor_A1_boundary;no_gap_before_same_trainer_retries_even_if_attempt_1_was_removed;preserve_all_A1_source_frames;one_exact_60f_incoming_side_source_backed_V1_bridge_per_gap;source_overlap_allowed",
+        "same_trainer_retry_contract": "same_trainer_retries_keep_distinct_physical_battle_and_A2_ranges_but_receive_no_additional_A1_gap_or_V2_intro",
+        "party_member_ko_contract": "during_team_or_gym_leader_challenge_active_member_KO_plus_replacement_is_not_battle_end_or_new_battle;future_telemetry_requires_authoritative_battle_ended_and_paired_party_replacement_lifecycle_evidence;when_bound_logs_lack_that_evidence_video_recovery_requires_fixed_template_title_and_finite_attempt_evidence_for_every_raw_battle_run_and_merges_only_exact_same_title_attempt_otherwise_fail_closed",
+        "battle_edit_boundary_mapping": "battle_start_exact_adjacent_join_else_inside_nearest_unique_valid_adjacent_join_equidistant_fail_closed_else_removed_gap_unique_adjacent_join_no_midclip_split;boundaries_in_removed_source_gaps_map_to_their_unique_contiguous_edit_join;carousel_keeps_exact_or_next_retained_source_boundary_policy",
+        "battle_start_candidate_audit": "inside_retained_start_records_preceding_and_following_join_distances_validity_and_rejection_reasons_then_requires_one_unique_nearest_candidate",
+        "battle_end_policy": "direct_logged_Win_end_requires_exact_OBS_chapter;otherwise_exact_mapper_exit_requires_strict_local_projection_between_bracketing_matched_chapters_max_600_frames_and_max_2_frame_offset_residual",
+        "forbidden_battle_anchor": "trainer-ai_gym-leader-battle-start",
+        "leader_intro_mode": "canonical_leader_identity",
+        "rival_intro_mode": "canonical_RIVAL1_trainer_id_maps_location_and_ROM_party_table_starter_type_no_transcript_or_LLM",
+        "battle_a1_gap_frames": 60,
+        "opening_intro_source_asset": "F:/Programming/GSCNewLayout/GSCPC Intro Short.mp4",
+        "opening_intro_asset": "C:/Users/Teo/.resolve-mcp/cache/retimed-intros/GSCPC Intro Short__400pct.mp4",
+        "opening_intro_speed_pct": 400,
+        "opening_intro_resolve_speed_pct": 100,
+        "opening_intro_retime_policy": "approved_pre_retimed_4x_derivative;never_apply_a_second_4x_retime_in_Resolve",
+        "opening_intro_timeline_frames": 260,
+        "battle_intro_track": "V2_over_continuous_V1",
+        "battle_intro_duration_frames": 300,
+        "battle_intro_end_rule": "exactly_at_end_of_60_frame_A1_gap_and_battle_start",
+        "outro_asset": "F:/GSC Assets/GSC Assets outro.mov",
+        "outro_track_contract": "linked_source_video_V1_and_source_audio_A3_after_carousel;no_separate_Golden_Goose_clip",
+        "outro_reference_evidence": "matching_MOV_source_name_and_record_range_only;live_link_state_requires_receipt_validator",
+        "carousel_mode": "prefer_final_complete_member-carousel-started_ended_pair_with_channel-exp-bar-shown_handoff_within_2_frames;otherwise_fixed_4K60_corner_luma_detector_validated_on_preserved_Surge",
+        "carousel_fallback_contract": "two_160x160_bottom_corners_plus_top_center_control;6_bright_preroll_frames_luma_gte_40;120_sustained_dark_lower_frames_luma_lte_8;top_control_active_min_40_frames;reject_full_frame_fades;select_final_qualifying_transition;one_shared_CUDA_CPU_timeout;120_second_scan_cap",
+        "carousel_edit_mapping": "exact_source_frame_then_deterministic_source_to_edit_mapping;removed_source_frame_snaps_to_next_retained_source_backed_boundary",
+        "intro_bgm": "Dual Screen Lovelife.mp3_source_offset_764_at_opening_and_source_zero_after_final_battle_only",
+        "battle_bgm": "GSCNewLayout_audio_Gen_2_battle_audio_only",
+        "battle_bgm_selection": "deterministic_shuffle_bag_no_immediate_repeat",
+        "battle_bgm_fade_frames": 30,
+        "a2_media_contract": "original_library_MP3_paths_and_visible_filenames_only;full_media_descriptors_with_editable_left_and_right_handles;no_rendered_renamed_or_a2-fades_derivatives",
+        "a2_continuity": "frame_exact_timeline_start_to_outro_start",
+        "post_battle_bgm_transition_policy": "fresh_unused_source_zero_after_every_positive_post_battle_gap;zero_gap_direct_battle_handoff",
+        "nonbattle_bgm_repeat_policy": "no_repeats_except_Dual_Screen_Lovelife_exactly_opening_and_post_final",
+        "post_final_bgm_sequence": "Dual Screen Lovelife.mp3;Motivated By Clouds.mp3;Roll Me in Stardust.mp3;unused_randomized_track",
+        "physical_attempt_bgm_start_contract": "every_physical_attempt_has_distinct_A2_assignment_and_restarts_original_source_at_asset_source_start_frame",
+        "nonbattle_bgm": "source_bound_seeded_shuffle_without_replacement_excluding_Dual_Screen_Lovelife_Motivated_By_Clouds_Roll_Me_in_Stardust_and_Golden_Goose;deck_never_wraps",
+        "outro_bgm": "Golden Goose.mp3_identity_reserved_and_blocked_from_A2;linked_outro_MOV_source_audio_owns_A3",
+        "fairlight_preset": "Standard Gameplay youtube",
+        "fairlight_preset_type": "CONSOLE_FLEXI",
+        "fairlight_final_stage_contract": "media_pool_validation_then_exact_receipt_bound_timeline_preset_as_final_Resolve_mutation_then_project_save_then_read_only_validation"
+      },
+      "steps": [
+        {
+          "id": "full",
+          "title": "Build, import, and validate one deterministic timeline",
+          "phase": "assemble",
+          "kind": "script",
+          "tool": "deterministic_gsc_gym_full",
+          "args": {},
+          "requires_resolve": true,
+          "artifacts_in": [
+            {
+              "key": "source_media",
+              "required": true
+            },
+            {
+              "key": "session_dir",
+              "required": true
+            }
+          ],
+          "artifacts_out": [
+            "dialogue_pcm24",
+            "autoeditor_fcpxml",
+            "deterministic_fcpxml",
+            "deterministic_manifest",
+            "deterministic_plan",
+            "resolve_dry_run_receipt",
+            "resolve_live_audit",
+            "media_pool_bins_report",
+            "fairlight_report"
           ]
         }
       ]

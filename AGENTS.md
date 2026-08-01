@@ -16,6 +16,29 @@ the canonical interface.
 
 ---
 
+## Deterministic GSC Gym Leader Challenge Routing
+
+For every Pokémon Crystal/GSC Gym Leader Challenge video—including builds,
+rebuilds, dry runs, and repairs—use only the zero-LLM workflow
+`gsc_gym_leader_deterministic_single_build` from
+`F:\Programming\resolve-mcp-codex`. Run it through
+`.venv\Scripts\python.exe scripts\run_gsc_gym_deterministic_workflow.py`; use
+`build-offline` before acquiring Resolve and `resolve-dry-run` only after the
+recording is finalized and an exclusive Resolve lease has been granted. Treat
+`docs/deterministic_gsc_gym_workflow.md` and the workflow profile in
+`config/orchestrator_workflows.json` as canonical.
+
+Do not route these sessions through `pokemon_gym_leader_challenge`,
+generic/legacy stages, manual timeline assembly, or any LLM inference step.
+The default and maximum runtime is 600 seconds; fail closed on missing or
+ambiguous telemetry, assets, receipts, or geometry. Preserve manual edits and
+protected timeline ranges. Any discovered correction must be implemented in
+the deterministic planner, validators, and regression tests—not as a one-off
+timeline fix. RBY UMB remains routed to its separate Gen 1 deterministic
+workflow.
+
+---
+
 ## First Steps On Every Resolve Session
 
 Before using Resolve tools, orient yourself:

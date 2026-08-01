@@ -1,0 +1,64 @@
+{
+  "schema": "gsc_gym_leader_surge_reference_contract_v1",
+  "reference": "Lt. Surge Crystal Gym Leader Challenge",
+  "policy": "The strict no-flash audit is exact geometry authority for the ten major leader/rival battles it checks. The later BGM report establishes a 15-battle population and five no-intro minor battles, but its battle-gap geometry is context only. Later manual timing drift is evidence to reject, not a relaxed acceptance range.",
+  "evidence": {
+    "structural_audit": {
+      "path": "F:/Lt Surge Crystal Gym Leader Challenge/CODEx/qa-reports/final-gsc-gym-leader-audit-no-flash-intros.json",
+      "sha256": "7936763166F8E5ADE657B6435520B6AE56D030AD50D53AE513D19DE77C575FAF"
+    },
+    "bgm_audit": {
+      "path": "F:/Lt Surge Crystal Gym Leader Challenge/CODEx/qa-reports/gsc-bgm-after-manual-edits.json",
+      "sha256": "8A715D49FFB248D10FDCF7CFB3F36C56E533282F0D8BDE63BF6FBB5346C9210B"
+    },
+    "post_bgm_drt": {
+      "path": "F:/Lt Surge Crystal Gym Leader Challenge/CODEx/checkpoints/after-gsc-bgm-rebuild-20260723.drt",
+      "sha256": "5E6929B2220A799E5722BEB88B9FBA94D2FAA716F7A0685FDA1CCF9FAA830DD5"
+    }
+  },
+  "strict_invariants": {
+    "width": 3840,
+    "height": 2160,
+    "fps": 60,
+    "opening_intro_speed_pct": 400,
+    "opening_intro_frames": 260,
+    "opening_intro_track": "V1",
+    "major_exact_gap_count_observed": 10,
+    "major_intro_count_observed": 10,
+    "later_battle_range_count_observed": 15,
+    "later_intro_battle_count_observed": 10,
+    "later_minor_battle_without_intro_count_observed": 5,
+    "battle_intro_frames": 300,
+    "battle_intro_track": "V2",
+    "battle_intro_audio": "none",
+    "battle_gap_frames": 60,
+    "battle_gap_track": "A1",
+    "v1_continuous_under_gap_and_intro": true,
+    "battle_gap_inserts_timeline_frames": false,
+    "battle_gap_duplicates_v1_preroll": false,
+    "carousel_v2_count_observed": 28,
+    "carousel_v2_contiguous": true,
+    "carousel_v2_crop_bottom": 530.0,
+    "a2_continuous_to_outro": true,
+    "battle_bgm_fade_frames": 30,
+    "battle_bgm_shuffle_policy": "complete_bags_no_immediate_repeat",
+    "battle_bgm_tracks": [
+      "110 Battle! Wild Pokemon (Johto).mp3",
+      "118 Battle! Trainer (Johto).mp3",
+      "143 Battle! Gym Leader (Johto).mp3",
+      "204 Battle! Gym Leader (Kanto).mp3",
+      "207 Battle! Wild Pokemon (Kanto).mp3",
+      "229 Battle! Trainer (Kanto).mp3"
+    ],
+    "outro_video_track": "V1",
+    "outro_audio_track": "A3",
+    "outro_matching_mov_source_and_range_observed": true,
+    "outro_link_state_observed": false,
+    "outro_link_state_requirement": "must_be_proved_by_receipt_bound_live_validator_before_deployment",
+    "standalone_golden_goose_outro_clip": false
+  },
+  "known_manual_drift_to_reject": {
+    "gap_lengths_frames": [67, 66, 69, 68],
+    "short_intro_frames": 290
+  }
+}

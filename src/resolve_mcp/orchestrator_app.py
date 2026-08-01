@@ -67,6 +67,7 @@ def open_path(path: Path) -> None:
 PARAMETER_ORDER = [
     "source_media",
     "dialogue_audio",
+    "dialogue_audio_ordinal",
     "auto_editor_input",
     "auto_editor_export",
     "auto_editor_margin",
@@ -101,6 +102,17 @@ PARAMETER_ORDER = [
 ]
 
 PATH_ORDER = [
+    "output_dir",
+    "deterministic_preflight",
+    "deterministic_plan",
+    "dialogue_pcm24",
+    "autoeditor_fcpxml",
+    "deterministic_fcpxml",
+    "deterministic_manifest",
+    "resolve_dry_run_receipt",
+    "resolve_live_audit",
+    "media_pool_bins_report",
+    "fairlight_report",
     "candidate_manifest",
     "raw_autoeditor_fcpxml",
     "review_fcpxml",
@@ -136,6 +148,18 @@ PATH_ORDER = [
 ]
 
 FIELD_LABELS = {
+    "autoeditor_fcpxml": "Deterministic Auto-Editor FCPXML",
+    "dialogue_audio_ordinal": "Dialogue Audio Stream",
+    "dialogue_pcm24": "Deterministic Dialogue PCM",
+    "deterministic_fcpxml": "Deterministic GSC FCPXML",
+    "deterministic_manifest": "Deterministic GSC Manifest",
+    "deterministic_plan": "Deterministic GSC Result",
+    "deterministic_preflight": "Deterministic GSC Preflight",
+    "media_pool_bins_report": "Reusable Media Pool Bins Report",
+    "output_dir": "Deterministic GSC Output Folder",
+    "resolve_dry_run_receipt": "Resolve Dry-Run Receipt",
+    "resolve_live_audit": "Resolve Live Audit",
+    "fairlight_report": "Fairlight Preset Report",
     "approved_narrative": "Approved Narrative Cuts",
     "approved_source_cuts": "Approved Source Cuts",
     "artifact_candidates": "Artifact/Short-Clip Candidates",
@@ -207,6 +231,12 @@ FIELD_LABELS = {
 }
 
 FIELD_HELP = {
+    "dialogue_audio_ordinal": "One-based OBS audio stream used as isolated narration; the deterministic GSC default is stream 5 (the preserved Surge auto-editor audio:stream=4).",
+    "deterministic_plan": "Distinct F:-drive result JSON written by each GSC deterministic tool. It must not alias a generated assembly artifact.",
+    "media_pool_bins_report": "Receipt-bound audit of the reusable GSC asset-bin population.",
+    "output_dir": "F:-drive workspace for the deterministic GSC assembly, receipt, and audit artifacts.",
+    "resolve_project_name": "Exact already-open Resolve project required by the receipt-bound GSC dry-run import.",
+    "fairlight_report": "Saved receipt proving the Standard Gameplay youtube Fairlight preset was the final Resolve mutation.",
     "approved_source_cuts": "Source-time cuts approved by human/LLM review. Final assembly consumes this.",
     "auto_editor_edit": "auto-editor expression that decides loud vs silent sections, usually audio.",
     "auto_editor_export": "auto-editor export target, usually final-cut-pro for FCPXML.",
@@ -248,6 +278,16 @@ FIELD_HELP = {
 }
 
 FILE_KEYS = {
+    "autoeditor_fcpxml",
+    "dialogue_pcm24",
+    "deterministic_fcpxml",
+    "deterministic_manifest",
+    "deterministic_plan",
+    "deterministic_preflight",
+    "media_pool_bins_report",
+    "resolve_dry_run_receipt",
+    "resolve_live_audit",
+    "fairlight_report",
     "approved_narrative",
     "approved_source_cuts",
     "artifact_candidates",
@@ -288,6 +328,7 @@ FILE_KEYS = {
 }
 
 DIRECTORY_KEYS = {
+    "output_dir",
     "cut_review_dir",
     "html_review_dir",
     "native_review_dir",
@@ -1004,7 +1045,14 @@ class OrchestratorApp(tk.Tk):
         for check in checks:
             state = "ok" if check.ok else "missing"
             self._log(f"Tool check: {check.title}: {state} - {check.detail}")
-        missing_required = [item for item in checks if not item.ok and item.id in {"codex", "auto_editor"}]
+        required_tool_ids = {"auto_editor"}
+        if self.workflow and self.workflow.llm_tasks:
+            required_tool_ids.add("codex")
+        missing_required = [
+            item
+            for item in checks
+            if not item.ok and item.id in required_tool_ids
+        ]
         if prompt and missing_required:
             self._show_dependency_dialog(checks)
 
@@ -1429,6 +1477,13 @@ class OrchestratorApp(tk.Tk):
                 "carousel_marker_names": "Member Carousel Start,Member Carousel",
                 "carousel_max_candidates": 30,
             })
+        elif workflow_id == "gsc_gym_leader_deterministic_single_build":
+            common.update({
+                # ProjectProfile.mapping exposes this as the command-facing
+                # ``resolve_project`` alias while keeping one editable UI field.
+                "resolve_project_name": "{profile_name}",
+                "dialogue_audio_ordinal": 5,
+            })
         return common
 
     def _default_paths_for_workflow(self, workflow_id: str) -> dict:
@@ -1479,6 +1534,23 @@ class OrchestratorApp(tk.Tk):
             common.update({
                 "battles_json": "{codex_dir}/transcripts/battles.json",
                 "battle_gaps_fcpxml": "{codex_dir}/fcpxml/battle_gaps.fcpxml",
+            })
+        elif workflow_id == "gsc_gym_leader_deterministic_single_build":
+            common.update({
+                # The GSC runner rejects C:-drive work and also rejects a
+                # --result-json path that aliases any generated artifact.
+                "output_dir": "F:/CodexTemp/resolve-mcp/gsc-gym/{profile_id}",
+                "deterministic_preflight": "{output_dir}/orchestrator-result.json",
+                "deterministic_plan": "{output_dir}/orchestrator-result.json",
+                "dialogue_pcm24": "{output_dir}/{source_safe_stem}__dialogue-a{dialogue_audio_ordinal}.wav",
+                "autoeditor_fcpxml": "{output_dir}/{source_safe_stem}__AUTOEDITOR_RAW.fcpxml",
+                "deterministic_fcpxml": "{output_dir}/{source_safe_stem}__GSC_GYM_DETERMINISTIC.fcpxml",
+                "deterministic_manifest": "{output_dir}/{source_safe_stem}__GSC_GYM_DETERMINISTIC.manifest.json",
+                "resolve_dry_run_receipt": "{output_dir}/{source_safe_stem}__resolve-dry-run.receipt.json",
+                # The runner embeds its live audit evidence in the receipt.
+                "resolve_live_audit": "{resolve_dry_run_receipt}",
+                "media_pool_bins_report": "{output_dir}/{source_safe_stem}__media-pool-bins.report.json",
+                "fairlight_report": "{output_dir}/{source_safe_stem}__fairlight.report.json",
             })
         return common
 

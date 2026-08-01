@@ -311,6 +311,8 @@ def challenge_type_from_label(label: str) -> str:
 def workflow_for_challenge(challenge_type: str) -> str:
     if challenge_type in {"ultra_minimum_battles", "minimum_battles"}:
         return "gen1_rby_umb_review_first"
+    if challenge_type == "gym_leader_challenge":
+        return "gsc_gym_leader_deterministic_single_build"
     return "pokemon_gym_leader_challenge"
 
 

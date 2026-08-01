@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -300,6 +301,23 @@ class ProjectProfile:
         for key, value in self.parameters.items():
             if isinstance(value, (str, int, float, bool)):
                 mapping.setdefault(key, str(value))
+        # Resolve-facing tools historically use both spellings. Keep the
+        # profile editor's single, explicit project-name field authoritative
+        # while satisfying tools that consume ``{resolve_project}``.
+        if (
+            str(mapping.get("resolve_project_name") or "").strip()
+            and not str(mapping.get("resolve_project") or "").strip()
+        ):
+            mapping["resolve_project"] = mapping["resolve_project_name"]
+        if self.workflow_id == "gsc_gym_leader_deterministic_single_build":
+            source_media = str(mapping.get("source_media") or "").strip()
+            source_stem = Path(source_media).stem if source_media else ""
+            rendered_stem = re.sub(
+                r"[^A-Za-z0-9._-]+",
+                "-",
+                source_stem,
+            ).strip("-._")
+            mapping["source_safe_stem"] = rendered_stem or "gsc-gym-run"
         raw_paths = dict(self.paths)
         for _ in range(8):
             changed = False
