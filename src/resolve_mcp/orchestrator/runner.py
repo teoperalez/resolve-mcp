@@ -3,11 +3,13 @@ from __future__ import annotations
 import subprocess
 import threading
 import os
+import time
 from dataclasses import dataclass
 from collections import deque
 from pathlib import Path
 from typing import Callable
 
+from .artifact_validators import artifact_validation_error
 from .models import ProjectProfile, WorkflowDefinition, WorkflowStep, expand_templates
 from .resolve_bootstrap import ensure_resolve_ready
 
@@ -53,8 +55,25 @@ class OrchestratorRunner:
         mapping = profile.mapping(self.repo)
         completed: set[str] = set()
         selected_ids = {step.id for step in steps}
+        shared_deadline: float | None = None
+        if workflow.id == "gsc_gym_leader_deterministic_single_build":
+            try:
+                runtime_limit = float(workflow.tooling.get("runtime_limit_seconds"))
+            except (TypeError, ValueError):
+                runtime_limit = 0.0
+            if runtime_limit != 600.0:
+                raise RuntimeError(
+                    "The deterministic GSC Gym Leader workflow must have one exact "
+                    "600-second end-to-end runtime limit."
+                )
+            shared_deadline = time.monotonic() + runtime_limit
 
         for step in steps:
+            if shared_deadline is not None and time.monotonic() >= shared_deadline:
+                raise RuntimeError(
+                    "The deterministic GSC Gym Leader workflow exhausted its shared "
+                    "600-second deadline before the next step."
+                )
             if self.cancel_requested:
                 self.callback(RunEvent("error", "Run cancelled before the next step."))
                 return
@@ -77,7 +96,13 @@ class OrchestratorRunner:
 
             self.callback(RunEvent("step", step.title, step.id, "running"))
             try:
-                self._run_step(profile, workflow, step, mapping)
+                self._run_step(
+                    profile,
+                    workflow,
+                    step,
+                    mapping,
+                    workflow_deadline_monotonic=shared_deadline,
+                )
             except Exception as exc:
                 self.callback(RunEvent("step", str(exc), step.id, "failed"))
                 if step.optional:
@@ -90,29 +115,38 @@ class OrchestratorRunner:
                 self.callback(RunEvent("pause", f"Paused after {step.title}.", step.id, "paused"))
                 return
 
-    def _missing_required_artifacts(self, profile: ProjectProfile, step: WorkflowStep) -> list[Path]:
-        missing: list[Path] = []
+    def _missing_required_artifacts(self, profile: ProjectProfile, step: WorkflowStep) -> list[tuple[Path, str]]:
+        missing: list[tuple[Path, str]] = []
         for artifact in step.artifacts_in:
             if not artifact.required:
                 continue
             path = profile.path(artifact.key, self.repo)
             if not path.exists():
-                missing.append(path)
+                missing.append((path, "missing"))
+                continue
+            validation_error = artifact_validation_error(artifact.key, path)
+            if validation_error:
+                missing.append((path, validation_error))
         return missing
 
     def _outputs_complete(self, profile: ProjectProfile, step: WorkflowStep) -> bool:
         if not step.artifacts_out:
             return False
-        paths = [profile.path(artifact.key, self.repo) for artifact in step.artifacts_out]
-        return all(path.exists() for path in paths)
+        for artifact in step.artifacts_out:
+            path = profile.path(artifact.key, self.repo)
+            if not path.exists():
+                return False
+            if artifact_validation_error(artifact.key, path):
+                return False
+        return True
 
     @staticmethod
-    def _missing_artifact_message(step: WorkflowStep, missing: list[Path]) -> str:
+    def _missing_artifact_message(step: WorkflowStep, missing: list[tuple[Path, str]]) -> str:
         lines = [
             f"STOP: {step.title} cannot continue autonomously.",
-            "Reason: required asset/data is missing.",
-            "Missing:",
-            *[f"  - {path}" for path in missing],
+            "Reason: required asset/data is missing or invalid.",
+            "Missing/invalid:",
+            *[f"  - {path} ({reason})" for path, reason in missing],
             "Ask the user how to proceed before continuing:",
             "  1. Provide or regenerate the missing artifact, then rerun this step.",
             "  2. Update the project profile path/setting in the orchestrator GUI.",
@@ -126,6 +160,8 @@ class OrchestratorRunner:
         workflow: WorkflowDefinition,
         step: WorkflowStep,
         mapping: dict[str, str],
+        *,
+        workflow_deadline_monotonic: float | None = None,
     ) -> None:
         if step.kind == "llm_prompt":
             if self.llm_step_handler:
@@ -134,7 +170,12 @@ class OrchestratorRunner:
                 self.callback(RunEvent("log", f"{step.title}: LLM prompt packet must be generated manually.", step.id, "done"))
             return
         if step.command:
-            self._run_command(profile, step, mapping)
+            self._run_command(
+                profile,
+                step,
+                mapping,
+                workflow_deadline_monotonic=workflow_deadline_monotonic,
+            )
             return
         if step.kind in {"manual_gate", "review"}:
             self.callback(RunEvent("log", f"{step.title}: handled by GUI/manual workflow.", step.id, "done"))
@@ -146,12 +187,23 @@ class OrchestratorRunner:
             self.callback(RunEvent("log", f"{step.title}: empty command.", step.id, "done"))
             return
 
-    def _run_command(self, profile: ProjectProfile, step: WorkflowStep, mapping: dict[str, str]) -> None:
+    def _run_command(
+        self,
+        profile: ProjectProfile,
+        step: WorkflowStep,
+        mapping: dict[str, str],
+        *,
+        workflow_deadline_monotonic: float | None = None,
+    ) -> None:
         command = [str(part) for part in expand_templates(step.command, mapping) if str(part) != ""]
         if step.requires_resolve:
             self.callback(RunEvent("log", "Resolve required for this final assembly step. Bootstrapping Resolve...", step.id, "running"))
             result = ensure_resolve_ready(profile, self.repo)
             self.callback(RunEvent("log", f"Resolve ready: {result.summary()}", step.id, "running"))
+        command = self._with_workflow_deadline_arg(
+            command,
+            deadline_monotonic=workflow_deadline_monotonic,
+        )
         self.callback(RunEvent("log", self._format_command(command), step.id, "running"))
         env = os.environ.copy()
         env.update(
@@ -186,6 +238,37 @@ class OrchestratorRunner:
         code = process.wait()
         if code != 0:
             raise RuntimeError(self._failure_message(code, command, list(output_tail)))
+
+    @staticmethod
+    def _with_workflow_deadline_arg(
+        command: list[str],
+        *,
+        deadline_monotonic: float | None,
+    ) -> list[str]:
+        """Bind each GSC child watchdog to the one workflow-wide deadline."""
+
+        if deadline_monotonic is None or not any(
+            Path(part).name.casefold() == "run_gsc_gym_deterministic_workflow.py"
+            for part in command
+        ):
+            return command
+        remaining = deadline_monotonic - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                "The deterministic GSC Gym Leader workflow exhausted its shared "
+                "600-second deadline before launching the next process."
+            )
+        rewritten: list[str] = []
+        index = 0
+        while index < len(command):
+            if command[index] != "--timeout-seconds":
+                rewritten.append(command[index])
+                index += 1
+                continue
+            if index + 1 >= len(command):
+                raise RuntimeError("--timeout-seconds is missing its value.")
+            index += 2
+        return [*rewritten, "--timeout-seconds", f"{min(600.0, remaining):.3f}"]
 
     @staticmethod
     def _format_command(command: list[str]) -> str:

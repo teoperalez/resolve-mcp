@@ -10,12 +10,16 @@ Order:
   3. narrative-llm-review     external/GUI LLM dispatch writes narrative output
   4. programmatic-candidates  waveform, n-gram, artifact/short-clip detectors
   5. compile-cut-candidates   enforce FCPXML whole-section cut policy
-  6. apply-html-decisions     offline source-time normalizer from pink_decisions
-  7. compile-approved-cuts    source-time cut list for deterministic rebuild
-  8. extract-game-audio       game-audio WAV for BGM bridge sections
-  9. final-assembly           launch Resolve and assemble the final timeline once
- 10. clip-colors              color final timeline clips by deterministic sections
- 11. validate-order
+ 6. apply-html-decisions     offline source-time normalizer from pink_decisions
+ 7. compile-approved-cuts    source-time cut list for deterministic rebuild
+  8. a1-dialogue-audit       rerun faster-whisper and verify A1 FCPXML dialogue
+  9. extract-game-audio       game-audio WAV for BGM bridge sections
+ 10. final-assembly           launch Resolve and assemble the final timeline once
+ 11. clip-colors              color final timeline clips by deterministic sections
+ 12. fairlight                apply the configured Fairlight timeline preset
+ 13. audio-normalization-handoff
+                              write Computer Use instructions for Resolve normalization
+ 14. validate-order
 """
 from __future__ import annotations
 
@@ -30,11 +34,15 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent
+SRC_DIR = REPO_DIR / "src"
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
+from resolve_mcp.orchestrator.artifact_validators import artifact_validation_error
 from scripts import build_rby_umb_fcpxml as M
 
 
@@ -59,12 +67,22 @@ APPROVED_NARRATIVE = M.profile_path("approved_narrative", CUT_REVIEW_DIR / "appr
 APPROVED_SOURCE_CUTS = M.profile_path("approved_source_cuts", CUT_REVIEW_DIR / "approved_source_cuts.json")
 FINAL_BASE_NAME = M.FINAL_NAME
 FINAL_MANIFEST = M.profile_path("final_manifest", M.CODEX_DIR / f"{M.safe_file_stem(FINAL_BASE_NAME)}_manifest.json")
+A1_DIALOGUE_AUDIT_REPORT = M.profile_path("a1_dialogue_audit_report", CUT_REVIEW_DIR / "a1_dialogue_audit.json")
+A1_DIALOGUE_AUDIT_TRANSCRIPT_DIR = M.profile_path(
+    "a1_dialogue_audit_transcript_dir",
+    CUT_REVIEW_DIR / "a1-dialogue-audit-transcript",
+)
 GAME_AUDIO = M.profile_path("game_audio", M.PROJECT_DIR / f"{M.source_name()}_tracks" / f"{M.source_name()}_3.wav")
 GAME_AUDIO_STREAM = M.profile_text("game_audio_stream", "0:a:2")
 BGM_REPORT = M.profile_path("bgm_report", M.CODEX_DIR / "qa-reports" / "rby-umb-bgm.json")
 INTRO_OUTRO_REPORT = M.profile_path("intro_outro_report", M.CODEX_DIR / "qa-reports" / "rby-umb-intro-outro.json")
 GEN1_INTROS_REPORT = M.profile_path("gen1_intros_report", M.CODEX_DIR / "qa-reports" / "battle-intros-placements.json")
 CLIP_COLOR_REPORT = M.profile_path("clip_color_report", M.CODEX_DIR / "qa-reports" / "rby-umb-clip-colors.json")
+FAIRLIGHT_REPORT = M.profile_path("fairlight_report", M.CODEX_DIR / "qa-reports" / "rby-umb-fairlight.json")
+AUDIO_NORMALIZATION_INSTRUCTIONS = M.profile_path(
+    "audio_normalization_instructions",
+    M.CODEX_DIR / "qa-reports" / "audio-normalization-computer-use.md",
+)
 PIPELINE_STATE = M.profile_path("pipeline_state", M.CODEX_DIR / "rby_umb_pipeline_state.json")
 PIPELINE_REPORT = M.profile_path("pipeline_order_report", M.CODEX_DIR / "rby_umb_pipeline_order_report.json")
 PIPELINE_CACHE_DIR = M.profile_path("pipeline_cache_dir", M.CODEX_DIR / "orchestrator_cache")
@@ -82,9 +100,16 @@ def profile_float_default(key: str, default: float) -> float:
 
 GAME_KEY = M.profile_text("game_key") or M.profile_text("game_version") or "pokemon_red_blue"
 STRUCTURAL_INTRO_SPEED = int(profile_float_default("intro_speed_pct", profile_float_default("intro_speed", 400.0)))
+POST_INTRO_GAP_SEC = profile_float_default("post_intro_gap_sec", 1.0)
 GEN1_INTRO_SPEED = profile_float_default("gen1_intro_speed", 2.0)
 GEN1_INTRO_ROOT = M.profile_path("gen1_intro_root", Path(r"C:\Programming\RBYNewLayout\gymLeaders\LeaderIntros"))
 BGM_DIR = M.profile_path("bgm_dir", Path(r"C:\Programming\RBYNewLayout\audio\bgm"))
+FAIRLIGHT_PRESET = M.profile_text("fairlight_preset", "Standard Gameplay youtube")
+FAIRLIGHT_PRESET_TYPE = M.profile_text("fairlight_preset_type", "CONSOLE_FLEXI")
+AUDIO_NORMALIZATION_TARGET_DB = profile_float_default("audio_normalization_target_db", -9.0)
+WHISPER_MODEL = M.profile_text("whisper_model", "large-v3-turbo")
+WHISPER_DEVICE = M.profile_text("whisper_device", "cuda")
+WHISPER_COMPUTE_TYPE = M.profile_text("whisper_compute_type", "float16")
 OPENING_BGM_OFFSET_SEC = profile_float_default(
     "opening_bgm_offset_sec",
     profile_float_default("opening_first_source_offset_sec", 13.0),
@@ -99,9 +124,12 @@ ORDER = [
     "compile-cut-candidates",
     "apply-html-decisions",
     "compile-approved-cuts",
+    "a1-dialogue-audit",
     "extract-game-audio",
     "final-assembly",
     "clip-colors",
+    "fairlight",
+    "audio-normalization-handoff",
     "validate-order",
 ]
 
@@ -113,16 +141,72 @@ STAGE_OUTPUTS: dict[str, list[Path]] = {
     "compile-cut-candidates": [CUT_CANDIDATES, HTML_CLIPS, HTML_SEGMAP],
     "apply-html-decisions": [NATIVE_NORMALIZED],
     "compile-approved-cuts": [APPROVED_SOURCE_CUTS],
+    "a1-dialogue-audit": [A1_DIALOGUE_AUDIT_REPORT],
     "extract-game-audio": [GAME_AUDIO],
     "final-base": [FINAL_MANIFEST],
     "structural-intro-outro": [INTRO_OUTRO_REPORT],
     "gen1-intros": [GEN1_INTROS_REPORT],
     "bgm": [BGM_REPORT],
     "clip-colors": [CLIP_COLOR_REPORT],
-    "final-assembly": [FINAL_MANIFEST, INTRO_OUTRO_REPORT, GEN1_INTROS_REPORT, BGM_REPORT, CLIP_COLOR_REPORT],
+    "fairlight": [FAIRLIGHT_REPORT],
+    "audio-normalization-handoff": [AUDIO_NORMALIZATION_INSTRUCTIONS],
+    "final-assembly": [FINAL_MANIFEST, A1_DIALOGUE_AUDIT_REPORT, INTRO_OUTRO_REPORT, GEN1_INTROS_REPORT, BGM_REPORT, CLIP_COLOR_REPORT],
     "validate-order": [PIPELINE_REPORT],
 }
+CACHE_ARTIFACTS = {
+    "carousel": PIPELINE_CACHE_DIR / "carousel.json",
+}
 CACHE_ONLY_STAGES = {"find-member-carousel", "carousel", "carousel-dry-run"}
+OUTPUT_EXISTENCE_CACHE_STAGES = {"final-base"}
+STAGE_DEPENDENCIES: dict[str, list[Path]] = {
+    "final-base": [CUT_CANDIDATES, APPROVED_SOURCE_CUTS],
+    "a1-dialogue-audit": [FINAL_MANIFEST, APPROVED_SOURCE_CUTS],
+    "structural-intro-outro": [FINAL_MANIFEST],
+    "gen1-intros": [INTRO_OUTRO_REPORT],
+    "bgm": [INTRO_OUTRO_REPORT, GEN1_INTROS_REPORT, GAME_AUDIO],
+    "find-member-carousel": [BGM_REPORT, GEN1_INTROS_REPORT],
+    "carousel": [BGM_REPORT, GEN1_INTROS_REPORT],
+    "carousel-dry-run": [BGM_REPORT, GEN1_INTROS_REPORT],
+    "clip-colors": [INTRO_OUTRO_REPORT, GEN1_INTROS_REPORT, BGM_REPORT, CACHE_ARTIFACTS["carousel"]],
+    "fairlight": [CLIP_COLOR_REPORT],
+    "audio-normalization-handoff": [FAIRLIGHT_REPORT],
+    "final-assembly": [APPROVED_SOURCE_CUTS, A1_DIALOGUE_AUDIT_REPORT, GAME_AUDIO],
+    "validate-order": [FAIRLIGHT_REPORT, AUDIO_NORMALIZATION_INSTRUCTIONS],
+}
+CACHE_TIMESTAMP_FRESHNESS_STAGES = {"final-assembly"}
+INTRO_GAP_DEPENDENT_STAGES = {
+    "structural-intro-outro",
+    "gen1-intros",
+    "bgm",
+    "find-member-carousel",
+    "carousel",
+    "carousel-dry-run",
+    "clip-colors",
+    "fairlight",
+    "audio-normalization-handoff",
+    "final-assembly",
+    "validate-order",
+}
+NARRATIVE_OUTPUT_DEPENDENT_STAGES = {
+    "programmatic-candidates",
+    "compile-cut-candidates",
+    "apply-html-decisions",
+    "compile-approved-cuts",
+    "a1-dialogue-audit",
+    "extract-game-audio",
+    "final-base",
+    "structural-intro-outro",
+    "gen1-intros",
+    "bgm",
+    "find-member-carousel",
+    "carousel",
+    "carousel-dry-run",
+    "final-assembly",
+    "clip-colors",
+    "fairlight",
+    "audio-normalization-handoff",
+    "validate-order",
+}
 
 
 class PipelineStop(RuntimeError):
@@ -152,18 +236,211 @@ def stage_outputs_exist(stage: str) -> bool:
     return bool(outputs) and all(path.exists() for path in outputs)
 
 
+def _mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def stage_dependencies_fresh(stage: str, outputs: list[Path], cache_path: Path | None = None) -> bool:
+    declared_deps = STAGE_DEPENDENCIES.get(stage, [])
+    if any(not path.exists() for path in declared_deps):
+        return False
+    deps = list(declared_deps)
+    if not deps:
+        return True
+    newest_dep = max(_mtime(path) for path in deps)
+    if stage in CACHE_TIMESTAMP_FRESHNESS_STAGES and cache_path is not None and cache_path.exists():
+        return _mtime(cache_path) >= newest_dep
+    if outputs:
+        return min(_mtime(path) for path in outputs) >= newest_dep
+    if cache_path is not None and cache_path.exists():
+        return _mtime(cache_path) >= newest_dep
+    return False
+
+
+def intro_outro_report_status() -> dict:
+    status = {
+        "required_gap_sec": POST_INTRO_GAP_SEC,
+        "current": POST_INTRO_GAP_SEC <= 0,
+    }
+    if POST_INTRO_GAP_SEC <= 0:
+        return status
+    if not INTRO_OUTRO_REPORT.exists():
+        status.update({"current": False, "reason": "missing_intro_outro_report"})
+        return status
+    try:
+        report = read_json(INTRO_OUTRO_REPORT)
+    except Exception as exc:
+        status.update({"current": False, "reason": f"unreadable_intro_outro_report: {exc}"})
+        return status
+    fps = float(report.get("fps") or profile_float_default("timeline_fps", 60.0))
+    expected_gap_frames = max(0, int(round(POST_INTRO_GAP_SEC * fps)))
+    gap_frames = int(report.get("post_intro_gap_frames") or -1)
+    base_shift_frames = int(report.get("base_timeline_shift_frames") or -1)
+    gameplay_shift_frames = int(report.get("gameplay_shift_frames") or -1)
+    intro_duration_frames = int(report.get("intro_duration_frames") or 0)
+    markers_expected = int(report.get("markers_expected") or 0)
+    markers_reapplied = int(report.get("markers_reapplied") or 0)
+    marker_mappings = report.get("marker_mappings") or []
+    gap_source_ok = report.get("post_intro_gap_source") == "timeline_markers"
+    gap_names_ok = bool(report.get("post_intro_gap_start_marker")) and bool(report.get("post_intro_gap_end_marker"))
+    gap_bounds_ok = (
+        report.get("post_intro_gap_source_start_frame") is not None
+        and report.get("post_intro_gap_source_end_frame") is not None
+        and int(report.get("post_intro_gap_source_end_frame")) - int(report.get("post_intro_gap_source_start_frame")) == gap_frames
+        and report.get("post_intro_gap_placed_start_frame") is not None
+        and report.get("post_intro_gap_placed_end_frame") is not None
+        and int(report.get("post_intro_gap_placed_end_frame")) - int(report.get("post_intro_gap_placed_start_frame")) == gap_frames
+    )
+    gap_ok = gap_frames == expected_gap_frames and gap_source_ok and gap_names_ok and gap_bounds_ok
+    marker_required = bool(report.get("post_intro_gap_marker_correspondence_required"))
+    marker_counts_ok = markers_expected > 0 and markers_reapplied == markers_expected
+    marker_mappings_ok = (
+        len(marker_mappings) == markers_expected
+        and all(row.get("placed_frame") is not None for row in marker_mappings)
+    )
+    a1_gap_overlap_count = report.get("post_intro_a1_gap_overlap_count")
+    a1_gap_ok = a1_gap_overlap_count is not None and int(a1_gap_overlap_count) == 0
+    source_a1_overlap_count = int(report.get("post_intro_gap_source_a1_overlap_count") or 0)
+    a1_gap_shift_frames = int(report.get("a1_gap_shift_frames") or 0)
+    video_gap_shift_frames = int(report.get("video_gap_shift_frames") or 0)
+    marker_gap_shift_frames = int(report.get("marker_gap_shift_frames") or 0)
+    a1_shift_ok = (
+        (source_a1_overlap_count > 0 and a1_gap_shift_frames == gap_frames)
+        or (source_a1_overlap_count == 0 and a1_gap_shift_frames == 0)
+    )
+    video_shift_ok = video_gap_shift_frames == a1_gap_shift_frames
+    marker_gap_shift_ok = marker_gap_shift_frames == a1_gap_shift_frames
+    marker_rows_shift_ok = True
+    gap_start = report.get("post_intro_gap_source_start_frame")
+    for row in marker_mappings:
+        source_frame = int(row.get("source_frame") or 0)
+        row_gap_shift = int(row.get("gap_shift_frames") or 0)
+        expected_gap_shift = (
+            marker_gap_shift_frames
+            if gap_start is not None and source_frame >= int(gap_start)
+            else 0
+        )
+        expected_new = source_frame + intro_duration_frames + expected_gap_shift
+        if row_gap_shift != expected_gap_shift or int(row.get("expected_new_frame") or -1) != expected_new:
+            marker_rows_shift_ok = False
+            break
+    shift_ok = (
+        base_shift_frames == intro_duration_frames
+        and gameplay_shift_frames == intro_duration_frames
+        and a1_shift_ok
+        and video_shift_ok
+        and marker_gap_shift_ok
+        and marker_rows_shift_ok
+    )
+    status.update(
+        {
+            "expected_gap_frames": expected_gap_frames,
+            "actual_gap_frames": gap_frames,
+            "gap_source_ok": gap_source_ok,
+            "gap_names_ok": gap_names_ok,
+            "gap_bounds_ok": gap_bounds_ok,
+            "marker_correspondence_required": marker_required,
+            "markers_expected": markers_expected,
+            "markers_reapplied": markers_reapplied,
+            "marker_counts_ok": marker_counts_ok,
+            "marker_mappings_ok": marker_mappings_ok,
+            "post_intro_a1_gap_ok": a1_gap_ok,
+            "source_a1_gap_overlap_count": source_a1_overlap_count,
+            "a1_gap_shift_frames": a1_gap_shift_frames,
+            "a1_shift_ok": a1_shift_ok,
+            "video_gap_shift_frames": video_gap_shift_frames,
+            "video_shift_ok": video_shift_ok,
+            "marker_gap_shift_frames": marker_gap_shift_frames,
+            "marker_gap_shift_ok": marker_gap_shift_ok,
+            "marker_rows_shift_ok": marker_rows_shift_ok,
+            "marker_shift_ok": shift_ok,
+            "current": gap_ok and marker_required and marker_counts_ok and marker_mappings_ok and a1_gap_ok and shift_ok,
+        }
+    )
+    return status
+
+
+def a1_dialogue_audit_status() -> dict:
+    status = {
+        "exists": A1_DIALOGUE_AUDIT_REPORT.exists(),
+        "current": False,
+        "pass": False,
+    }
+    if not A1_DIALOGUE_AUDIT_REPORT.exists():
+        status["reason"] = "missing_a1_dialogue_audit_report"
+        return status
+    try:
+        report = read_json(A1_DIALOGUE_AUDIT_REPORT)
+    except Exception as exc:
+        status["reason"] = f"unreadable_a1_dialogue_audit_report: {exc}"
+        return status
+    finding_count = int(report.get("finding_count") or 0)
+    report_status = str(report.get("status") or "")
+    status.update(
+        {
+            "report_status": report_status,
+            "finding_count": finding_count,
+            "transcript": report.get("transcript"),
+            "current": report_status == "pass" and finding_count == 0,
+            "pass": report_status == "pass" and finding_count == 0,
+        }
+    )
+    return status
+
+
+def narrative_output_status() -> dict:
+    error = artifact_validation_error("narrative_output", NARRATIVE_OUTPUT)
+    return {
+        "exists": NARRATIVE_OUTPUT.exists(),
+        "valid": error is None,
+        "path": str(NARRATIVE_OUTPUT),
+        "reason": error,
+    }
+
+
+def require_valid_narrative_output(stage: str) -> None:
+    error = artifact_validation_error("narrative_output", NARRATIVE_OUTPUT)
+    if not error:
+        return
+    stop_for_user(
+        stage,
+        "Narrative LLM review output is required before downstream cut candidate stages and is invalid/incomplete.",
+        missing=[f"{NARRATIVE_OUTPUT} ({error})"],
+        options=[
+            "Rerun the orchestrator narrative-llm-review step and save a valid non-empty JSON array.",
+            "Regenerate the narrative prompt if the transcript/clip index is stale, then rerun narrative-llm-review.",
+            "Stop here and explicitly approve a named fallback policy before any downstream cut stages run.",
+        ],
+    )
+
+
 def stage_cache_complete(stage: str) -> bool:
     outputs = STAGE_OUTPUTS.get(stage, [])
+    if stage in NARRATIVE_OUTPUT_DEPENDENT_STAGES and artifact_validation_error("narrative_output", NARRATIVE_OUTPUT):
+        return False
     if outputs and not stage_outputs_exist(stage):
+        return False
+    if stage == "a1-dialogue-audit" and not a1_dialogue_audit_status().get("pass"):
         return False
     path = stage_cache_path(stage)
     if not path.exists():
-        return bool(outputs) and stage_outputs_exist(stage)
+        if stage in INTRO_GAP_DEPENDENT_STAGES and not intro_outro_report_status().get("current"):
+            return False
+        return bool(outputs) and stage_outputs_exist(stage) and stage_dependencies_fresh(stage, outputs, path)
     try:
         payload = read_json(path)
     except Exception:
         return False
+    if stage in OUTPUT_EXISTENCE_CACHE_STAGES and bool(outputs) and stage_dependencies_fresh(stage, outputs, path):
+        return True
     if payload.get("status") not in {"complete", "warning", "cached"}:
+        return False
+    if stage in INTRO_GAP_DEPENDENT_STAGES and not intro_outro_report_status().get("current"):
+        return False
+    if not stage_dependencies_fresh(stage, outputs, path):
         return False
     return bool(outputs) or stage in CACHE_ONLY_STAGES
 
@@ -531,6 +808,18 @@ def intro_video_a1_overlaps(timeline) -> list[dict]:
     return overlaps
 
 
+def carousel_marker_name(timeline) -> str | None:
+    for _rel, data in (timeline.GetMarkers() or {}).items():
+        marker_parts = {
+            part.strip().lower()
+            for part in (data.get("name") or "").split("/")
+            if part.strip()
+        }
+        if marker_parts & {"member carousel start", "member carousel", "final tierlist closed"}:
+            return data.get("name") or ""
+    return None
+
+
 def mark_state(stage: str, status: str, **extra) -> None:
     state = {}
     if PIPELINE_STATE.exists():
@@ -560,6 +849,9 @@ def artifact_status() -> dict:
     intro_overlap_count = None
     current_timeline = None
     track_counts = None
+    intro_gap_status = intro_outro_report_status()
+    a1_audit_status = a1_dialogue_audit_status()
+    narrative_status = narrative_output_status()
     try:
         _resolve, project = connect()
         timeline = project.GetCurrentTimeline()
@@ -573,15 +865,7 @@ def artifact_status() -> dict:
                 "a3": len(timeline.GetItemListInTrack("audio", 3) or []),
             }
             intro_overlap_count = len(intro_video_a1_overlaps(timeline))
-            for _rel, data in (timeline.GetMarkers() or {}).items():
-                marker_parts = {
-                    part.strip().lower()
-                    for part in (data.get("name") or "").split("/")
-                    if part.strip()
-                }
-                if marker_parts & {"member carousel start", "member carousel", "final tierlist closed"}:
-                    carousel_marker = data.get("name") or ""
-                    break
+            carousel_marker = carousel_marker_name(timeline)
     except Exception as exc:
         current_timeline = f"Resolve unavailable: {exc}"
 
@@ -589,7 +873,8 @@ def artifact_status() -> dict:
         "review_manifest": REVIEW_MANIFEST.exists(),
         "narrative_prompt": NARRATIVE_PROMPT.exists(),
         "narrative_clip_index": NARRATIVE_CLIP_INDEX.exists(),
-        "narrative_output": NARRATIVE_OUTPUT.exists(),
+        "narrative_output": narrative_status["valid"],
+        "narrative_output_status": narrative_status,
         "waveform_candidates": WAVEFORM_CANDIDATES.exists(),
         "ngram_candidates": NGRAM_CANDIDATES.exists(),
         "artifact_candidates": ARTIFACT_CANDIDATES.exists(),
@@ -602,11 +887,19 @@ def artifact_status() -> dict:
         "approved_narrative": APPROVED_NARRATIVE.exists(),
         "approved_source_cuts": APPROVED_SOURCE_CUTS.exists(),
         "final_manifest": FINAL_MANIFEST.exists(),
+        "a1_dialogue_audit_report": A1_DIALOGUE_AUDIT_REPORT.exists(),
+        "a1_dialogue_audit": a1_audit_status,
+        "a1_dialogue_audit_pass": a1_audit_status.get("pass"),
         "intro_outro_report": INTRO_OUTRO_REPORT.exists(),
         "gen1_intros_report": GEN1_INTROS_REPORT.exists(),
         "game_audio": GAME_AUDIO.exists(),
         "bgm_report": BGM_REPORT.exists(),
         "clip_color_report": CLIP_COLOR_REPORT.exists(),
+        "fairlight_report": FAIRLIGHT_REPORT.exists(),
+        "audio_normalization_instructions": AUDIO_NORMALIZATION_INSTRUCTIONS.exists(),
+        "post_intro_gap": intro_gap_status,
+        "post_intro_gap_current": intro_gap_status.get("current"),
+        "carousel_layout_complete": stage_cache_complete("carousel"),
         "current_timeline": current_timeline,
         "track_counts": track_counts,
         "intro_video_a1_overlap_count": intro_overlap_count,
@@ -629,6 +922,8 @@ def require_orchestrator_profile() -> None:
 
 
 def run_cached_stage(args: argparse.Namespace, stage: str, func) -> int | None:
+    if stage in NARRATIVE_OUTPUT_DEPENDENT_STAGES and stage != "validate-order":
+        require_valid_narrative_output(stage)
     if getattr(args, "reuse_cache", True) and not args.force and stage_cache_complete(stage):
         print(f"Cache hit for stage {stage!r}; outputs already exist.")
         mark_state(stage, "cached", cache=str(stage_cache_path(stage)))
@@ -677,7 +972,8 @@ def stage_narrative_prompt(args: argparse.Namespace) -> None:
 
 
 def stage_programmatic_candidates(args: argparse.Namespace) -> None:
-    require([REVIEW_MANIFEST, NARRATIVE_OUTPUT], "programmatic-candidates")
+    require([REVIEW_MANIFEST], "programmatic-candidates")
+    require_valid_narrative_output("programmatic-candidates")
     cmd = [
         sys.executable,
         SCRIPT_DIR / "generate_rby_umb_cut_candidates.py",
@@ -701,8 +997,9 @@ def stage_programmatic_candidates(args: argparse.Namespace) -> None:
 
 
 def stage_compile_cut_candidates(args: argparse.Namespace) -> None:
+    require_valid_narrative_output("compile-cut-candidates")
     require(
-        [REVIEW_MANIFEST, NARRATIVE_OUTPUT, WAVEFORM_CANDIDATES, NGRAM_CANDIDATES, ARTIFACT_CANDIDATES, PROGRAMMATIC_CANDIDATES],
+        [REVIEW_MANIFEST, WAVEFORM_CANDIDATES, NGRAM_CANDIDATES, ARTIFACT_CANDIDATES, PROGRAMMATIC_CANDIDATES],
         "compile-cut-candidates",
     )
     cmd = [
@@ -719,14 +1016,9 @@ def stage_compile_cut_candidates(args: argparse.Namespace) -> None:
 
 
 def stage_cut_candidates(args: argparse.Namespace) -> None:
-    """Legacy alias: build prompt, then finish candidate compile only if LLM output already exists."""
+    """Legacy alias: build prompt, then finish candidate compile only after valid LLM output."""
     stage_narrative_prompt(args)
-    if not NARRATIVE_OUTPUT.exists():
-        print(
-            f"Waiting for LLM narrative output before programmatic/compile stages: {NARRATIVE_OUTPUT}\n"
-            "Run --stage programmatic-candidates after the LLM step completes."
-        )
-        return
+    require_valid_narrative_output("cut-candidates")
     stage_programmatic_candidates(args)
     stage_compile_cut_candidates(args)
 
@@ -1281,22 +1573,63 @@ def stage_final_base(args: argparse.Namespace) -> None:
     mark_state("final-base", "complete", manifest=str(FINAL_MANIFEST))
 
 
-def stage_structural_intro_outro(args: argparse.Namespace) -> None:
-    require([FINAL_MANIFEST], "structural-intro-outro")
-    base_timeline = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+def stage_a1_dialogue_audit(args: argparse.Namespace) -> None:
+    require([APPROVED_SOURCE_CUTS], "a1-dialogue-audit")
+    run_cached_stage(args, "final-base", stage_final_base)
+    require([FINAL_MANIFEST], "a1-dialogue-audit")
     run(
         [
             sys.executable,
-            SCRIPT_DIR / "insert_intro_outro.py",
-            "--game",
-            GAME_KEY,
-            "--source-timeline",
-            base_timeline,
-            "--intro-speed",
-            str(STRUCTURAL_INTRO_SPEED),
-            "--report",
-            INTRO_OUTRO_REPORT,
+            SCRIPT_DIR / "audit_fcpxml_a1_dialogue.py",
+            "--manifest",
+            FINAL_MANIFEST,
+            "--audio",
+            M.DIALOGUE_PATH,
+            "--out",
+            A1_DIALOGUE_AUDIT_REPORT,
+            "--transcript-dir",
+            A1_DIALOGUE_AUDIT_TRANSCRIPT_DIR,
+            "--model",
+            WHISPER_MODEL,
+            "--device",
+            WHISPER_DEVICE,
+            "--compute-type",
+            WHISPER_COMPUTE_TYPE,
+            "--fps",
+            str(M.FPS),
         ]
+    )
+    report = read_json(A1_DIALOGUE_AUDIT_REPORT)
+    mark_state(
+        "a1-dialogue-audit",
+        "complete",
+        report=str(A1_DIALOGUE_AUDIT_REPORT),
+        transcript=report.get("transcript"),
+        finding_count=report.get("finding_count", 0),
+    )
+
+
+def stage_structural_intro_outro(args: argparse.Namespace) -> None:
+    require([FINAL_MANIFEST], "structural-intro-outro")
+    base_timeline = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    cmd = [
+        sys.executable,
+        SCRIPT_DIR / "insert_intro_outro.py",
+        "--game",
+        GAME_KEY,
+        "--source-timeline",
+        base_timeline,
+        "--intro-speed",
+        str(STRUCTURAL_INTRO_SPEED),
+        "--post-intro-gap-sec",
+        str(POST_INTRO_GAP_SEC),
+        "--report",
+        INTRO_OUTRO_REPORT,
+    ]
+    if POST_INTRO_GAP_SEC > 0:
+        cmd.append("--require-markers-for-post-intro-gap")
+    run(
+        cmd
     )
     mark_state(
         "structural-intro-outro",
@@ -1304,6 +1637,7 @@ def stage_structural_intro_outro(args: argparse.Namespace) -> None:
         report=str(INTRO_OUTRO_REPORT),
         game_key=GAME_KEY,
         intro_speed=STRUCTURAL_INTRO_SPEED,
+        post_intro_gap_sec=POST_INTRO_GAP_SEC,
     )
 
 
@@ -1366,6 +1700,8 @@ def stage_bgm(args: argparse.Namespace, dry_run: bool) -> None:
         GAME_AUDIO,
         "--bgm-dir",
         BGM_DIR,
+        "--leader-audio-dir",
+        GEN1_INTRO_ROOT / "audio",
         "--opening-first-source-offset-sec",
         str(OPENING_BGM_OFFSET_SEC),
         "--report",
@@ -1401,6 +1737,14 @@ def stage_carousel(args: argparse.Namespace, dry_run: bool) -> None:
 
 
 def stage_find_member_carousel(args: argparse.Namespace) -> None:
+    _resolve, project = connect()
+    timeline = project.GetCurrentTimeline()
+    if timeline:
+        marker = carousel_marker_name(timeline)
+        if marker:
+            print(f"Carousel marker already present on current timeline: {marker!r}")
+            mark_state("find-member-carousel", "complete", reused_existing_marker=True, marker=marker)
+            return
     run([sys.executable, SCRIPT_DIR / "find_member_carousel.py", "--max-candidates", "30"])
     mark_state("find-member-carousel", "complete")
 
@@ -1441,9 +1785,119 @@ def stage_clip_colors(args: argparse.Namespace, dry_run: bool = False) -> None:
     mark_state("clip-colors-dry-run" if dry_run else "clip-colors", color_status, **extra)
 
 
+def stage_fairlight(args: argparse.Namespace) -> None:
+    require([FINAL_MANIFEST, CLIP_COLOR_REPORT], "fairlight")
+    timeline_name = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    current = select_finished_timeline(timeline_name)
+    run(
+        [
+            sys.executable,
+            SCRIPT_DIR / "apply_fairlight_preset.py",
+            "--timeline",
+            current.GetName(),
+            "--preset",
+            FAIRLIGHT_PRESET,
+            "--type",
+            FAIRLIGHT_PRESET_TYPE,
+        ]
+    )
+    write_json(
+        FAIRLIGHT_REPORT,
+        {
+            "schema": "rby_umb_fairlight_report_v1",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "timeline": current.GetName(),
+            "preset": FAIRLIGHT_PRESET,
+            "preset_type": FAIRLIGHT_PRESET_TYPE,
+            "status": "applied",
+        },
+    )
+    mark_state(
+        "fairlight",
+        "complete",
+        report=str(FAIRLIGHT_REPORT),
+        timeline=current.GetName(),
+        preset=FAIRLIGHT_PRESET,
+        preset_type=FAIRLIGHT_PRESET_TYPE,
+    )
+
+
+def stage_audio_normalization_handoff(args: argparse.Namespace) -> None:
+    require([FINAL_MANIFEST, FAIRLIGHT_REPORT], "audio-normalization-handoff")
+    timeline_name = select_base_timeline(timeline_from_manifest(FINAL_MANIFEST, FINAL_BASE_NAME), FINAL_BASE_NAME).GetName()
+    current = select_finished_timeline(timeline_name)
+    tracks = []
+    for track_index in range(1, int(current.GetTrackCount("audio") or 0) + 1):
+        clips = current.GetItemListInTrack("audio", track_index) or []
+        if clips:
+            tracks.append({"track": track_index, "clip_count": len(clips)})
+
+    target = f"{AUDIO_NORMALIZATION_TARGET_DB:.1f}"
+    track_list = ", ".join(f"A{row['track']}" for row in tracks) or "no populated audio tracks detected"
+    a2_row = next((row for row in tracks if row["track"] == 2), None)
+    a2_hint = (
+        f"A2 is populated ({a2_row['clip_count']} clips); unlock A2 before selection if it is locked."
+        if a2_row
+        else "A2 is not populated in the API report; inspect the visible timeline before normalization."
+    )
+    lines = [
+        "# Audio Normalization Computer Use Handoff",
+        "",
+        f"Generated: {datetime.now(timezone.utc).isoformat()}",
+        f"Timeline: {current.GetName()}",
+        f"Target level: {target} dBFS",
+        f"Populated tracks: {track_list}",
+        "",
+        "## Codex Agent Instructions",
+        "",
+        "Use Computer Use for this step. Do not use Resolve Python for normalization; Resolve does not expose Normalize Audio Levels through the scripting API.",
+        "This is an exact UI procedure. Do not use Ctrl+A, the Resolve top menu, track header selection alone, or any method that selects video clips.",
+        "",
+        "1. Bring DaVinci Resolve to the foreground and keep the timeline above active.",
+        "2. Open the Edit page or Fairlight page.",
+        f"3. {a2_hint}",
+        "4. Drag-select all audio clips only across the populated audio lanes. Include A1/A2/A3 when populated, but do not include any video clips. If any video clip is selected, clear the selection and redo the audio-only drag selection.",
+        "5. Verify the audio clips are still selected. The Inspector should show an audio multi-clip selection, not a video clip or 'Nothing to inspect'.",
+        "6. Find the longest visible A2 clip and right-click in the center/body of that selected A2 clip, away from fade handles and clip edges. If the right-click collapses the multi-selection, close the menu and redo the audio-only drag selection before continuing.",
+        "7. Click Normalize Audio Levels... from that selected audio clip context menu.",
+        "8. Set Normalization Mode to Sample Peak Program.",
+        f"9. Set Target Level to {target} dBFS.",
+        "10. Use Independent clip reference if Resolve shows the Relative/Independent choice.",
+        "11. Click Normalize, then save the Resolve project.",
+        "",
+        "## Populated Audio Tracks",
+        "",
+    ]
+    if tracks:
+        lines.extend(f"- A{row['track']}: {row['clip_count']} clips" for row in tracks)
+    else:
+        lines.append("- None detected; inspect the timeline manually before rendering.")
+    lines.extend(
+        [
+            "",
+            "## Prerequisites",
+            "",
+            f"- Fairlight preset report: {FAIRLIGHT_REPORT}",
+            f"- Final manifest: {FINAL_MANIFEST}",
+        ]
+    )
+    AUDIO_NORMALIZATION_INSTRUCTIONS.parent.mkdir(parents=True, exist_ok=True)
+    AUDIO_NORMALIZATION_INSTRUCTIONS.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Wrote Computer Use audio-normalization handoff: {AUDIO_NORMALIZATION_INSTRUCTIONS}")
+    mark_state(
+        "audio-normalization-handoff",
+        "complete",
+        instructions=str(AUDIO_NORMALIZATION_INSTRUCTIONS),
+        timeline=current.GetName(),
+        tracks=tracks,
+        target_db=AUDIO_NORMALIZATION_TARGET_DB,
+    )
+
+
 def stage_final_assembly(args: argparse.Namespace) -> None:
     require([APPROVED_SOURCE_CUTS, GAME_AUDIO], "final-assembly")
     run_cached_stage(args, "final-base", stage_final_base)
+    run_cached_stage(args, "a1-dialogue-audit", stage_a1_dialogue_audit)
     run_cached_stage(args, "structural-intro-outro", stage_structural_intro_outro)
     run_cached_stage(args, "gen1-intros", stage_gen1_intros)
     run_cached_stage(args, "bgm", lambda ns: stage_bgm(ns, dry_run=False))
@@ -1454,6 +1908,7 @@ def stage_final_assembly(args: argparse.Namespace) -> None:
         "final-assembly",
         "complete",
         manifest=str(FINAL_MANIFEST),
+        a1_dialogue_audit_report=str(A1_DIALOGUE_AUDIT_REPORT),
         intro_outro_report=str(INTRO_OUTRO_REPORT),
         gen1_intros_report=str(GEN1_INTROS_REPORT),
         bgm_report=str(BGM_REPORT),
@@ -1472,16 +1927,25 @@ def stage_validate_order(args: argparse.Namespace) -> int:
         "cut_candidates",
         "approved_source_cuts",
         "final_manifest",
+        "a1_dialogue_audit_report",
         "intro_outro_report",
         "gen1_intros_report",
         "game_audio",
         "bgm_report",
         "clip_color_report",
+        "fairlight_report",
+        "audio_normalization_instructions",
     ):
         if not status.get(key):
             missing.append(key)
     if not status.get("carousel_marker_on_current_timeline"):
         missing.append("carousel_marker_on_current_timeline")
+    if not status.get("carousel_layout_complete"):
+        missing.append("carousel_layout_complete")
+    if not status.get("post_intro_gap_current"):
+        missing.append("post_intro_gap_marker_correspondence")
+    if not status.get("a1_dialogue_audit_pass"):
+        missing.append("a1_dialogue_audit_pass")
     if status.get("intro_video_a1_overlap_count"):
         missing.append("intro_video_a1_overlap_count_must_be_zero")
     report = {
@@ -1506,6 +1970,7 @@ def stage_plan(args: argparse.Namespace) -> None:
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "compile-cut-candidates"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "apply-html-decisions"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "compile-approved-cuts"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "a1-dialogue-audit"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "extract-game-audio"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "structural-intro-outro"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "gen1-intros"],
@@ -1513,6 +1978,8 @@ def stage_plan(args: argparse.Namespace) -> None:
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "carousel"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "final-assembly"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "clip-colors"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "fairlight"],
+        [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "audio-normalization-handoff"],
         [sys.executable, SCRIPT_DIR / "run_rby_umb_pipeline.py", "--stage", "validate-order", "--strict"],
     ]
     report = {
@@ -1541,6 +2008,7 @@ def main() -> int:
             "cut-candidates",
             "apply-html-decisions",
             "compile-approved-cuts",
+            "a1-dialogue-audit",
             "final-base",
             "structural-intro-outro",
             "gen1-intros",
@@ -1551,6 +2019,8 @@ def main() -> int:
             "carousel",
             "clip-colors-dry-run",
             "clip-colors",
+            "fairlight",
+            "audio-normalization-handoff",
             "final-assembly",
             "validate-order",
             "all-through-candidates",
@@ -1598,6 +2068,9 @@ def main() -> int:
     if args.stage == "compile-approved-cuts":
         run_cached_stage(args, "compile-approved-cuts", stage_compile_approved_cuts)
         return 0
+    if args.stage == "a1-dialogue-audit":
+        run_cached_stage(args, "a1-dialogue-audit", stage_a1_dialogue_audit)
+        return 0
     if args.stage == "final-base":
         run_cached_stage(args, "final-base", stage_final_base)
         return 0
@@ -1628,6 +2101,12 @@ def main() -> int:
     if args.stage == "clip-colors":
         run_cached_stage(args, "clip-colors", lambda ns: stage_clip_colors(ns, dry_run=False))
         return 0
+    if args.stage == "fairlight":
+        run_cached_stage(args, "fairlight", stage_fairlight)
+        return 0
+    if args.stage == "audio-normalization-handoff":
+        run_cached_stage(args, "audio-normalization-handoff", stage_audio_normalization_handoff)
+        return 0
     if args.stage == "final-assembly":
         run_cached_stage(args, "final-assembly", stage_final_assembly)
         return 0
@@ -1636,17 +2115,7 @@ def main() -> int:
     if args.stage == "all-through-candidates":
         run_cached_stage(args, "review-base", stage_review_base)
         run_cached_stage(args, "narrative-prompt", stage_narrative_prompt)
-        if not NARRATIVE_OUTPUT.exists():
-            stop_for_user(
-                "all-through-candidates",
-                "The narrative LLM output is required before programmatic candidate stages.",
-                missing=[str(NARRATIVE_OUTPUT)],
-                options=[
-                    "Run the orchestrator LLM review step and approve/save the output.",
-                    "Place a valid narrative review JSON at the expected output path.",
-                    "Stop here and resume from programmatic-candidates after review is complete.",
-                ],
-            )
+        require_valid_narrative_output("all-through-candidates")
         run_cached_stage(args, "programmatic-candidates", stage_programmatic_candidates)
         run_cached_stage(args, "compile-cut-candidates", stage_compile_cut_candidates)
         return 0

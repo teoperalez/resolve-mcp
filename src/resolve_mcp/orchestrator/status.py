@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .artifact_validators import artifact_validation_error
 from .models import ProjectProfile, WorkflowDefinition, WorkflowStep
 
 
@@ -12,6 +13,7 @@ class ArtifactStatus:
     key: str
     path: Path
     exists: bool
+    validation_error: str | None = None
     required_by: set[str] = field(default_factory=set)
     produced_by: set[str] = field(default_factory=set)
 
@@ -20,6 +22,8 @@ class ArtifactStatus:
             "key": self.key,
             "path": str(self.path),
             "exists": self.exists,
+            "valid": self.exists and not self.validation_error,
+            "validation_error": self.validation_error,
             "required_by": sorted(self.required_by),
             "produced_by": sorted(self.produced_by),
         }
@@ -35,7 +39,13 @@ def collect_artifact_status(
     def ensure(key: str) -> ArtifactStatus:
         if key not in statuses:
             path = profile.path(key, repo)
-            statuses[key] = ArtifactStatus(key=key, path=path, exists=path.exists())
+            exists = path.exists()
+            statuses[key] = ArtifactStatus(
+                key=key,
+                path=path,
+                exists=exists,
+                validation_error=artifact_validation_error(key, path) if exists else None,
+            )
         return statuses[key]
 
     for step in workflow.steps:
@@ -61,14 +71,24 @@ def step_readiness(
             out[step.id] = "blocked"
             continue
         missing = []
+        invalid = []
         for artifact in step.artifacts_in:
-            if artifact.required and not profile.path(artifact.key, repo).exists():
+            if not artifact.required:
+                continue
+            path = profile.path(artifact.key, repo)
+            if not path.exists():
                 missing.append(artifact.key)
+                continue
+            if artifact_validation_error(artifact.key, path):
+                invalid.append(artifact.key)
         if missing:
             out[step.id] = "missing"
             continue
-        outputs = [profile.path(artifact.key, repo) for artifact in step.artifacts_out]
-        if outputs and all(path.exists() for path in outputs):
+        if invalid:
+            out[step.id] = "invalid"
+            continue
+        outputs = [(artifact.key, profile.path(artifact.key, repo)) for artifact in step.artifacts_out]
+        if outputs and all(path.exists() and not artifact_validation_error(key, path) for key, path in outputs):
             out[step.id] = "done"
             continue
         out[step.id] = "ready"

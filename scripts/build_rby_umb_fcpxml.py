@@ -173,6 +173,7 @@ HOLD_REGIONS_PATH = profile_path("hold_regions", CODEX_DIR / "cut_review" / "hol
 CUT_CANDIDATES_PATH = profile_path("candidate_manifest", CODEX_DIR / "cut_review" / "cut_candidates.json")
 HOLD_REGION_STOP_REPORT = CODEX_DIR / "cut_review" / "hold_region_stop.json"
 HOLD_REGION_OVERRIDE = profile_path("hold_regions_override", CODEX_DIR / "cut_review" / "hold_regions_override.json")
+INTENDED_MARKERS_PATH = profile_path("intended_markers", CODEX_DIR / "cut_review" / "intended_markers.json")
 VISUAL_HOLD_KINDS = {
     "intro_stats",
     "intro_moveset",
@@ -612,6 +613,34 @@ def load_intended_markers():
     return sml.replay_markers(events)
 
 
+def load_intended_marker_override() -> list[dict]:
+    if not INTENDED_MARKERS_PATH.exists():
+        return []
+    payload = H.load_json(INTENDED_MARKERS_PATH)
+    rows = payload.get("markers", payload) if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        raise RuntimeError(f"Unsupported intended marker payload in {INTENDED_MARKERS_PATH}")
+    out = []
+    for index, row in enumerate(rows, start=1):
+        source_frame_i = row.get("source_frame", row.get("frame"))
+        if source_frame_i is None:
+            raise RuntimeError(f"Marker override row {index} is missing source_frame/frame")
+        source_frame_i = int(round(float(source_frame_i)))
+        out.append(
+            {
+                "label": row.get("label") or row.get("name") or f"Marker {index}",
+                "name": row.get("name") or row.get("label") or f"Marker {index}",
+                "note": row.get("note") or "",
+                "color": row.get("color") or "Blue",
+                "category": row.get("category") or "manual_anchor",
+                "session_elapsed_sec": float(row.get("session_elapsed_sec", source_frame_i / FPS)),
+                "source_sec": float(row.get("source_sec", source_frame_i / FPS)),
+                "source_frame": source_frame_i,
+            }
+        )
+    return out
+
+
 def map_marker_frame(video_clips: list[Clip], source_frame_i: int) -> tuple[int | None, bool]:
     return map_source_frame(video_clips, source_frame_i)
 
@@ -622,23 +651,44 @@ def build_markers(
     keep_end: int,
     manual_cuts: list[tuple[int, int]],
 ) -> tuple[list[Marker], dict]:
-    offset = source_start_elapsed()
     markers: list[Marker] = []
     dropped: list[dict] = []
-    for im in load_intended_markers():
-        elapsed = float(im.t_elapsed_ms) / 1000.0
-        source_sec = elapsed - offset
-        if source_sec < 0 or source_sec > source_duration_sec():
-            continue
-        src_frame = int(round(source_sec * FPS))
+    override_rows = load_intended_marker_override()
+    if override_rows:
+        source_rows = override_rows
+        offset = 0.0
+        marker_source = str(INTENDED_MARKERS_PATH)
+    else:
+        offset = source_start_elapsed()
+        marker_source = str(SESSION_EVENTS)
+        source_rows = []
+        for im in load_intended_markers():
+            elapsed = float(im.t_elapsed_ms) / 1000.0
+            source_sec = elapsed - offset
+            if source_sec < 0 or source_sec > source_duration_sec():
+                continue
+            source_rows.append(
+                {
+                    "label": im.label,
+                    "name": im.name,
+                    "note": im.note,
+                    "color": im.color,
+                    "category": im.category,
+                    "session_elapsed_sec": elapsed,
+                    "source_sec": source_sec,
+                    "source_frame": int(round(source_sec * FPS)),
+                }
+            )
+    for row in source_rows:
+        src_frame = int(row["source_frame"])
         if src_frame < keep_start or src_frame >= keep_end:
-            dropped.append({"label": im.label, "source_frame": src_frame, "reason": "outside_kept_source"})
+            dropped.append({"label": row["label"], "source_frame": src_frame, "reason": "outside_kept_source"})
             continue
         containing_cut = next((cut for cut in manual_cuts if cut[0] <= src_frame < cut[1]), None)
         if containing_cut:
             dropped.append(
                 {
-                    "label": im.label,
+                    "label": row["label"],
                     "source_frame": src_frame,
                     "reason": "inside_manual_cut",
                     "cut_start": containing_cut[0],
@@ -648,17 +698,17 @@ def build_markers(
             continue
         record_frame, snapped = map_marker_frame(video_clips, src_frame)
         if record_frame is None:
-            dropped.append({"label": im.label, "source_frame": src_frame, "reason": "removed_by_edit"})
+            dropped.append({"label": row["label"], "source_frame": src_frame, "reason": "removed_by_edit"})
             continue
         markers.append(
             Marker(
-                label=im.label,
-                note=im.note,
-                color=im.color,
-                category=im.category,
-                name=im.name,
-                session_elapsed_sec=elapsed,
-                source_sec=source_sec,
+                label=row["label"],
+                note=row["note"],
+                color=row["color"],
+                category=row["category"],
+                name=row["name"],
+                session_elapsed_sec=float(row["session_elapsed_sec"]),
+                source_sec=float(row["source_sec"]),
                 source_frame=src_frame,
                 combined_frame=record_frame,
                 snapped=snapped,
@@ -668,6 +718,8 @@ def build_markers(
     return markers, {
         "source_start_elapsed_sec": offset,
         "source_duration_sec": source_duration_sec(),
+        "marker_source": marker_source,
+        "override_marker_count": len(override_rows),
         "dropped_markers": dropped,
     }
 
@@ -692,7 +744,13 @@ def append_low_confidence_candidate_markers(
     manual_cuts: list[tuple[int, int]],
 ) -> dict:
     candidates = load_low_confidence_mark_only_candidates()
-    offset = source_start_elapsed()
+    try:
+        offset = source_start_elapsed()
+    except FileNotFoundError:
+        if INTENDED_MARKERS_PATH.exists():
+            offset = 0.0
+        else:
+            raise
     added = 0
     skipped: list[dict] = []
     for index, candidate in enumerate(candidates, start=1):

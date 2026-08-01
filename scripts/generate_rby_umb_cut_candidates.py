@@ -25,11 +25,18 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent
+SRC_DIR = REPO_DIR / "src"
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
+from resolve_mcp.orchestrator.artifact_validators import (
+    artifact_validation_error,
+    load_narrative_output_rows,
+)
 from scripts import build_rby_umb_fcpxml as M
 from scripts import mark_cut_candidates as MCC
 
@@ -136,6 +143,10 @@ def dump_manifest_clips(manifest_path: Path) -> tuple[list[dict], str, int]:
     source_video = manifest.get("source_video") or str(M.VIDEO_PATH)
     timeline_name = manifest.get("timeline_name") or manifest_path.stem
     mapping = (manifest.get("spine") or {}).get("audio_source_to_record") or []
+    if not mapping:
+        clips_path = manifest.get("clips_adjusted") or manifest.get("clips")
+        if clips_path:
+            return dump_adjusted_manifest_clips(Path(clips_path), manifest, manifest_path)
     rows: list[dict] = []
     for i, item in enumerate(mapping):
         source_start = int(item["source_start"])
@@ -158,6 +169,49 @@ def dump_manifest_clips(manifest_path: Path) -> tuple[list[dict], str, int]:
     if not rows:
         raise RuntimeError(f"No spine.audio_source_to_record rows in {manifest_path}")
     return rows, timeline_name, 0
+
+
+def dump_adjusted_manifest_clips(clips_path: Path, manifest: dict, manifest_path: Path) -> tuple[list[dict], str, int]:
+    if not clips_path.is_absolute():
+        clips_path = manifest_path.parent / clips_path
+    payload = json.loads(clips_path.read_text(encoding="utf-8"))
+    clip_rows = payload.get("clips") if isinstance(payload, dict) else payload
+    if not isinstance(clip_rows, list) or not clip_rows:
+        raise RuntimeError(f"No clips in adjusted clip manifest: {clips_path}")
+
+    timeline_name = (
+        (payload.get("timeline") if isinstance(payload, dict) else None)
+        or manifest.get("timeline_name")
+        or manifest.get("timeline")
+        or manifest_path.stem
+    )
+    timeline_start_frame = int((payload.get("timeline_start_frame") if isinstance(payload, dict) else 0) or 0)
+    default_fps = float(manifest.get("fps") or (payload.get("fps") if isinstance(payload, dict) else TL_FPS) or TL_FPS)
+    source_video = manifest.get("source_video") or manifest.get("review_base_fcpxml") or str(M.VIDEO_PATH)
+    rows: list[dict] = []
+    for idx, item in enumerate(clip_rows):
+        fps = float(item.get("fps") or default_fps)
+        combined_left = item.get("combined_left", item.get("left"))
+        if combined_left is None:
+            raise RuntimeError(f"Adjusted clip row lacks combined_left/left: {clips_path} row {idx}")
+        rows.append(
+            {
+                "i": int(item.get("i", idx)),
+                "timeline_i": int(item.get("timeline_i", item.get("i", idx))),
+                "name": item.get("name") or Path(source_video).name,
+                "start": int(round(float(item["start"]))),
+                "dur": int(round(float(item["dur"]))),
+                "left": int(round(float(combined_left))),
+                "fps": fps,
+                "color": item.get("color") or "",
+                "src": resolve_path(item.get("src") or source_video),
+                "role": item.get("role", "adjusted_manifest_section"),
+                "part": item.get("part"),
+                "part_source_left": item.get("part_source_left"),
+                "combined_left": int(round(float(combined_left))),
+            }
+        )
+    return rows, timeline_name, timeline_start_frame
 
 
 def dump_v1_clips(timeline) -> list[dict]:
@@ -691,6 +745,13 @@ final rebuild. {gameplay_cut_guidance} Do not cut
 natural Teo cadence, useful game-mechanic explanation, battle context, reset
 count information, or intentional recap.
 
+This is a required narrative review gate, not a formatting pass. Review the
+full clip list and transcript context for repeated/cleaner takes, false starts,
+abandoned explanations, self-corrections, bad takes, explicit edit notes, and
+dialogue that is superseded by a cleaner line later. Include every such finding
+as a cut review candidate with source-time `start_sec`/`end_sec`. An empty JSON
+array is invalid for this orchestrator step.
+
 {livestream_guidance}
 
 These structural source-cut ranges are proposed separately from ordinary
@@ -1055,13 +1116,10 @@ def load_candidate_file(path: Path) -> list[dict]:
 
 
 def load_narrative_rows(path: Path) -> list[dict]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, list):
-        return payload
-    for key in ("candidates", "cuts"):
-        if isinstance(payload.get(key), list):
-            return payload[key]
-    return []
+    error = artifact_validation_error("narrative_output", path)
+    if error:
+        raise RuntimeError(f"Invalid narrative LLM output at {path}: {error}")
+    return load_narrative_output_rows(path)
 
 
 def is_structural_narrative_review(raw: dict) -> bool:

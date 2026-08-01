@@ -40,6 +40,84 @@ def _clip_source_path(item) -> str:
         return ''
 
 
+def _is_outro_item(item) -> bool:
+    name = (item.GetName() or '').lower()
+    path = _clip_source_path(item)
+    return 'outro' in name or 'outro' in path
+
+
+def plan_outro_audio_moves_after_frame(tl, target_start: int,
+                                       track_index: int = 3) -> list[dict]:
+    """Return non-ripple A3 outro-audio moves needed after carousel layout."""
+    plans = []
+    cursor = int(target_start)
+    items = sorted(
+        [
+            item for item in (tl.GetItemListInTrack('audio', track_index) or [])
+            if _is_outro_item(item)
+        ],
+        key=lambda item: item.GetStart(),
+    )
+    for item in items:
+        start = int(item.GetStart())
+        duration = int(item.GetDuration())
+        end = int(item.GetEnd())
+        if start < cursor:
+            plans.append({
+                'item': item,
+                'track_index': track_index,
+                'old_start': start,
+                'old_end': end,
+                'new_start': cursor,
+                'new_end': cursor + duration,
+                'duration': duration,
+                'source_start': int(item.GetLeftOffset()),
+                'source_end': int(item.GetLeftOffset()) + duration,
+                'color': item.GetClipColor() or '',
+                'name': item.GetName() or '',
+                'source_path': _clip_source_path(item),
+                'media_pool_item': item.GetMediaPoolItem(),
+            })
+            cursor += duration
+        else:
+            cursor = max(cursor, end)
+    return plans
+
+
+def apply_outro_audio_moves(tl, pool, plans: list[dict]) -> int:
+    moved = 0
+    for plan in plans:
+        mpi = plan.get('media_pool_item')
+        item = plan.get('item')
+        if mpi is None or item is None:
+            print(f"  WARN: cannot move outro audio {plan.get('name')!r}: missing media pool item")
+            continue
+        ok = tl.DeleteClips([item], False)
+        if not ok:
+            print(f"  WARN: DeleteClips failed for outro audio {plan.get('name')!r}")
+            continue
+        placed = pool.AppendToTimeline([{
+            'mediaPoolItem': mpi,
+            'startFrame':    plan['source_start'],
+            'endFrame':      plan['source_end'],
+            'recordFrame':   plan['new_start'],
+            'trackIndex':    plan['track_index'],
+            'mediaType':     2,
+        }]) or []
+        if not placed:
+            print(f"  WARN: failed to place outro audio {plan.get('name')!r} at {plan['new_start']}")
+            continue
+        if plan.get('color'):
+            placed[0].SetClipColor(plan['color'])
+        moved += 1
+        print(
+            f"  Moved outro audio {plan.get('name')!r}: "
+            f"{plan['old_start']}..{plan['old_end']} -> "
+            f"{plan['new_start']}..{plan['new_end']}"
+        )
+    return moved
+
+
 def cleanup_duplicate_gameplay_audio(tl, gameplay_name: str,
                                      gameplay_source_path: str) -> int:
     """Remove Resolve-created duplicate gameplay audio from A2+.
@@ -189,12 +267,42 @@ def main() -> int:
             'mediaType':     1,
         })
 
+    v2_carousel_end = max(
+        spec['recordFrame'] + (spec['endFrame'] - spec['startFrame'])
+        for spec in v2_specs
+    )
+    print(f'Last V2 carousel clip will end at {v2_carousel_end}.')
+
+    outro_audio_plans = []
+    if args.end_at_timeline_end:
+        outro_audio_plans = plan_outro_audio_moves_after_frame(
+            tl,
+            v2_carousel_end,
+            track_index=3,
+        )
+        if outro_audio_plans:
+            planned_end = max(plan['new_end'] for plan in outro_audio_plans)
+            if planned_end > outro_tl_start:
+                outro_tl_start = planned_end
+                extend_tl_duration = outro_tl_start - first_carousel_tl
+                extend_src_end = first_carousel_src + extend_tl_duration
+                if src_total and extend_src_end > src_total:
+                    print(f'WARNING: adjusted source end {extend_src_end} exceeds source '
+                          f'frame count {src_total}. Will clamp.')
+                    extend_src_end = src_total
+                print(f'Adjusted V1 extended clip for moved outro audio: '
+                      f'tl=[{first_carousel_tl}, {outro_tl_start}) '
+                      f'src=[{first_carousel_src}, {extend_src_end})')
+
     if args.dry_run:
         print(f'\nDRY RUN — would:\n'
               f'  - Copy {len(v2_specs)} clips to V2\n'
               f'  - Apply CropBottom={args.crop_bottom} to each V2 clip\n'
               f'  - Delete {len(carousel_clips)} V1 clips\n'
               f'  - Append 1 extended V1 clip')
+        for plan in outro_audio_plans:
+            print(f"  - Move A{plan['track_index']} outro audio {plan['name']!r} "
+                  f"from {plan['old_start']} to {plan['new_start']}")
         return 0
 
     # ── Ensure V2 exists ────────────────────────────────────────────────────
@@ -258,6 +366,11 @@ def main() -> int:
     )
     if removed:
         print(f'  Removed duplicate gameplay audio from A2+: {removed} clips')
+
+    if outro_audio_plans:
+        print('Step 5: moving outro audio after the last V2 carousel clip...')
+        moved = apply_outro_audio_moves(tl, pool, outro_audio_plans)
+        print(f'  Moved outro audio clips: {moved}/{len(outro_audio_plans)}')
 
     print('\nDone.')
     return 0
